@@ -18,7 +18,7 @@ function Nav() {
     { href: '/blog', label: 'Blog' },
     { href: '/strade', label: 'Le nostre strade' },
     { href: '/principi', label: 'I nostri principi' },
-    { href: 'https://script.google.com/home/projects/1QGotzhmD1458LwYJqOVd4OjSG49xjOpVlefTgm32ef5cPWdfFMJHyNrX/edit', label: 'Portale tesserati', external: true },
+    { href: '/tesserati', label: 'Tesserati' }
   ];
   return (
     

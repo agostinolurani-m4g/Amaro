@@ -109,7 +109,7 @@ export default async function HomePage() {
         <div className="max-w-6xl mx-auto px-4 text-center">
           <h2 className="text-2xl font-semibold">Vuoi pedalare con noi?</h2>
           <p className="text-gray-600 mt-2">Tesserati e accedi al portale per certificati, tessera e uscite.</p>
-          <a className="btn btn-primary mt-4" href="https://script.google.com/home/projects/1QGotzhmD1458LwYJqOVd4OjSG49xjOpVlefTgm32ef5cPWdfFMJHyNrX/edit" target="_blank">Vai al Portale tesserati</a>
+          <a className="btn btn-primary mt-4" href="/tesserati" target="_blank">Vai al Portale tesserati</a>
         </div>
       </section>
     </div>
