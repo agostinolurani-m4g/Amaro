@@ -1,0 +1,6 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root { color-scheme: light dark; }
+:body { min-height: 100vh; background: #fff; color: var(--ink-209); }

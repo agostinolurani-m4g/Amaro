@@ -1,0 +1,14 @@
+[
+  {
+    "slug": "benvenuto",
+    "title": "Benvenuto sul blog",
+    "excerpt": "Iniziamo!",
+    "html": "<p>Questo è il primo post del blog.</p>"
+  },
+  {
+    "slug": "manifesto",
+    "title": "Il nostro manifesto",
+    "excerpt": "Perché pedaliamo",
+    "html": "<p>Pedaliamo per stare bene, insieme.</p>"
+  }
+]

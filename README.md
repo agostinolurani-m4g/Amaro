@@ -1,2 +1,1 @@
-# Amaro
-site and logics of ASD Amaro cycling team website
+Sito associazione: apps/web (Next export) + apps/portal-gas (Apps Script).
