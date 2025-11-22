@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <section class="section">
+    <header class="section__header">
+      <h2>Galleria fotografica</h2>
+      <p>Momenti immortalati durante i nostri eventi e residenze.</p>
+    </header>
+    <div class="gallery-grid">
+      {% for image in images %}
+        <figure class="gallery-card">
+          <img src="{{ image.url }}" alt="{{ image.caption }}" loading="lazy" />
+          <figcaption>{{ image.caption }}</figcaption>
+        </figure>
+      {% endfor %}
+    </div>
+  </section>
+{% endblock %}

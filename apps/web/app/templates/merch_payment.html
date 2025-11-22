@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <section class="section">
+    <article class="card card--spacious">
+      <h1>Pagamento Nexi/XPay</h1>
+      <p>Stiamo preparando la richiesta per: <strong>{{ item.name }}</strong></p>
+      <p>Quantità: {{ quantity }}</p>
+      <p>Totale: {{ total }} €</p>
+      <div class="code-block">
+        <p>Payload da inviare al provider:</p>
+        <pre>{{ payment.payload | tojson(indent=2) }}</pre>
+      </div>
+      <div class="hero__actions">
+        <a class="btn btn-primary" href="{{ payment.redirect_url }}" target="_blank" rel="noreferrer">
+          Procedi al pagamento sicuro
+        </a>
+        <a class="btn btn-secondary" href="/merch/{{ item.slug }}">Modifica ordine</a>
+      </div>
+      <p class="muted">
+        Il redirect utilizza il riferimento <code>{{ payment.payload.orderId }}</code>; puoi inviare
+        il payload come base per una chiamata server-to-server verso Nexi/XPay o copiarlo nel tuo back office.
+      </p>
+    </article>
+  </section>
+{% endblock %}

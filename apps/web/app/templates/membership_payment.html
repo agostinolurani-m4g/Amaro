@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <section class="section">
+    <article class="card card--spacious">
+      <h1>Pagamento Tessera</h1>
+      <p>
+        Grazie {{ member.first_name }} {{ member.last_name }}, abbiamo registrato la tua richiesta e
+        calcolato la quota di {{ membership_fee }} €.
+      </p>
+      <div class="code-block">
+        <p>Payload di pagamento Nexi/XPay:</p>
+        <pre>{{ payment.payload | tojson(indent=2) }}</pre>
+      </div>
+      <div class="hero__actions">
+        <a class="btn btn-primary" href="{{ payment.redirect_url }}" target="_blank" rel="noreferrer">
+          Vai al pagamento sicuro
+        </a>
+        <a class="btn btn-secondary" href="/tesseramento">Modifica i dati</a>
+      </div>
+      <h2>Documenti caricati</h2>
+      {% if documents %}
+        <ul class="document-list">
+          {% for doc in documents %}
+            <li>
+              <a href="/tesseramento/documenti/{{ doc.id }}">{{ doc.original_name }}</a>
+              <span class="muted">caricato il {{ doc.uploaded_at.strftime('%d/%m/%Y') }}</span>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="muted">Non hai ancora caricato allegati. Puoi farlo dal form di tesseramento.</p>
+      {% endif %}
+      <p class="muted">
+        Il payload sopra può essere inviato al servizio Nexi/XPay dalla tua infrastruttura o copiato manualmente
+        nella sandbox per ottenere il redirect finale. Tutti i documenti vengono conservati in sicurezza.
+      </p>
+    </article>
+  </section>
+{% endblock %}

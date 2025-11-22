@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <section class="section">
+    <article class="card card--spacious">
+      <p class="card__date">
+        {{ event.date.strftime("%d %B %Y") if event.date else "Data da definire" }}
+      </p>
+      <h1>{{ event.title }}</h1>
+      <p class="muted">{{ event.location or "Luogo in aggiornamento" }}</p>
+      <p class="hero-quote">{{ event.hero_quote }}</p>
+      <p>{{ event.description }}</p>
+      <p>{{ event.summary }}</p>
+      <div class="card__actions">
+        <a class="btn btn-primary" href="/merch">Sostienici con il merch</a>
+        <a class="btn btn-secondary" href="/tesseramento">Tesserati</a>
+      </div>
+    </article>
+  </section>
+{% endblock %}

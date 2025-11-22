@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <section class="section">
+    <header class="section__header">
+      <h2>Merchandising</h2>
+      <p>Ogni acquisto sostiene un nuovo evento o laboratorio.</p>
+    </header>
+    <div class="card-grid">
+      {% for item in merch %}
+        <article class="card">
+          <h3>{{ item.name }}</h3>
+          <p>{{ item.description }}</p>
+          <p class="pill">Prezzo: {{ price_fn(item.price_cents) }} €</p>
+          <p class="muted">Disponibilità: {{ item.stock }}</p>
+          <a class="link" href="/merch/{{ item.slug }}">Paga con Nexi/XPay</a>
+        </article>
+      {% endfor %}
+    </div>
+    <p class="muted">I pagamenti vengono instradati verso Nexi, usiamo webhook per confermare la consegna.</p>
+  </section>
+{% endblock %}

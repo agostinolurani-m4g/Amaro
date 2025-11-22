@@ -4,3 +4,12 @@
 
 # Node.js dependencies
 node_modules/
+
+# Python artifacts
+__pycache__/
+*.py[cod]
+.venv/
+.env
+*.db
+*.sqlite3
+apps/web/app/uploads/
