@@ -46,10 +46,6 @@ Il modulo `app/nexi.py` costruisce il payload firmato; i template `merch_payment
 
 La pagina `/galleria` può pescare foto direttamente da Drive:
 
-$env:GOOGLE_DRIVE_API_KEY = "AIzaSyD6v121efbXA7fq3_jKJBVu2MUpmUsA4-w"
-$env:GOOGLE_DRIVE_EVENTS_FOLDER_ID = "1WThTYrDrkhPB_iq0vDFHuTp8qkyUV2kocd"
-$env:GOOGLE_DRIVE_GALLERY_FOLDER_ID = "1rL6k_plJngyoD26b2jQe2aUgVJR3Bdqu"
-
 cd apps/web
 poetry run uvicorn app.main:app --reload
 
