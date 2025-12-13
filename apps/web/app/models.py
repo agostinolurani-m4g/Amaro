@@ -27,6 +27,7 @@ class MerchItem(Base):
     description: Mapped[str | None] = Column(Text)
     price_cents: Mapped[int] = Column(Integer, default=0)
     stock: Mapped[int] = Column(Integer, default=0)
+    image_url: Mapped[str | None] = Column(String(255))
 
 
 class Member(Base):
@@ -51,6 +52,8 @@ class Member(Base):
     message: Mapped[str | None] = Column(Text)
     payment_status: Mapped[str] = Column(String(60), default="pending")
     payment_reference: Mapped[str | None] = Column(String(120))
+    access_code: Mapped[str | None] = Column(String(80))
+    password_hash: Mapped[str | None] = Column(String(200))
     created_at: Mapped[DateTime] = Column(
         DateTime(timezone=True), server_default=func.now()
     )

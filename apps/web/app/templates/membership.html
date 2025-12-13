@@ -5,8 +5,10 @@
     <article class="card card--spacious">
       <h1>Tesseramento</h1>
       <p class="muted">
-        La quota annuale è di <strong>{{ membership_fee }} €</strong>. Troverai qui sotto il form completo e la guida per allegare
-        documenti e certificati che saranno salvati in {{ uploads_path }} e resi disponibili per il download sicuro.
+        La quota annuale è di <strong>{{ membership_fee }} €</strong> e include copertura assicurativa di base, accesso agli eventi
+        sociali e alle attività sportive. Per completare la richiesta servono <strong>carta d'identità</strong>,
+        <strong>tessera sanitaria</strong> e <strong>certificato medico</strong> in corso di validità, oltre al pagamento Nexi/XPay.
+        Al termine riceverai una password per accedere all'area tesserati e consultare i documenti caricati.
       </p>
       {% if success %}
         <p class="alert alert--success">
@@ -31,52 +33,52 @@
         <div class="form-grid">
           <div>
             <label for="birth_date">Data di nascita</label>
-            <input id="birth_date" name="birth_date" type="date" />
+            <input id="birth_date" name="birth_date" type="date" required />
           </div>
           <div>
             <label for="birth_place">Luogo di nascita</label>
-            <input id="birth_place" name="birth_place" type="text" />
+            <input id="birth_place" name="birth_place" type="text" placeholder="Udine" required />
           </div>
         </div>
 
         <div class="form-grid">
           <div>
             <label for="residence">Residenza</label>
-            <input id="residence" name="residence" type="text" placeholder="Via Roma 1, Amaro" />
+            <input id="residence" name="residence" type="text" placeholder="Via Roma 1, Amaro" required />
           </div>
           <div>
             <label for="codice_fiscale">Codice fiscale</label>
-            <input id="codice_fiscale" name="codice_fiscale" type="text" placeholder="RSSMRA80A01H501U" />
+            <input id="codice_fiscale" name="codice_fiscale" type="text" placeholder="RSSMRA80A01H501U" required />
           </div>
         </div>
 
         <div class="form-grid">
           <div>
-            <label for="document_type">Tipo documento</label>
-            <input id="document_type" name="document_type" type="text" placeholder="Carta d'identità, passaporto..." />
+            <label for="document_type">Tipo documento (CI/Passaporto)</label>
+            <input id="document_type" name="document_type" type="text" placeholder="Carta d'identità" required />
           </div>
           <div>
             <label for="document_number">Numero documento</label>
-            <input id="document_number" name="document_number" type="text" />
+            <input id="document_number" name="document_number" type="text" required />
           </div>
         </div>
 
         <div class="form-grid">
           <div>
-            <label for="document_id">ID documento (login, codice)</label>
+            <label for="document_id">Codice tessera (se già assegnato)</label>
             <input id="document_id" name="document_id" type="text" />
           </div>
           <div>
             <label for="tessera_sanitaria">Tessera sanitaria</label>
-            <input id="tessera_sanitaria" name="tessera_sanitaria" type="text" />
+            <input id="tessera_sanitaria" name="tessera_sanitaria" type="text" required />
           </div>
         </div>
 
         <label for="medical_certificate">Certificato medico (note)</label>
-        <textarea id="medical_certificate" name="medical_certificate" rows="3"></textarea>
+        <textarea id="medical_certificate" name="medical_certificate" rows="3" placeholder="Idoneità agonistica, ente rilasciante" required></textarea>
 
         <label for="medical_certificate_expiry">Scadenza certificato medico</label>
-        <input id="medical_certificate_expiry" name="medical_certificate_expiry" type="date" />
+        <input id="medical_certificate_expiry" name="medical_certificate_expiry" type="date" required />
 
         <label for="membership_type">Tipologia</label>
         <select id="membership_type" name="membership_type" required>
@@ -88,20 +90,21 @@
         <label for="message">Hai qualcosa da raccontarci?</label>
         <textarea id="message" name="message" rows="3" placeholder="Quali progetti ti interessano?"></textarea>
 
-        <label for="documents">Documenti / immagini (PDF, JPG, PNG)</label>
+        <label for="documents">Documenti / immagini (PDF, JPG, PNG) - carica certificato, CI e tessera sanitaria</label>
         <input
           id="documents"
           name="documents"
           type="file"
           accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
           multiple
+          required
         />
 
         <button class="btn btn-primary" type="submit">Invia dati e prosegui con Nexi/XPay</button>
       </form>
       <p class="muted">
-        Gli allegati vengono salvati nella cartella {{ uploads_path }}. Una volta ricevuti i file puoi scaricarli
-        in sicurezza dalla pagina di pagamento dedicata.
+        Gli allegati vengono salvati nella cartella {{ uploads_path }}. Dopo il pagamento riceverai la password per
+        l'area tesserati, dove potrai cercare e scaricare i tuoi documenti.
       </p>
     </article>
   </section>

@@ -9,6 +9,13 @@
     <div class="card-grid">
       {% for item in merch %}
         <article class="card">
+          {% if item.image_url %}
+            {% if item.image_url.startswith('http') %}
+              <img src="{{ item.image_url }}" alt="{{ item.name }}" class="hero-photo__img" loading="lazy" />
+            {% else %}
+              <img src="{{ url_for('static', path=item.image_url) }}" alt="{{ item.name }}" class="hero-photo__img" loading="lazy" />
+            {% endif %}
+          {% endif %}
           <h3>{{ item.name }}</h3>
           <p>{{ item.description }}</p>
           <p class="pill">Prezzo: {{ price_fn(item.price_cents) }} €</p>

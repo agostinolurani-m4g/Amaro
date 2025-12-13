@@ -36,27 +36,105 @@ SAMPLE_EVENTS = [
     },
 ]
 
-SAMPLE_MERCH = [
+SAMPLE_MERCH = SAMPLE_MERCH = [
     {
-        "slug": "t-shirt-amarena",
-        "name": "T-shirt Amarena",
-        "description": "Maglietta in cotone organico con stampa serigrafata ispirata alle iniziative dell'associazione.",
-        "price_cents": 2200,
-        "stock": 18,
+        "slug": "maglia-bici-racing-aero",
+        "name": "Maglia Bici Racing/Aero",
+        "description": (
+            "Maglia bici modello Racing/Aero, ispirata ai colori Amaro, "
+            "pensata per le uscite più veloci e le granfondo."
+        ),
+        "price_cents": 7500,  # 75 euro
+        "stock": 0,
+        "image_url": "img/maglia-bici-racing-aero.jpg",
     },
     {
-        "slug": "zaino-festival",
-        "name": "Zaino River",
-        "description": "Zaino tecnico impermeabile, pensato per chi partecipa a eventi outdoor e residenziali.",
-        "price_cents": 4500,
-        "stock": 6,
+        "slug": "maglia-bici-amateur",
+        "name": "Maglia Bici Amateur",
+        "description": (
+            "Maglia bici modello Amateur, più confortevole ma sempre con "
+            "grafica Amaro e taglio tecnico."
+        ),
+        "price_cents": 5500,  # 55 euro
+        "stock": 0,
+        "image_url": "img/maglia-bici-amateur.jpg",
     },
     {
-        "slug": "cappellino-bunker",
-        "name": "Cappellino Bunker",
-        "description": "Cappellino snapback con logo ricamato e visiera ricurva.",
-        "price_cents": 1800,
-        "stock": 12,
+        "slug": "bib-racing-pro",
+        "name": "Bib Racing/Pro",
+        "description": (
+            "Pantaloncino con bretelle modello Racing/Pro, fondello ad alte "
+            "prestazioni per uscite e gare lunghe."
+        ),
+        "price_cents": 8500,  # 85 euro
+        "stock": 0,
+        "image_url": "img/bib-racing-pro.jpg",
+    },
+    {
+        "slug": "bib-amateur",
+        "name": "Bib Amateur",
+        "description": (
+            "Pantaloncino con bretelle modello Amateur, pensato per chi vuole "
+            "comfort e stile Amaro nelle uscite quotidiane."
+        ),
+        "price_cents": 6800,  # 68 euro
+        "stock": 0,
+        "image_url": "img/bib-amateur.jpg",
+    },
+    {
+        "slug": "gilet-smanicato",
+        "name": "Smanicato",
+        "description": (
+            "Gilet smanicato antivento leggero, perfetto per discese e mezze "
+            "stagioni, in tinta con la divisa Amaro."
+        ),
+        "price_cents": 6500,  # 65 euro
+        "stock": 0,
+        "image_url": "img/gilet-smanicato.jpg",
+    },
+    {
+        "slug": "giacca-antipioggia",
+        "name": "Antipioggia",
+        "description": (
+            "Giacca antipioggia tecnica ad alta visibilità, pensata per le "
+            "uscite sotto l'acqua e in condizioni meteo difficili."
+        ),
+        "price_cents": 12000,  # 120 euro
+        "stock": 0,
+        "image_url": "img/giacca-antipioggia.jpg",
+    },
+    {
+        "slug": "body-strada",
+        "name": "Body Strada",
+        "description": (
+            "Body strada a maniche corte, taglio aerodinamico per gare e "
+            "crono, con grafica completa Amaro."
+        ),
+        "price_cents": 14800,  # 148 euro
+        "stock": 0,
+        "image_url": "img/body-strada.jpg",
+    },
+    {
+        "slug": "maglia-running",
+        "name": "Maglia Running",
+        "description": (
+            "Maglia tecnica da running leggera e traspirante, con design Amaro "
+            "coordinato all'abbigliamento bici."
+        ),
+        "price_cents": 3500,  # 35 euro
+        "stock": 0,
+        "image_url": "img/maglia-running.jpg",
+    },
+    {
+        "slug": "maglia-sociale-roja",
+        "name": "Maglia Sociale Roja",
+        "description": (
+            "Maglia sociale bianca 'Roja' con grafica Amaro stilizzata, "
+            "pensata per l'uso quotidiano e il dopo-ride."
+        ),
+        "price_cents": 1500,  # 15 euro
+        "stock": 0,
+        "image_url": "img/maglia-sociale-roja.jpg",
     },
 ]
 

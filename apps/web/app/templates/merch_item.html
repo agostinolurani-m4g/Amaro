@@ -5,6 +5,13 @@
     <article class="card card--spacious">
       <p class="card__date">Disponibilità: {{ item.stock }}</p>
       <h1>{{ item.name }}</h1>
+      {% if item.image_url %}
+        {% if item.image_url.startswith('http') %}
+          <img src="{{ item.image_url }}" alt="{{ item.name }}" class="hero-photo__img" loading="lazy" />
+        {% else %}
+          <img src="{{ url_for('static', path=item.image_url) }}" alt="{{ item.name }}" class="hero-photo__img" loading="lazy" />
+        {% endif %}
+      {% endif %}
       <p class="muted">Prezzo unitario: {{ price_fn(item.price_cents) }} €</p>
       <p>{{ item.description }}</p>
       <form action="/merch/{{ item.slug }}/checkout" method="post" class="form">

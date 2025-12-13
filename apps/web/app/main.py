@@ -1,17 +1,22 @@
 from __future__ import annotations
 
-from datetime import date, datetime
-from pathlib import Path
 import logging
 import shutil
+import hashlib
+import secrets
+from datetime import date, datetime
+from pathlib import Path
 from typing import Sequence
 from uuid import uuid4
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile, status
-from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+import requests
+from sqlalchemy import inspect, text
 from sqlalchemy.orm import Session
+from starlette.middleware.sessions import SessionMiddleware
 
 from .config import settings
 from .database import Base, SessionLocal, engine, get_session
@@ -20,17 +25,18 @@ from .nexi import NexiPaymentContext, NexiXpayClient
 from .seed import seed_sample_data
 
 GALLERY_IMAGES: list[dict[str, str]] = [
+]
+
+DRIVE_COLLECTIONS: list[dict[str, str | None]] = [
     {
-        "url": "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=800&q=60",
-        "caption": "Laboratori artigianali e musicisti in residenza",
+        "title": "Eventi su Drive",
+        "description": "Cartella Drive dedicata agli eventi: carica qui dentro le sottocartelle dei singoli appuntamenti.",
+        "folder_id": settings.drive_events_folder_id,
     },
     {
-        "url": "https://images.unsplash.com/photo-1469474968028-56623f02e42e?auto=format&fit=crop&w=800&q=60",
-        "caption": "Volontari al lavoro per installare gli allestimenti",
-    },
-    {
-        "url": "https://images.unsplash.com/photo-1489515217757-5fd1be406fef?auto=format&fit=crop&w=800&q=60",
-        "caption": "Momenti di festa condivisa con la comunita",
+        "title": "Galleria generale",
+        "description": "Foto di backstage, prove, residenze o momenti di comunità.",
+        "folder_id": settings.drive_gallery_folder_id,
     },
 ]
 
@@ -52,6 +58,7 @@ app.mount("/static", StaticFiles(directory=static_dir), name="static")
 templates = Jinja2Templates(directory=templates_dir)
 templates.env.globals["current_year"] = datetime.utcnow().year
 logger = logging.getLogger(__name__)
+app.add_middleware(SessionMiddleware, secret_key=settings.session_secret, session_cookie="amaro_session")
 
 UPLOADS_DIR = (BASE_DIR / settings.uploads_path).resolve()
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
@@ -66,6 +73,8 @@ except ValueError as exc:
 @app.on_event("startup")
 def on_startup() -> None:
     Base.metadata.create_all(bind=engine)
+    ensure_member_schema()
+    ensure_merch_schema()
     session = SessionLocal()
     try:
         seed_sample_data(session)
@@ -114,6 +123,99 @@ def _save_uploaded_documents(
 
 def _normalize(value: str | None) -> str | None:
     return value.strip() if value else None
+
+
+def fetch_drive_images(folder_id: str | None, api_key: str | None, limit: int = 18) -> list[dict[str, str]]:
+    if not folder_id or not api_key:
+        return []
+
+    params = {
+        "q": f"'{folder_id}' in parents and trashed=false and mimeType contains 'image/'",
+        "orderBy": "createdTime desc",
+        "fields": "files(id,name,description,webViewLink)",
+        "pageSize": limit,
+        "includeItemsFromAllDrives": True,
+        "supportsAllDrives": True,
+        "key": api_key,
+    }
+    try:
+        response = requests.get(
+            "https://www.googleapis.com/drive/v3/files", params=params, timeout=6
+        )
+        response.raise_for_status()
+    except Exception as exc:  # pragma: no cover - best-effort integration
+        logger.warning("Google Drive non raggiungibile: %s", exc)
+        return []
+
+    payload = response.json()
+    images: list[dict[str, str]] = []
+    for file in payload.get("files", []):
+        file_id = file.get("id")
+        if not file_id:
+            continue
+        images.append(
+            {
+                "url": f"https://drive.google.com/thumbnail?id={file_id}&sz=w800",
+                "caption": file.get("name") or "Foto",
+                "web_url": file.get("webViewLink") or "",
+            }
+        )
+        if len(images) >= limit:
+            break
+    return images
+
+
+def ensure_member_schema() -> None:
+    inspector = inspect(engine)
+    columns = {col["name"] for col in inspector.get_columns("members")}
+    required_columns: dict[str, str] = {
+        "first_name": "TEXT",
+        "last_name": "TEXT",
+        "birth_date": "DATE",
+        "birth_place": "TEXT",
+        "residence": "TEXT",
+        "codice_fiscale": "TEXT",
+        "document_type": "TEXT",
+        "document_number": "TEXT",
+        "document_id": "TEXT",
+        "tessera_sanitaria": "TEXT",
+        "medical_certificate": "TEXT",
+        "medical_certificate_expiry": "DATE",
+        "access_code": "TEXT",
+        "password_hash": "TEXT",
+    }
+    with engine.begin() as conn:
+        for column, ddl in required_columns.items():
+            if column not in columns:
+                conn.execute(text(f"ALTER TABLE members ADD COLUMN {column} {ddl}"))
+
+
+def ensure_merch_schema() -> None:
+    inspector = inspect(engine)
+    columns = {col["name"] for col in inspector.get_columns("merch_items")}
+    if "image_url" not in columns:
+        with engine.begin() as conn:
+            conn.execute(text("ALTER TABLE merch_items ADD COLUMN image_url VARCHAR(255)"))
+
+
+def _hash_password(raw: str) -> str:
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
+def _generate_member_password() -> tuple[str, str]:
+    password = secrets.token_urlsafe(6)
+    return password, _hash_password(password)
+
+
+def _verify_password(raw: str, hashed: str | None) -> bool:
+    return bool(hashed) and _hash_password(raw) == hashed
+
+
+def _member_from_session(request: Request, session: Session) -> Member | None:
+    member_id = request.session.get("member_id")
+    if not member_id:
+        return None
+    return session.get(Member, member_id)
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -219,9 +321,41 @@ def merch_checkout(
 
 @app.get("/galleria", response_class=HTMLResponse)
 def gallery(request: Request) -> HTMLResponse:
+    drive_albums: list[dict[str, object]] = []
+    if settings.google_drive_api_key:
+        for collection in DRIVE_COLLECTIONS:
+            folder_id = collection.get("folder_id")
+            if not folder_id:
+                continue
+            images = fetch_drive_images(folder_id, settings.google_drive_api_key)
+            drive_albums.append(
+                {
+                    "title": collection.get("title"),
+                    "description": collection.get("description"),
+                    "folder_id": folder_id,
+                    "folder_url": f"https://drive.google.com/drive/folders/{folder_id}",
+                    "images": images,
+                }
+            )
     return templates.TemplateResponse(
         "gallery.html",
-        {"request": request, "images": GALLERY_IMAGES, "settings": settings},
+        {
+            "request": request,
+            "images": GALLERY_IMAGES,
+            "drive_albums": drive_albums,
+            "settings": settings,
+        },
+    )
+
+
+@app.get("/associazione", response_class=HTMLResponse)
+def association(request: Request) -> HTMLResponse:
+    return templates.TemplateResponse(
+        "associazione.html",
+        {
+            "request": request,
+            "settings": settings,
+        },
     )
 
 
@@ -244,24 +378,38 @@ def membership_form(
 
 @app.post("/tesseramento")
 def membership_submit(
+    request: Request,
     first_name: str = Form(...),
     last_name: str = Form(...),
     email: str = Form(...),
-    birth_date: date | None = Form(None),
-    birth_place: str | None = Form(None),
-    residence: str | None = Form(None),
-    codice_fiscale: str | None = Form(None),
-    document_type: str | None = Form(None),
-    document_number: str | None = Form(None),
+    birth_date: date = Form(...),
+    birth_place: str = Form(...),
+    residence: str = Form(...),
+    codice_fiscale: str = Form(...),
+    document_type: str = Form(...),
+    document_number: str = Form(...),
     document_id: str | None = Form(None),
-    tessera_sanitaria: str | None = Form(None),
-    medical_certificate: str | None = Form(None),
-    medical_certificate_expiry: date | None = Form(None),
+    tessera_sanitaria: str = Form(...),
+    medical_certificate: str = Form(...),
+    medical_certificate_expiry: date = Form(...),
     membership_type: str = Form(...),
     message: str | None = Form(None),
-    documents: list[UploadFile] | None = File(None),
+    documents: list[UploadFile] = File(...),
     session: Session = Depends(get_session),
 ) -> RedirectResponse:
+    for field_value in [
+        document_type,
+        document_number,
+        tessera_sanitaria,
+        medical_certificate,
+    ]:
+        if not _normalize(field_value):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Documento obbligatorio mancante (CI, tessera sanitaria o certificato medico).",
+            )
+
+    password_plain, password_hash = _generate_member_password()
     member = Member(
         name=f"{first_name.strip()} {last_name.strip()}",
         first_name=first_name.strip(),
@@ -279,6 +427,8 @@ def membership_submit(
         medical_certificate_expiry=medical_certificate_expiry,
         membership_type=membership_type,
         message=_normalize(message),
+        access_code=password_plain,
+        password_hash=password_hash,
     )
     session.add(member)
     session.flush()
@@ -286,6 +436,8 @@ def membership_submit(
     if saved_docs:
         session.add_all(saved_docs)
     session.commit()
+    request.session["member_id"] = member.id
+    request.session["member_password_hint"] = password_plain
     return RedirectResponse(
         url=f"/tesseramento/pagamento/{member.id}", status_code=status.HTTP_303_SEE_OTHER
     )
@@ -304,10 +456,12 @@ def membership_payment(
     payment_context: NexiPaymentContext = _require_nexi_client().prepare_payment(
         amount_cents=settings.membership_fee_eur * 100,
         order_id=f"member-{member.id}-{reqid()}",
-        description=f"Tesseramento {member.first_name} {member.last_name}",
+        description=f"Tesseramento {(member.name or '').strip() or f'{member.first_name} {member.last_name}'}",
         email=member.email,
     )
-    documents = list(member.documents)
+    is_owner = request.session.get("member_id") == member.id
+    documents = list(member.documents) if is_owner else []
+    password_hint = (request.session.get("member_password_hint") or member.access_code) if is_owner else None
     return templates.TemplateResponse(
         "membership_payment.html",
         {
@@ -317,18 +471,78 @@ def membership_payment(
             "documents": documents,
             "settings": settings,
             "membership_fee": settings.membership_fee_eur,
+            "password_hint": password_hint,
+            "is_owner": is_owner,
         },
     )
 
 
+@app.get("/area-tesserati", response_class=HTMLResponse)
+def member_area(request: Request, session: Session = Depends(get_session)) -> HTMLResponse:
+    member = _member_from_session(request, session)
+    documents: list[MemberDocument] = list(member.documents) if member else []
+    return templates.TemplateResponse(
+        "member_area.html",
+        {
+            "request": request,
+            "member": member,
+            "documents": documents,
+            "settings": settings,
+            "membership_fee": settings.membership_fee_eur,
+        },
+    )
+
+
+@app.post("/area-tesserati/login", response_model=None)
+def member_login(
+    request: Request,
+    email: str = Form(...),
+    password: str = Form(...),
+    session: Session = Depends(get_session),
+) -> Response:
+    member = (
+        session.query(Member)
+        .filter(Member.email == email.strip())
+        .order_by(Member.id.desc())
+        .first()
+    )
+    if not member or not _verify_password(password.strip(), member.password_hash):
+        return templates.TemplateResponse(
+            "member_area.html",
+            {
+                "request": request,
+                "member": None,
+                "login_error": "Credenziali non valide o password errata.",
+                "settings": settings,
+                "membership_fee": settings.membership_fee_eur,
+            },
+            status_code=status.HTTP_401_UNAUTHORIZED,
+        )
+
+    request.session["member_id"] = member.id
+    return RedirectResponse(url="/area-tesserati", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@app.post("/area-tesserati/logout")
+def member_logout(request: Request) -> RedirectResponse:
+    request.session.pop("member_id", None)
+    request.session.pop("member_password_hint", None)
+    return RedirectResponse(url="/area-tesserati", status_code=status.HTTP_303_SEE_OTHER)
+
+
 @app.get("/tesseramento/documenti/{document_id}")
 def download_document(
-    document_id: int, session: Session = Depends(get_session)
+    document_id: int, request: Request, session: Session = Depends(get_session)
 ) -> FileResponse:
     document = session.get(MemberDocument, document_id)
     if not document:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Documento non trovato"
+        )
+    member = _member_from_session(request, session)
+    if not member or member.id != document.member_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Non sei autorizzato a questo file"
         )
     path = UPLOADS_DIR / document.stored_filename
     if not path.exists():
