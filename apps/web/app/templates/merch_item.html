@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <section class="section">
+    <article class="card card--spacious">
+      <p class="card__date">Disponibilità: {{ item.stock }}</p>
+      <h1>{{ item.name }}</h1>
+      {% if item.image_url %}
+        {% if item.image_url.startswith('http') %}
+          <img src="{{ item.image_url }}" alt="{{ item.name }}" class="hero-photo__img" loading="lazy" />
+        {% else %}
+          <img src="{{ url_for('static', path=item.image_url) }}" alt="{{ item.name }}" class="hero-photo__img" loading="lazy" />
+        {% endif %}
+      {% endif %}
+      <p class="muted">Prezzo unitario: {{ price_fn(item.price_cents) }} €</p>
+      <p>{{ item.description }}</p>
+      <form action="/merch/{{ item.slug }}/checkout" method="post" class="form">
+        <label for="quantity">Quantità</label>
+        <input type="number" id="quantity" name="quantity" min="1" max="{{ item.stock or 1 }}" value="1" required />
+        <button class="btn btn-primary" type="submit">Vai al pagamento Nexi/XPay</button>
+      </form>
+    </article>
+  </section>
+{% endblock %}

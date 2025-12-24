@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <section class="section">
+    <article class="card card--spacious">
+      <h1>Area tesserati</h1>
+
+      {% if member %}
+        <p class="muted">
+          Bentornato/a {{ member.first_name or member.name }}. Qui puoi recuperare documenti, certificato e ricevute.
+          Se vuoi modificare i dati o rigenerare la password contatta la segreteria.
+        </p>
+
+        <div class="card-grid">
+          <div class="card">
+            <h3>Profilo</h3>
+            <p><strong>Email:</strong> {{ member.email }}</p>
+            <p><strong>Tipologia tessera:</strong> {{ member.membership_type }}</p>
+            <p><strong>Quota:</strong> {{ membership_fee }} € via Nexi/XPay</p>
+          </div>
+          <div class="card">
+            <h3>Credenziali</h3>
+            <p>Password generata: <strong>{{ member.access_code or "—" }}</strong></p>
+            <p class="muted">La password è richiesta per rientrare qui e scaricare i tuoi file.</p>
+          </div>
+        </div>
+
+        <h2>Documenti caricati</h2>
+        {% if documents %}
+          <ul class="document-list">
+            {% for doc in documents %}
+              <li>
+                <a href="/tesseramento/documenti/{{ doc.id }}">{{ doc.original_name }}</a>
+                <span class="muted">caricato il {{ doc.uploaded_at.strftime('%d/%m/%Y') }}</span>
+              </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p class="muted">Nessun documento al momento. Carica certificato medico, CI e tessera sanitaria dal form.</p>
+        {% endif %}
+
+        <div class="hero__actions">
+          <form method="post" action="/area-tesserati/logout">
+            <button class="btn btn-secondary" type="submit">Esci</button>
+          </form>
+          <a class="btn btn-primary" href="/tesseramento">Aggiorna dati</a>
+        </div>
+      {% else %}
+        {% if login_error %}
+          <p class="alert">{{ login_error }}</p>
+        {% endif %}
+        <p class="muted">
+          Accedi con l'email usata per il tesseramento e la password che ti abbiamo consegnato dopo il pagamento.
+        </p>
+        <form action="/area-tesserati/login" method="post" class="form">
+          <label for="login_email">Email</label>
+          <input id="login_email" name="email" type="email" placeholder="maria@esempio.com" required />
+
+          <label for="login_password">Password area tesserati</label>
+          <input id="login_password" name="password" type="password" required />
+
+          <button class="btn btn-primary" type="submit">Entra</button>
+        </form>
+        <p class="muted">
+          Non hai ancora una password? Compila il tesseramento ({{ membership_fee }} €) e carica certificato, CI e tessera sanitaria:
+          genereremo le credenziali e potrai scaricare i tuoi documenti da qui.
+        </p>
+      {% endif %}
+    </article>
+  </section>
+{% endblock %}

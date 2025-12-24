@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <section class="hero-photo">
+    <div class="hero-photo__content">
+      <p class="pill">Sport e Comunità</p>
+      <h1>Amaro e bici</h1>
+      <p>
+        Siamo un'associazione che unisce la passione per il ciclismo e lo sport alla convivialità e alla comunità.
+        Le attività prendono vita grazie a volontari e soci che credono in uno sport accessibile,
+        aperto e festoso.
+      </p>
+      <div class="hero__actions">
+        <a class="btn btn-primary" href="/tesseramento">Tesserati ora</a>
+        <a class="btn btn-secondary" href="/eventi/open-day-primavera">Calendario eventi</a>
+      </div>
+    </div>
+    <img src="{{ url_for('static', path='img/hero.jpg') }}" alt="Volontari Amaro in bici" class="hero-photo__img" />
+  </section>
+
+  <section class="section">
+    <header class="section__header">
+      <h2>Calendario</h2>
+      <p>Gli appuntamenti principali già annunciati.</p>
+    </header>
+    <div class="card-grid">
+      {% for event in events %}
+        <article class="card">
+          <p class="card__date">
+            {{ event.date.strftime("%d %B %Y") if event.date else "Prossimamente" }}
+          </p>
+          <h3>{{ event.title }}</h3>
+          <p class="muted">{{ event.location or "Luogo in definizione" }}</p>
+          <p>{{ event.summary or event.description }}</p>
+          <div class="hero__actions">
+            <a class="btn btn-primary" href="/eventi/{{ event.slug }}">Dettagli</a>
+            <a class="btn btn-secondary" href="/tesseramento">Partecipa</a>
+          </div>
+        </article>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="section">
+    <header class="section__header">
+      <h2>Merch & Supporto</h2>
+      <p>Sostieni l'associazione con l'acquisto dei nostri articoli.</p>
+    </header>
+    <div class="card-grid">
+      {% for item in merch_preview %}
+        <article class="card">
+          <h3>{{ item.name }}</h3>
+          <p>{{ item.description }}</p>
+          <p class="pill">{{ price_fn(item.price_cents) }} €</p>
+          <a class="link" href="/merch/{{ item.slug }}">Vai al prodotto</a>
+        </article>
+      {% endfor %}
+    </div>
+    <a class="link link--block" href="/merch">Sfoglia tutto il merchandising</a>
+  </section>
+{% endblock %}

@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <section class="section">
+    <article class="card card--spacious">
+      <h1>Pagamento Tessera</h1>
+      <p>
+        Grazie {{ member.first_name or member.name }} {{ member.last_name or "" }}, abbiamo registrato la tua richiesta e
+        calcolato la quota di {{ membership_fee }} €. La tessera include assicurazione base e accesso alle attività.
+      </p>
+
+      {% if is_owner and password_hint %}
+        <p class="alert alert--success">
+          Password area tesserati: <strong>{{ password_hint }}</strong>.
+          Salvala, ti servirà per accedere e scaricare i documenti caricati.
+        </p>
+      {% elif not is_owner %}
+        <p class="alert">
+          Accedi con le credenziali del socio per visualizzare la password e i documenti allegati.
+        </p>
+      {% endif %}
+
+      <div class="code-block">
+        <p>Parametri di pagamento Nexi/XPay:</p>
+        <pre>{{ payment.payload | tojson(indent=2) }}</pre>
+      </div>
+
+      <div class="hero__actions">
+        <form method="post" action="{{ payment.redirect_url }}">
+          {% for name, value in payment.payload.items() %}
+            <input type="hidden" name="{{ name }}" value="{{ value }}">
+          {% endfor %}
+          <button class="btn btn-primary" type="submit">
+            Vai al pagamento sicuro
+          </button>
+        </form>
+        <a class="btn btn-secondary" href="/area-tesserati">Vai all'area tesserati</a>
+      </div>
+
+      <h2>Documenti caricati</h2>
+      {% if is_owner %}
+        {% if documents %}
+          <ul class="document-list">
+            {% for doc in documents %}
+              <li>
+                <a href="/tesseramento/documenti/{{ doc.id }}">{{ doc.original_name }}</a>
+                <span class="muted">caricato il {{ doc.uploaded_at.strftime('%d/%m/%Y') }}</span>
+              </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p class="muted">Non hai ancora caricato allegati. Carica certificato medico, CI e tessera sanitaria.</p>
+        {% endif %}
+      {% else %}
+        <p class="muted">Effettua il login nell'area tesserati per consultare e scaricare i documenti allegati.</p>
+      {% endif %}
+      <p class="muted">
+        Il payload sopra può essere inviato al servizio Nexi/XPay dalla tua infrastruttura o copiato manualmente
+        nella sandbox per ottenere il redirect finale. I documenti caricati sono accessibili solo dopo login
+        nell'area tesserati.
+      </p>
+    </article>
+  </section>
+{% endblock %}
