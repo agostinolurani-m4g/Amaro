@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     nexipay_api_key: str | None = Field(None, env='NEXI_API_KEY')
     membership_fee_eur: int = 50
     nexipay_endpoint: str = Field(
-        'https://int-ecommerce.nexi.it/ecomm/api/checkout', env='NEXI_ENDPOINT'
+        'https://int-ecommerce.nexi.it/ecomm/ecomm/DispatcherServlet', env='NEXI_ENDPOINT'
     )
     nexipay_success_url: str = Field(
         'http://localhost:8000/tesseramento?success=1', env='NEXI_SUCCESS_URL'

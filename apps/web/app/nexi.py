@@ -2,10 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Mapping
+from typing import Any
 import hashlib
-import hmac
-from uuid import uuid4
 
 
 @dataclass(frozen=True)
@@ -46,33 +44,37 @@ class NexiXpayClient:
     def prepare_payment(
         self, amount_cents: int, order_id: str, description: str, email: str | None = None
     ) -> NexiPaymentContext:
+        """
+        Costruisce i parametri per il flusso Nexi
+        \"Pagamento semplice\" verso DispatcherServlet.
+
+        amount_cents: importo in centesimi (5000 = 50,00 EUR).
+        order_id: usato come codTrans.
+        description, email: accettati per compatibilitA , non usati direttamente.
+        """
         if amount_cents <= 0:
             raise ValueError("Amount must be greater than zero")
-        timestamp = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
-        payload = {
-            "merchantId": self.merchant_id,
-            "amount": f"{amount_cents / 100:.2f}",
-            "currency": self.currency,
-            "orderId": order_id,
-            "description": description,
-            "timestamp": timestamp,
-            "sessionId": uuid4().hex,
-            "returnUrl": self.success_url,
-            "failureUrl": self.failure_url,
+
+        # Per il pagamento semplice usiamo un codice transazione
+        # nello stesso formato dell'esempio Nexi ufficiale.
+        cod_trans = "PS" + datetime.utcnow().strftime("%Y%m%d%H%M%S")
+        divisa = self.currency
+        importo = amount_cents
+
+        mac_str = f"codTrans={cod_trans}divisa={divisa}importo={importo}{self.api_key}"
+        mac = hashlib.sha1(mac_str.encode("utf-8")).hexdigest()
+
+        payload: dict[str, Any] = {
+            "alias": self.merchant_id,
+            "importo": importo,
+            "divisa": divisa,
+            "codTrans": cod_trans,
+            "url": self.success_url,
+            "url_back": self.failure_url,
+            "mac": mac,
         }
         if email:
-            payload["email"] = email
-        payload["signature"] = self._sign_payload(payload)
-        redirect_url = (
-            f"{self.endpoint}?orderId={payload['orderId']}&signature={payload['signature']}"
-        )
-        return NexiPaymentContext(payload=payload, redirect_url=redirect_url)
+            payload["mail"] = email
 
-    def _sign_payload(self, payload: Mapping[str, str]) -> str:
-        items = sorted(payload.items())
-        signature_base = "|".join(f"{key}={value}" for key, value in items)
-        return hmac.new(
-            self.api_key.encode("utf-8"),
-            signature_base.encode("utf-8"),
-            hashlib.sha256,
-        ).hexdigest()
+        redirect_url = self.endpoint
+        return NexiPaymentContext(payload=payload, redirect_url=redirect_url)

@@ -21,14 +21,19 @@
       {% endif %}
 
       <div class="code-block">
-        <p>Payload di pagamento Nexi/XPay:</p>
+        <p>Parametri di pagamento Nexi/XPay:</p>
         <pre>{{ payment.payload | tojson(indent=2) }}</pre>
       </div>
 
       <div class="hero__actions">
-        <a class="btn btn-primary" href="{{ payment.redirect_url }}" target="_blank" rel="noreferrer">
-          Vai al pagamento sicuro
-        </a>
+        <form method="post" action="{{ payment.redirect_url }}">
+          {% for name, value in payment.payload.items() %}
+            <input type="hidden" name="{{ name }}" value="{{ value }}">
+          {% endfor %}
+          <button class="btn btn-primary" type="submit">
+            Vai al pagamento sicuro
+          </button>
+        </form>
         <a class="btn btn-secondary" href="/area-tesserati">Vai all'area tesserati</a>
       </div>
 

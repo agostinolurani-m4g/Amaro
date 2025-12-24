@@ -36,11 +36,11 @@ Imposta le variabili d'ambiente (o nel `.env`):
 
 - `NEXI_MERCHANT_ID`
 - `NEXI_API_KEY`
-- `NEXI_ENDPOINT` (default `https://int-ecommerce.nexi.it/ecomm/api/checkout`)
+- `NEXI_ENDPOINT` (default `https://int-ecommerce.nexi.it/ecomm/ecomm/DispatcherServlet`)
 - `NEXI_SUCCESS_URL` (default `http://localhost:8000/tesseramento?success=1`)
 - `NEXI_FAILURE_URL` (default `http://localhost:8000/tesseramento?failed=1`)
 
-Il modulo `app/nexi.py` costruisce il payload firmato; i template `merch_payment.html` e `/tesseramento/pagamento/{id}` mostrano payload e link di redirect Nexi/XPay.
+Il modulo `app/nexi.py` costruisce i parametri per il pagamento semplice Nexi/XPay; i template `merch_payment.html` e `/tesseramento/pagamento/{id}` mostrano i parametri usati e il form per il redirect verso Nexi/XPay.
 
 ## Galleria collegata a Google Drive
 

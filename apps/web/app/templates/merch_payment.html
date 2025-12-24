@@ -8,18 +8,24 @@
       <p>Quantità: {{ quantity }}</p>
       <p>Totale: {{ total }} €</p>
       <div class="code-block">
-        <p>Payload da inviare al provider:</p>
+        <p>Parametri di pagamento da inviare a Nexi/XPay:</p>
         <pre>{{ payment.payload | tojson(indent=2) }}</pre>
       </div>
       <div class="hero__actions">
-        <a class="btn btn-primary" href="{{ payment.redirect_url }}" target="_blank" rel="noreferrer">
-          Procedi al pagamento sicuro
-        </a>
+        <form method="post" action="{{ payment.redirect_url }}">
+          {% for name, value in payment.payload.items() %}
+            <input type="hidden" name="{{ name }}" value="{{ value }}">
+          {% endfor %}
+          <button class="btn btn-primary" type="submit">
+            Procedi al pagamento sicuro
+          </button>
+        </form>
         <a class="btn btn-secondary" href="/merch/{{ item.slug }}">Modifica ordine</a>
       </div>
       <p class="muted">
-        Il redirect utilizza il riferimento <code>{{ payment.payload.orderId }}</code>; puoi inviare
-        il payload come base per una chiamata server-to-server verso Nexi/XPay o copiarlo nel tuo back office.
+        Il pagamento utilizza il riferimento <code>{{ payment.payload.codTrans }}</code>.
+        Puoi usare i parametri sopra come base per test aggiuntivi o per una integrazione
+        server-to-server con Nexi/XPay.
       </p>
     </article>
   </section>
