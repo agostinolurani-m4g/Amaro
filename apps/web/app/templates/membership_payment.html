@@ -20,11 +20,6 @@
         </p>
       {% endif %}
 
-      <div class="code-block">
-        <p>Parametri di pagamento Nexi/XPay:</p>
-        <pre>{{ payment.payload | tojson(indent=2) }}</pre>
-      </div>
-
       <div class="hero__actions">
         <form method="post" action="{{ payment.redirect_url }}">
           {% for name, value in payment.payload.items() %}
@@ -55,10 +50,10 @@
         <p class="muted">Effettua il login nell'area tesserati per consultare e scaricare i documenti allegati.</p>
       {% endif %}
       <p class="muted">
-        Il payload sopra può essere inviato al servizio Nexi/XPay dalla tua infrastruttura o copiato manualmente
-        nella sandbox per ottenere il redirect finale. I documenti caricati sono accessibili solo dopo login
+        Dopo il pagamento tornerai al sito. I documenti caricati sono accessibili solo dopo login
         nell'area tesserati.
       </p>
     </article>
   </section>
 {% endblock %}
+

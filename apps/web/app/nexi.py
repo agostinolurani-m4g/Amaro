@@ -45,8 +45,7 @@ class NexiXpayClient:
         self, amount_cents: int, order_id: str, description: str, email: str | None = None
     ) -> NexiPaymentContext:
         """
-        Costruisce i parametri per il flusso Nexi
-        \"Pagamento semplice\" verso DispatcherServlet.
+        Costruisce i parametri per il flusso Nexi/XPay verso DispatcherServlet.
 
         amount_cents: importo in centesimi (5000 = 50,00 EUR).
         order_id: usato come codTrans.
@@ -55,8 +54,7 @@ class NexiXpayClient:
         if amount_cents <= 0:
             raise ValueError("Amount must be greater than zero")
 
-        # Per il pagamento semplice usiamo un codice transazione
-        # nello stesso formato dell'esempio Nexi ufficiale.
+        # Codice transazione nel formato richiesto da Nexi.
         cod_trans = "PS" + datetime.utcnow().strftime("%Y%m%d%H%M%S")
         divisa = self.currency
         importo = amount_cents
@@ -78,3 +76,4 @@ class NexiXpayClient:
 
         redirect_url = self.endpoint
         return NexiPaymentContext(payload=payload, redirect_url=redirect_url)
+

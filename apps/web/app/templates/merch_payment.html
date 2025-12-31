@@ -7,10 +7,6 @@
       <p>Stiamo preparando la richiesta per: <strong>{{ item.name }}</strong></p>
       <p>Quantità: {{ quantity }}</p>
       <p>Totale: {{ total }} €</p>
-      <div class="code-block">
-        <p>Parametri di pagamento da inviare a Nexi/XPay:</p>
-        <pre>{{ payment.payload | tojson(indent=2) }}</pre>
-      </div>
       <div class="hero__actions">
         <form method="post" action="{{ payment.redirect_url }}">
           {% for name, value in payment.payload.items() %}
@@ -23,9 +19,7 @@
         <a class="btn btn-secondary" href="/merch/{{ item.slug }}">Modifica ordine</a>
       </div>
       <p class="muted">
-        Il pagamento utilizza il riferimento <code>{{ payment.payload.codTrans }}</code>.
-        Puoi usare i parametri sopra come base per test aggiuntivi o per una integrazione
-        server-to-server con Nexi/XPay.
+        Verrai reindirizzato su Nexi/XPay per completare il pagamento.
       </p>
     </article>
   </section>
