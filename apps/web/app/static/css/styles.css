@@ -1,17 +1,17 @@
 @import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap");
 
 :root {
-  --bg-base: #4b0d36;
-  --bg-panel: #4b0d36;
-  --bg-card: #2a0820;
-  --bg-banner: #2f0b22;
-  --text-main: #f7e9f2;
-  --text-muted: #c5a3c0;
-  --accent: #8a1230; /* porpora scuro */
-  --accent-2: #8a1230;
-  --border-muted: rgba(255, 255, 255, 0.16);
-  --highlight: #f0d4ea;
-  --shadow-soft: 0 20px 45px rgba(0, 0, 0, 0.45);
+  --bg-base: #ffffff;
+  --bg-panel: #ffffff;
+  --bg-card: #ffffff;
+  --bg-banner: #ffffff;
+  --text-main: #1c1b1b;
+  --text-muted: #5e5a5d;
+  --accent: #4b0d36;
+  --accent-2: #4b0d36;
+  --border-muted: #d9d2d6;
+  --highlight: #4b0d36;
+  --shadow-soft: none;
 }
 
 *,
@@ -48,8 +48,6 @@ a {
   position: sticky;
   top: 0;
   z-index: 10;
-  backdrop-filter: blur(12px);
-  box-shadow: 0 10px 25px rgba(255, 107, 132, 0.08);
 }
 
 .brand__logo {
@@ -72,13 +70,12 @@ a {
   letter-spacing: 0.08rem;
   text-transform: uppercase;
   color: var(--text-main);
-  transition: color 0.2s ease, transform 0.2s ease;
+  transition: color 0.2s ease;
 }
 
 .site-nav a:hover,
 .site-nav a:focus-visible {
   color: var(--accent);
-  transform: translateY(-1px);
 }
 
 .section {
@@ -97,7 +94,6 @@ a {
 .card {
   background: var(--bg-card);
   padding: 1.5rem;
-  border-radius: 1.25rem;
   border: 1px solid var(--border-muted);
   box-shadow: var(--shadow-soft);
 }
@@ -132,9 +128,8 @@ a {
 .pill {
   display: inline-flex;
   padding: 0.35rem 0.85rem;
-  border-radius: 999px;
   font-size: 0.9rem;
-  background: rgba(255, 255, 255, 0.75);
+  background: #f6f2f4;
   border: 1px solid var(--border-muted);
   color: var(--accent);
   font-weight: 600;
@@ -161,7 +156,7 @@ a {
 }
 
 .gallery-card {
-  border-radius: 0.0rem;
+  border-radius: 0;
   overflow: hidden;
   border: none;
   box-shadow: none;
@@ -190,11 +185,10 @@ a {
   align-items: center;
   justify-content: center;
   border: none;
-  border-radius: 999px;
   padding: 0.75rem 1.5rem;
   cursor: pointer;
   font-weight: 700;
-  transition: transform 0.1s ease, background 0.1s ease;
+  transition: background 0.1s ease;
 }
 
 .btn-primary {
@@ -211,8 +205,7 @@ a {
 
 .btn:hover,
 .btn:focus-visible {
-  transform: translateY(-1px);
-  background: #5f0c22;
+  background: var(--accent);
 }
 
 .hero-photo {
@@ -220,11 +213,9 @@ a {
   grid-template-columns: 3fr 4fr; /* invece di auto-fit, solo su desktop */
   gap: 2rem;
   background: var(--bg-banner);
-  border-radius: 1.5rem;
   padding: clamp(1.5rem, 5vw, 3rem);
   margin-bottom: 2.5rem;
   border: 1px solid var(--border-muted);
-  box-shadow: 0 30px 60px rgba(0, 0, 0, 0.5);
 }
 
 .hero-photo__content h1 {
@@ -240,7 +231,6 @@ a {
 
 .hero-photo__img {
   width: 100%;
-  border-radius: 1rem;
   object-fit: cover;
   min-height: 220px;      /* più bassa */
   max-height: 260px;      /* limite verticale */
@@ -263,12 +253,11 @@ a {
 .form input,
 .form textarea,
 .form select {
-  border-radius: 0.65rem;
   border: 1px solid var(--border-muted);
   padding: 0.75rem;
   font-size: 1rem;
-  background: rgba(255, 255, 255, 0.8);
-  color: var(--text-main);
+  background: #ffffff;
+  color: #1c1b1b;
 }
 
 .form input:focus,
@@ -292,8 +281,7 @@ a {
   align-items: center;
   justify-content: space-between;
   padding: 0.7rem 0.85rem;
-  border-radius: 0.75rem;
-  background: rgba(255, 255, 255, 0.7);
+  background: #ffffff;
   border: 1px solid var(--border-muted);
 }
 
@@ -309,14 +297,14 @@ a {
 
 .alert {
   padding: 0.85rem 1.25rem;
-  border-radius: 0.75rem;
   border: 1px solid var(--border-muted);
-  background: rgba(255, 255, 255, 0.8);
+  background: #ffffff;
 }
 
 .alert--success {
-  background: rgba(0, 180, 90, 0.15);
-  color: #0c5c32;
+  background: #f6f2f4;
+  color: var(--text-main);
+  border-color: var(--accent);
 }
 
 .muted {
@@ -324,10 +312,9 @@ a {
 }
 
 .code-block {
-  background: rgba(255, 139, 177, 0.12);
-  color: #311423;
+  background: #f6f2f4;
+  color: var(--text-main);
   padding: 1rem;
-  border-radius: 0.75rem;
   font-family: "JetBrains Mono", "Fira Code", monospace;
   overflow-x: auto;
   border: 1px solid var(--border-muted);
