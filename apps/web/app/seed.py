@@ -8,31 +8,13 @@ from .models import Event, MerchItem
 
 SAMPLE_EVENTS = [
     {
-        "slug": "open-day-primavera",
-        "title": "Open Day primavera",
-        "description": "Una giornata all'aperto dedicata alla musica, allo sport e alla cultura locale.",
-        "location": "Parco Centrale, Amaro",
-        "date": date(2026, 3, 21),
-        "hero_quote": "Cresciamo insieme tra arte e movimento.",
-        "summary": "Laboratori di danza, jam session e percorsi inclusivi per famiglie.",
-    },
-    {
-        "slug": "river-folk-festival",
-        "title": "River Folk Festival",
-        "description": "Tre giorni di concerti folk, incontri e street food sul lungofiume.",
-        "location": "Lungofiume Gora",
-        "date": date(2026, 5, 8),
-        "hero_quote": "Radici profonde, spirito libero.",
-        "summary": "Artisti nazionali e internazionali, con workshop di liuteria inclusi.",
-    },
-    {
-        "slug": "notte-delle-culture",
-        "title": "Notte delle culture",
-        "description": "Una notte dedicata alle culture del mondo, con mostre, spettacoli e cucina collettiva.",
-        "location": "Ex Manifattura",
-        "date": date(2026, 6, 28),
-        "hero_quote": "Storie che si intrecciano sotto lo stesso cielo.",
-        "summary": "Performance di danza contemporanea, arti visive e conferenze partecipative.",
+        "slug": "Quarto Giro d'Amaro 2026",
+        "title": "Quarto Giro d'Amaro 2026",
+        "description": "Giro lungo, giro corto e anche medio. Oltrepò Piacentino.",
+        "location": "Piozzano (PC)",
+        "date": date(2026, 5, 13),
+        "hero_quote": "A tutta.",
+        "summary": "Giornata di festa dell'Amaro.",
     },
 ]
 
