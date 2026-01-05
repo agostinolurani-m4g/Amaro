@@ -30,12 +30,12 @@ GALLERY_IMAGES: list[dict[str, str]] = [
 DRIVE_COLLECTIONS: list[dict[str, str | None]] = [
     {
         "title": "Eventi su Drive",
-        "description": "Cartella Drive dedicata agli eventi: carica qui dentro le sottocartelle dei singoli appuntamenti.",
+        "description": "Foto degli eventi.",
         "folder_id": settings.drive_events_folder_id,
     },
     {
         "title": "Galleria generale",
-        "description": "Foto di backstage, prove, residenze o momenti di comunità.",
+        "description": "",
         "folder_id": settings.drive_gallery_folder_id,
     },
 ]
@@ -218,6 +218,53 @@ def _member_from_session(request: Request, session: Session) -> Member | None:
     return session.get(Member, member_id)
 
 
+def _set_pending_payment(request: Request, payload: dict[str, object]) -> None:
+    request.session["pending_payment"] = payload
+
+
+def _pop_pending_payment(request: Request) -> dict[str, object] | None:
+    pending = request.session.pop("pending_payment", None)
+    return pending if isinstance(pending, dict) else None
+
+
+def _build_payment_result_context(
+    pending: dict[str, object] | None, session: Session, success: bool
+) -> dict[str, object]:
+    return_url = "/"
+    retry_url: str | None = None
+    label: str | None = None
+
+    if isinstance(pending, dict):
+        pending_return = pending.get("return_url")
+        if isinstance(pending_return, str) and pending_return:
+            return_url = pending_return
+        pending_retry = pending.get("retry_url")
+        if isinstance(pending_retry, str) and pending_retry:
+            retry_url = pending_retry
+        pending_label = pending.get("label")
+        if isinstance(pending_label, str) and pending_label:
+            label = pending_label
+
+        if success and pending.get("kind") == "membership":
+            member_id = pending.get("member_id")
+            if isinstance(member_id, str) and member_id.isdigit():
+                member_id = int(member_id)
+            if isinstance(member_id, int):
+                member = session.get(Member, member_id)
+                if member:
+                    member.payment_status = "paid"
+                    reference = pending.get("reference")
+                    if isinstance(reference, str) and reference:
+                        member.payment_reference = reference
+                    session.commit()
+
+    return {
+        "return_url": return_url,
+        "retry_url": retry_url,
+        "label": label,
+    }
+
+
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request, session: Session = Depends(get_session)) -> HTMLResponse:
     events = (
@@ -299,6 +346,16 @@ def merch_checkout(
     quantity = max(1, min(quantity, item.stock or 1))
     total_cents = item.price_cents * quantity
     payment_reference = f"merch-{item.slug}-{reqid()}"
+    _set_pending_payment(
+        request,
+        {
+            "kind": "merch",
+            "reference": payment_reference,
+            "return_url": f"/merch/{item.slug}",
+            "retry_url": f"/merch/{item.slug}",
+            "label": f"Ordine merch: {item.name} x{quantity}",
+        },
+    )
     payment = _require_nexi_client().prepare_payment(
         amount_cents=total_cents,
         order_id=payment_reference,
@@ -453,9 +510,21 @@ def membership_payment(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Richiesta di tesseramento non trovata",
         )
+    payment_reference = f"member-{member.id}-{reqid()}"
+    _set_pending_payment(
+        request,
+        {
+            "kind": "membership",
+            "member_id": member.id,
+            "reference": payment_reference,
+            "return_url": "/area-tesserati",
+            "retry_url": f"/tesseramento/pagamento/{member.id}",
+            "label": f"Tesseramento {member.first_name} {member.last_name}",
+        },
+    )
     payment_context: NexiPaymentContext = _require_nexi_client().prepare_payment(
         amount_cents=settings.membership_fee_eur * 100,
-        order_id=f"member-{member.id}-{reqid()}",
+        order_id=payment_reference,
         description=f"Tesseramento {(member.name or '').strip() or f'{member.first_name} {member.last_name}'}",
         email=member.email,
     )
@@ -473,6 +542,40 @@ def membership_payment(
             "membership_fee": settings.membership_fee_eur,
             "password_hint": password_hint,
             "is_owner": is_owner,
+        },
+    )
+
+
+@app.api_route("/nexi/success", methods=["GET", "POST"], response_class=HTMLResponse)
+def nexi_success(
+    request: Request, session: Session = Depends(get_session)
+) -> HTMLResponse:
+    pending = _pop_pending_payment(request)
+    context = _build_payment_result_context(pending, session, success=True)
+    return templates.TemplateResponse(
+        "payment_result.html",
+        {
+            "request": request,
+            "settings": settings,
+            "success": True,
+            **context,
+        },
+    )
+
+
+@app.api_route("/nexi/failure", methods=["GET", "POST"], response_class=HTMLResponse)
+def nexi_failure(
+    request: Request, session: Session = Depends(get_session)
+) -> HTMLResponse:
+    pending = _pop_pending_payment(request)
+    context = _build_payment_result_context(pending, session, success=False)
+    return templates.TemplateResponse(
+        "payment_result.html",
+        {
+            "request": request,
+            "settings": settings,
+            "success": False,
+            **context,
         },
     )
 

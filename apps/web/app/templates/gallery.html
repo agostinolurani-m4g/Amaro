@@ -22,22 +22,4 @@
       </section>
     {% endfor %}
   {% endif %}
-
-  <section class="section">
-    <header class="section__header">
-      <h2>Galleria fotografica</h2>
-      <p>Momenti immortalati durante i nostri eventi e residenze.</p>
-    </header>
-    <div class="gallery-grid">
-      {% for image in images %}
-        <figure class="gallery-card">
-          <img src="{{ image.url }}" alt="" loading="lazy" />
-        </figure>
-      {% endfor %}
-    </div>
-    <p class="muted">
-      Suggerimento: collega una cartella Drive pubblica o condivisa in lettura (GOOGLE_DRIVE_API_KEY +
-      GOOGLE_DRIVE_EVENTS_FOLDER_ID / GOOGLE_DRIVE_GALLERY_FOLDER_ID) per popolare automaticamente queste griglie.
-    </p>
-  </section>
 {% endblock %}

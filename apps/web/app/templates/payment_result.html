@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <section class="section">
+    <article class="card card--spacious">
+      {% if success %}
+        <h1>Pagamento confermato</h1>
+        <p>Grazie! Il pagamento e' stato registrato.</p>
+      {% else %}
+        <h1>Pagamento non riuscito</h1>
+        <p>Il pagamento non e' stato completato o e' stato annullato.</p>
+      {% endif %}
+      {% if label %}
+        <p class="muted">{{ label }}</p>
+      {% endif %}
+      <div class="hero__actions">
+        <a class="btn btn-primary" href="{{ return_url }}">Torna al sito</a>
+        {% if retry_url %}
+          <a class="btn btn-secondary" href="{{ retry_url }}">Riprova pagamento</a>
+        {% endif %}
+      </div>
+    </article>
+  </section>
+{% endblock %}
