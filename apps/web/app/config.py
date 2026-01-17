@@ -2,7 +2,7 @@ from pydantic import BaseSettings, Field
 
 
 class Settings(BaseSettings):
-    app_name: str = 'Amaro Sport e Cultura'
+    app_name: str = 'Amaro'
     database_url: str = Field('sqlite:///./amaro.db', env='DATABASE_URL')
     static_path: str = Field('static', env='STATIC_PATH')
     nexipay_merchant_id: str | None = Field(None, env='NEXI_MERCHANT_ID')
