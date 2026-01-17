@@ -7,9 +7,13 @@
       <h1>{{ item.name }}</h1>
       {% if item.image_url %}
         {% if item.image_url.startswith('http') %}
-          <img src="{{ item.image_url }}" alt="{{ item.name }}" class="hero-photo__img" loading="lazy" />
+          <div class="merch-item__media">
+            <img src="{{ item.image_url }}" alt="{{ item.name }}" class="hero-photo__img merch-item__img" loading="lazy" />
+          </div>
         {% else %}
-          <img src="{{ url_for('static', path=item.image_url) }}" alt="{{ item.name }}" class="hero-photo__img" loading="lazy" />
+          <div class="merch-item__media">
+            <img src="{{ url_for('static', path=item.image_url) }}" alt="{{ item.name }}" class="hero-photo__img merch-item__img" loading="lazy" />
+          </div>
         {% endif %}
       {% endif %}
       <p class="muted">Prezzo unitario: {{ price_fn(item.price_cents) }} €</p>

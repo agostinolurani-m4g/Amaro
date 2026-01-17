@@ -6,6 +6,12 @@
       {% if success %}
         <h1>Pagamento confermato</h1>
         <p>Grazie! Il pagamento e' stato registrato.</p>
+        {% if password_hint %}
+          <p class="alert alert--success">
+            Password area tesserati: <strong>{{ password_hint }}</strong>.
+            Salvala, ti servira' per accedere e scaricare i documenti caricati.
+          </p>
+        {% endif %}
       {% else %}
         <h1>Pagamento non riuscito</h1>
         <p>Il pagamento non e' stato completato o e' stato annullato.</p>

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import calendar
 import logging
 import shutil
 import hashlib
@@ -44,6 +45,126 @@ MEMBERSHIP_TYPES = [
     "Socio ordinario",
     "Giovane under 25",
     "Sostenitore",
+]
+
+SPORT_TYPES = [
+    "Solo ciclismo",
+    "Ciclismo + Atletica",
+]
+
+WEEKDAY_LABELS = [
+    "Lun",
+    "Mar",
+    "Mer",
+    "Gio",
+    "Ven",
+    "Sab",
+    "Dom",
+]
+
+CALENDAR_MONTHS: list[dict[str, object]] = [
+    {
+        "month": "Gennaio",
+        "events": [
+            {"date": "06/01", "title": "Ciclocross di inizio stagione"},
+            {"date": "19/01", "title": "Raduno sociale invernale"},
+            {"date": "26/01", "title": "Cronoscalata amatoriale"},
+        ],
+    },
+    {
+        "month": "Febbraio",
+        "events": [
+            {"date": "02/02", "title": "Granfondo del Gelo"},
+            {"date": "16/02", "title": "Training day su strada"},
+            {"date": "23/02", "title": "Pedalata solidale"},
+        ],
+    },
+    {
+        "month": "Marzo",
+        "events": [
+            {"date": "09/03", "title": "Strade Bianche"},
+            {"date": "17/03", "title": "Raduno di primavera"},
+            {"date": "31/03", "title": "Classica collinare"},
+        ],
+    },
+    {
+        "month": "Aprile",
+        "events": [
+            {"date": "07/04", "title": "Giro delle Fiandre"},
+            {"date": "14/04", "title": "Classica delle Ardenne"},
+            {"date": "28/04", "title": "Uscita lunga sociale"},
+        ],
+    },
+    {
+        "month": "Maggio",
+        "events": [
+            {"date": "05/05", "title": "Tappa Giro d'Italia"},
+            {"date": "19/05", "title": "Crono cittadina"},
+            {"date": "26/05", "title": "Giornata gravel"},
+        ],
+    },
+    {
+        "month": "Giugno",
+        "events": [
+            {"date": "02/06", "title": "Giro del Lago"},
+            {"date": "16/06", "title": "Raduno estivo"},
+            {"date": "30/06", "title": "Tour panoramico"},
+        ],
+    },
+    {
+        "month": "Luglio",
+        "events": [
+            {"date": "07/07", "title": "Giro d'Italia Women"},
+            {"date": "14/07", "title": "Alpe day"},
+            {"date": "28/07", "title": "Pedalata al tramonto"},
+        ],
+    },
+    {
+        "month": "Agosto",
+        "events": [
+            {"date": "04/08", "title": "Raduno in quota"},
+            {"date": "18/08", "title": "Tour dei passi"},
+            {"date": "25/08", "title": "Giro delle valli"},
+        ],
+    },
+    {
+        "month": "Settembre",
+        "events": [
+            {"date": "01/09", "title": "Gran premio di fine estate"},
+            {"date": "15/09", "title": "Giro dell'Appennino"},
+            {"date": "29/09", "title": "Pedalata vintage"},
+        ],
+    },
+    {
+        "month": "Ottobre",
+        "events": [
+            {"date": "06/10", "title": "Giro di Lombardia"},
+            {"date": "20/10", "title": "Granfondo d'autunno"},
+            {"date": "27/10", "title": "Uscita foglie rosse"},
+        ],
+    },
+    {
+        "month": "Novembre",
+        "events": [
+            {"date": "10/11", "title": "Criterium cittadino"},
+            {"date": "17/11", "title": "Raduno solidale"},
+            {"date": "24/11", "title": "Trail misto strada"},
+        ],
+    },
+    {
+        "month": "Dicembre",
+        "events": [
+            {"date": "08/12", "title": "Cicloturistica di Natale"},
+            {"date": "15/12", "title": "Brindisi di fine anno"},
+            {"date": "29/12", "title": "Uscita di chiusura stagione"},
+        ],
+    },
+]
+
+CALENDAR_FEATURED: list[dict[str, str]] = [
+    {"date": "07/04", "title": "Giro delle Fiandre", "month": "Aprile"},
+    {"date": "05/05", "title": "Tappa Giro d'Italia", "month": "Maggio"},
+    {"date": "06/10", "title": "Giro di Lombardia", "month": "Ottobre"},
 ]
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -171,6 +292,7 @@ def ensure_member_schema() -> None:
     required_columns: dict[str, str] = {
         "first_name": "TEXT",
         "last_name": "TEXT",
+        "phone": "TEXT",
         "birth_date": "DATE",
         "birth_place": "TEXT",
         "residence": "TEXT",
@@ -181,6 +303,7 @@ def ensure_member_schema() -> None:
         "tessera_sanitaria": "TEXT",
         "medical_certificate": "TEXT",
         "medical_certificate_expiry": "DATE",
+        "sport_type": "TEXT",
         "access_code": "TEXT",
         "password_hash": "TEXT",
     }
@@ -211,6 +334,52 @@ def _verify_password(raw: str, hashed: str | None) -> bool:
     return bool(hashed) and _hash_password(raw) == hashed
 
 
+def _calendar_current_month() -> dict[str, object] | None:
+    month_index = date.today().month - 1
+    if 0 <= month_index < len(CALENDAR_MONTHS):
+        return CALENDAR_MONTHS[month_index]
+    return None
+
+
+def _build_month_view() -> dict[str, object]:
+    today = date.today()
+    month_data = _calendar_current_month()
+    month_name = (
+        month_data.get("month")
+        if isinstance(month_data, dict) and isinstance(month_data.get("month"), str)
+        else calendar.month_name[today.month]
+    )
+    weeks = calendar.Calendar(firstweekday=0).monthdayscalendar(today.year, today.month)
+    event_map: dict[int, list[str]] = {}
+    if isinstance(month_data, dict):
+        events = month_data.get("events", [])
+        if isinstance(events, list):
+            for event in events:
+                if not isinstance(event, dict):
+                    continue
+                date_value = event.get("date")
+                title = event.get("title")
+                if not isinstance(date_value, str) or not isinstance(title, str):
+                    continue
+                parts = date_value.split("/")
+                if len(parts) < 2:
+                    continue
+                day_part, month_part = parts[0], parts[1]
+                if not (day_part.isdigit() and month_part.isdigit()):
+                    continue
+                day = int(day_part)
+                month = int(month_part)
+                if month != today.month:
+                    continue
+                event_map.setdefault(day, []).append(title)
+    return {
+        "month_name": month_name,
+        "year": today.year,
+        "weeks": weeks,
+        "events": event_map,
+    }
+
+
 def _member_from_session(request: Request, session: Session) -> Member | None:
     member_id = request.session.get("member_id")
     if not member_id:
@@ -233,6 +402,7 @@ def _build_payment_result_context(
     return_url = "/"
     retry_url: str | None = None
     label: str | None = None
+    password_hint: str | None = None
 
     if isinstance(pending, dict):
         pending_return = pending.get("return_url")
@@ -245,14 +415,18 @@ def _build_payment_result_context(
         if isinstance(pending_label, str) and pending_label:
             label = pending_label
 
-        if success and pending.get("kind") == "membership":
+        if pending.get("kind") == "membership":
             member_id = pending.get("member_id")
             if isinstance(member_id, str) and member_id.isdigit():
                 member_id = int(member_id)
             if isinstance(member_id, int):
                 member = session.get(Member, member_id)
                 if member:
-                    member.payment_status = "paid"
+                    if success:
+                        member.payment_status = "paid"
+                        password_hint = member.access_code
+                    elif member.payment_status != "paid":
+                        member.payment_status = "failed"
                     reference = pending.get("reference")
                     if isinstance(reference, str) and reference:
                         member.payment_reference = reference
@@ -262,23 +436,21 @@ def _build_payment_result_context(
         "return_url": return_url,
         "retry_url": retry_url,
         "label": label,
+        "password_hint": password_hint,
     }
 
 
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request, session: Session = Depends(get_session)) -> HTMLResponse:
-    events = (
-        session.query(Event)
-        .order_by(Event.date.asc().nulls_last())
-        .limit(6)
-        .all()
-    )
     merch_preview = session.query(MerchItem).order_by(MerchItem.id).limit(3).all()
+    calendar_view = _build_month_view()
     return templates.TemplateResponse(
         "home.html",
         {
             "request": request,
-            "events": events,
+            "featured_events": CALENDAR_FEATURED,
+            "calendar_view": calendar_view,
+            "weekday_labels": WEEKDAY_LABELS,
             "merch_preview": merch_preview,
             "membership_fee": settings.membership_fee_eur,
             "settings": settings,
@@ -376,30 +548,13 @@ def merch_checkout(
     )
 
 
-@app.get("/galleria", response_class=HTMLResponse)
-def gallery(request: Request) -> HTMLResponse:
-    drive_albums: list[dict[str, object]] = []
-    if settings.google_drive_api_key:
-        for collection in DRIVE_COLLECTIONS:
-            folder_id = collection.get("folder_id")
-            if not folder_id:
-                continue
-            images = fetch_drive_images(folder_id, settings.google_drive_api_key)
-            drive_albums.append(
-                {
-                    "title": collection.get("title"),
-                    "description": collection.get("description"),
-                    "folder_id": folder_id,
-                    "folder_url": f"https://drive.google.com/drive/folders/{folder_id}",
-                    "images": images,
-                }
-            )
+@app.get("/calendario", response_class=HTMLResponse)
+def calendar_view(request: Request) -> HTMLResponse:
     return templates.TemplateResponse(
-        "gallery.html",
+        "calendar.html",
         {
             "request": request,
-            "images": GALLERY_IMAGES,
-            "drive_albums": drive_albums,
+            "calendar_months": CALENDAR_MONTHS,
             "settings": settings,
         },
     )
@@ -427,6 +582,7 @@ def membership_form(
             "success": success,
             "membership_fee": settings.membership_fee_eur,
             "membership_types": MEMBERSHIP_TYPES,
+            "sport_types": SPORT_TYPES,
             "settings": settings,
             "uploads_path": settings.uploads_path,
         },
@@ -439,6 +595,7 @@ def membership_submit(
     first_name: str = Form(...),
     last_name: str = Form(...),
     email: str = Form(...),
+    phone: str = Form(...),
     birth_date: date = Form(...),
     birth_place: str = Form(...),
     residence: str = Form(...),
@@ -446,24 +603,18 @@ def membership_submit(
     document_type: str = Form(...),
     document_number: str = Form(...),
     document_id: str | None = Form(None),
-    tessera_sanitaria: str = Form(...),
-    medical_certificate: str = Form(...),
     medical_certificate_expiry: date = Form(...),
     membership_type: str = Form(...),
+    sport_type: str = Form(...),
     message: str | None = Form(None),
     documents: list[UploadFile] = File(...),
     session: Session = Depends(get_session),
 ) -> RedirectResponse:
-    for field_value in [
-        document_type,
-        document_number,
-        tessera_sanitaria,
-        medical_certificate,
-    ]:
+    for field_value in [document_type, document_number]:
         if not _normalize(field_value):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Documento obbligatorio mancante (CI, tessera sanitaria o certificato medico).",
+                detail="Documento obbligatorio mancante (tipo o numero documento).",
             )
 
     password_plain, password_hash = _generate_member_password()
@@ -472,6 +623,7 @@ def membership_submit(
         first_name=first_name.strip(),
         last_name=last_name.strip(),
         email=email.strip(),
+        phone=_normalize(phone),
         birth_date=birth_date,
         birth_place=_normalize(birth_place),
         residence=_normalize(residence),
@@ -479,13 +631,13 @@ def membership_submit(
         document_type=_normalize(document_type),
         document_number=_normalize(document_number),
         document_id=_normalize(document_id),
-        tessera_sanitaria=_normalize(tessera_sanitaria),
-        medical_certificate=_normalize(medical_certificate),
         medical_certificate_expiry=medical_certificate_expiry,
         membership_type=membership_type,
+        sport_type=sport_type,
         message=_normalize(message),
         access_code=password_plain,
         password_hash=password_hash,
+        payment_status="pending",
     )
     session.add(member)
     session.flush()
@@ -494,7 +646,6 @@ def membership_submit(
         session.add_all(saved_docs)
     session.commit()
     request.session["member_id"] = member.id
-    request.session["member_password_hint"] = password_plain
     return RedirectResponse(
         url=f"/tesseramento/pagamento/{member.id}", status_code=status.HTTP_303_SEE_OTHER
     )
@@ -530,7 +681,6 @@ def membership_payment(
     )
     is_owner = request.session.get("member_id") == member.id
     documents = list(member.documents) if is_owner else []
-    password_hint = (request.session.get("member_password_hint") or member.access_code) if is_owner else None
     return templates.TemplateResponse(
         "membership_payment.html",
         {
@@ -540,7 +690,6 @@ def membership_payment(
             "documents": documents,
             "settings": settings,
             "membership_fee": settings.membership_fee_eur,
-            "password_hint": password_hint,
             "is_owner": is_owner,
         },
     )
@@ -646,6 +795,10 @@ def download_document(
     if not member or member.id != document.member_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="Non sei autorizzato a questo file"
+        )
+    if member.payment_status != "paid":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Pagamento obbligatorio"
         )
     path = UPLOADS_DIR / document.stored_filename
     if not path.exists():

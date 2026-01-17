@@ -5,10 +5,10 @@
     <article class="card card--spacious">
       <h1>Tesseramento</h1>
       <p class="muted">
-        La quota annuale è di <strong>{{ membership_fee }} €</strong> e include copertura assicurativa di base, accesso agli eventi
-        sociali e alle attività sportive. Per completare la richiesta servono <strong>carta d'identità</strong>,
-        <strong>tessera sanitaria</strong> e <strong>certificato medico</strong> in corso di validità, oltre al pagamento Nexi/XPay.
-        Al termine riceverai una password per accedere all'area tesserati e consultare i documenti caricati.
+        La quota annuale ? di <strong>{{ membership_fee }} ?</strong> e include copertura assicurativa di base, accesso agli eventi
+        sociali e alle attivit? sportive. Per completare la richiesta servono <strong>carta d'identit?</strong> e
+        <strong>certificato medico</strong> in corso di validit?, oltre al pagamento Nexi/XPay.
+        Dopo il pagamento riceverai la password per accedere all'area tesserati e consultare i documenti caricati.
       </p>
       {% if success %}
         <p class="alert alert--success">
@@ -29,6 +29,9 @@
 
         <label for="email">Email</label>
         <input id="email" name="email" type="email" placeholder="maria@esempio.com" required />
+
+        <label for="phone">Telefono</label>
+        <input id="phone" name="phone" type="tel" placeholder="+39 333 1234567" required />
 
         <div class="form-grid">
           <div>
@@ -68,14 +71,7 @@
             <label for="document_id">Codice tessera (se già assegnato)</label>
             <input id="document_id" name="document_id" type="text" />
           </div>
-          <div>
-            <label for="tessera_sanitaria">Tessera sanitaria</label>
-            <input id="tessera_sanitaria" name="tessera_sanitaria" type="text" required />
-          </div>
         </div>
-
-        <label for="medical_certificate">Certificato medico (note)</label>
-        <textarea id="medical_certificate" name="medical_certificate" rows="3" placeholder="Idoneità agonistica, ente rilasciante" required></textarea>
 
         <label for="medical_certificate_expiry">Scadenza certificato medico</label>
         <input id="medical_certificate_expiry" name="medical_certificate_expiry" type="date" required />
@@ -87,10 +83,17 @@
           {% endfor %}
         </select>
 
+        <label for="sport_type">Disciplina</label>
+        <select id="sport_type" name="sport_type" required>
+          {% for option in sport_types %}
+            <option value="{{ option }}">{{ option }}</option>
+          {% endfor %}
+        </select>
+
         <label for="message">Hai qualcosa da raccontarci?</label>
         <textarea id="message" name="message" rows="3" placeholder="Quali progetti ti interessano?"></textarea>
 
-        <label for="documents">Documenti / immagini (PDF, JPG, PNG) - carica certificato, CI e tessera sanitaria</label>
+        <label for="documents">Documenti / immagini (PDF, JPG, PNG) - carica certificato medico e documento d'identit?</label>
         <input
           id="documents"
           name="documents"

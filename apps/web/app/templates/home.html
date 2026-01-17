@@ -3,39 +3,67 @@
 {% block content %}
   <section class="hero-photo">
     <div class="hero-photo__content">
-      <h1>Amaro</h1>
       <p>
-        Questo nostro tempo è un tempo balordo, ma ci sono pur sempre le stelle in cielo e le biciclette sulle montagne
+        Questo nostro tempo e' un tempo balordo, ma ci sono pur sempre le stelle in cielo e le biciclette sulle montagne
       </p>
-      <div class="hero__actions">
-        <a class="btn btn-primary" href="/tesseramento">Tesserati ora</a>
-        <a class="btn btn-secondary" href="/eventi/open-day-primavera">Calendario eventi</a>
-      </div>
     </div>
-    <img src="{{ url_for('static', path='img/hero.png') }}" alt="Volontari Amaro in bici" class="hero-photo__img" />
+    <div class="hero-photo__media">
+      <img src="{{ url_for('static', path='img/hero.png') }}" alt="Volontari Amaro in bici" class="hero-photo__img" />
+    </div>
   </section>
 
-  <section class="section">
+  <section class="section" id="calendario">
     <header class="section__header">
       <h2>Calendario</h2>
-      <p>Gli appuntamenti principali già annunciati.</p>
+      <p>Eventi selezionati in evidenza e calendario del mese corrente.</p>
     </header>
-    <div class="card-grid">
-      {% for event in events %}
-        <article class="card">
-          <p class="card__date">
-            {{ event.date.strftime("%d %B %Y") if event.date else "Prossimamente" }}
-          </p>
-          <h3>{{ event.title }}</h3>
-          <p class="muted">{{ event.location or "Luogo in definizione" }}</p>
-          <p>{{ event.summary or event.description }}</p>
-          <div class="hero__actions">
-            <a class="btn btn-primary" href="/eventi/{{ event.slug }}">Dettagli</a>
-            <a class="btn btn-secondary" href="/tesseramento">Partecipa</a>
-          </div>
-        </article>
-      {% endfor %}
-    </div>
+    <article class="card">
+      <h3>Eventi in evidenza</h3>
+      <ul class="calendar-list">
+        {% for event in featured_events %}
+          <li>
+            <span class="calendar-date">{{ event.date }}</span>
+            <div>
+              <strong>{{ event.title }}</strong>
+              <span class="muted">{{ event.month }}</span>
+            </div>
+          </li>
+        {% endfor %}
+      </ul>
+    </article>
+
+    <article class="card calendar-month">
+      <div class="calendar-month__header">
+        <h3>{{ calendar_view.month_name }} {{ calendar_view.year }}</h3>
+      </div>
+      <div class="calendar-grid calendar-grid--header">
+        {% for label in weekday_labels %}
+          <div class="calendar-weekday">{{ label }}</div>
+        {% endfor %}
+      </div>
+      <div class="calendar-grid">
+        {% for week in calendar_view.weeks %}
+          {% for day in week %}
+            {% if day == 0 %}
+              <div class="calendar-day calendar-day--empty"></div>
+            {% else %}
+              {% set day_events = calendar_view.events.get(day) %}
+              <div class="calendar-day{% if day_events %} calendar-day--has-event{% endif %}">
+                <span class="calendar-day__num">{{ day }}</span>
+                {% if day_events %}
+                  <div class="calendar-day__events">
+                    {% for title in day_events %}
+                      <span>{{ title }}</span>
+                    {% endfor %}
+                  </div>
+                {% endif %}
+              </div>
+            {% endif %}
+          {% endfor %}
+        {% endfor %}
+      </div>
+      <a class="link link--block" href="/calendario">Vedi calendario completo</a>
+    </article>
   </section>
 
   <section class="section">

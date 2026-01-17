@@ -9,14 +9,13 @@
         calcolato la quota di {{ membership_fee }} €. La tessera include assicurazione base e accesso alle attività.
       </p>
 
-      {% if is_owner and password_hint %}
-        <p class="alert alert--success">
-          Password area tesserati: <strong>{{ password_hint }}</strong>.
-          Salvala, ti servirà per accedere e scaricare i documenti caricati.
-        </p>
-      {% elif not is_owner %}
+      {% if is_owner %}
         <p class="alert">
-          Accedi con le credenziali del socio per visualizzare la password e i documenti allegati.
+          La password dell'area tesserati sar? mostrata al termine del pagamento.
+        </p>
+      {% else %}
+        <p class="alert">
+          Accedi con le credenziali del socio per visualizzare la password e i documenti dopo il pagamento.
         </p>
       {% endif %}
 
@@ -44,7 +43,7 @@
             {% endfor %}
           </ul>
         {% else %}
-          <p class="muted">Non hai ancora caricato allegati. Carica certificato medico, CI e tessera sanitaria.</p>
+          <p class="muted">Non hai ancora caricato allegati. Carica certificato medico e documento d'identit?.</p>
         {% endif %}
       {% else %}
         <p class="muted">Effettua il login nell'area tesserati per consultare e scaricare i documenti allegati.</p>

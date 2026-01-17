@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <section class="section">
+    <header class="section__header">
+      <h1>Calendario eventi</h1>
+      <p class="muted">
+        Calendario mese per mese con le date principali da segnare.
+      </p>
+    </header>
+    <div class="card-grid">
+      {% for month in calendar_months %}
+        <article class="card">
+          <h3>{{ month.month }}</h3>
+          <ul class="calendar-list">
+            {% for event in month.events %}
+              <li>
+                <span class="calendar-date">{{ event.date }}</span>
+                <div>
+                  <strong>{{ event.title }}</strong>
+                </div>
+              </li>
+            {% endfor %}
+          </ul>
+        </article>
+      {% endfor %}
+    </div>
+  </section>
+{% endblock %}
