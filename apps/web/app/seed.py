@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import date
+import re
 
 from sqlalchemy.orm import Session
 
@@ -18,7 +19,46 @@ SAMPLE_EVENTS = [
     },
 ]
 
-SAMPLE_MERCH = SAMPLE_MERCH = [
+CALENDAR_SEED_EVENTS = [
+    (1, 6, "Ciclocross di inizio stagione"),
+    (1, 19, "Raduno sociale invernale"),
+    (1, 26, "Cronoscalata amatoriale"),
+    (2, 2, "Granfondo del Gelo"),
+    (2, 16, "Training day su strada"),
+    (2, 23, "Pedalata solidale"),
+    (3, 9, "Strade Bianche"),
+    (3, 17, "Raduno di primavera"),
+    (3, 31, "Classica collinare"),
+    (4, 7, "Giro delle Fiandre"),
+    (4, 14, "Classica delle Ardenne"),
+    (4, 28, "Uscita lunga sociale"),
+    (5, 5, "Tappa Giro d'Italia"),
+    (5, 19, "Crono cittadina"),
+    (5, 26, "Giornata gravel"),
+    (6, 2, "Giro del Lago"),
+    (6, 16, "Raduno estivo"),
+    (6, 30, "Tour panoramico"),
+    (7, 7, "Giro d'Italia Women"),
+    (7, 14, "Alpe day"),
+    (7, 28, "Pedalata al tramonto"),
+    (8, 4, "Raduno in quota"),
+    (8, 18, "Tour dei passi"),
+    (8, 25, "Giro delle valli"),
+    (9, 1, "Gran premio di fine estate"),
+    (9, 15, "Giro dell'Appennino"),
+    (9, 29, "Pedalata vintage"),
+    (10, 6, "Giro di Lombardia"),
+    (10, 20, "Granfondo d'autunno"),
+    (10, 27, "Uscita foglie rosse"),
+    (11, 10, "Criterium cittadino"),
+    (11, 17, "Raduno solidale"),
+    (11, 24, "Trail misto strada"),
+    (12, 8, "Cicloturistica di Natale"),
+    (12, 15, "Brindisi di fine anno"),
+    (12, 29, "Uscita di chiusura stagione"),
+]
+
+SAMPLE_MERCH = [
     {
         "slug": "maglia-bici-racing-aero",
         "name": "Maglia Bici Racing/Aero",
@@ -122,7 +162,8 @@ SAMPLE_MERCH = SAMPLE_MERCH = [
 
 
 def seed_sample_data(session: Session) -> None:
-    for payload in SAMPLE_EVENTS:
+    calendar_events = _build_calendar_events(date.today().year)
+    for payload in SAMPLE_EVENTS + calendar_events:
         existing = session.query(Event).filter_by(slug=payload["slug"]).first()
         if existing:
             continue
@@ -135,3 +176,27 @@ def seed_sample_data(session: Session) -> None:
         session.add(MerchItem(**payload))
 
     session.commit()
+
+
+def _build_calendar_events(year: int) -> list[dict[str, object]]:
+    events: list[dict[str, object]] = []
+    for month, day, title in CALENDAR_SEED_EVENTS:
+        slug = _slugify(f"{title}-{year}-{month:02d}-{day:02d}")
+        events.append(
+            {
+                "slug": slug,
+                "title": title,
+                "description": None,
+                "location": None,
+                "date": date(year, month, day),
+                "hero_quote": None,
+                "summary": None,
+            }
+        )
+    return events
+
+
+def _slugify(value: str) -> str:
+    value = value.lower()
+    value = re.sub(r"[^a-z0-9]+", "-", value)
+    return value.strip("-")

@@ -16,6 +16,8 @@ class Settings(BaseSettings):
     drive_events_folder_id: str | None = Field(None, env='GOOGLE_DRIVE_EVENTS_FOLDER_ID')
     drive_gallery_folder_id: str | None = Field(None, env='GOOGLE_DRIVE_GALLERY_FOLDER_ID')
     session_secret: str = Field('change-me-session', env='SESSION_SECRET')
+    admin_username: str | None = Field(None, env='ADMIN_USERNAME')
+    admin_password: str | None = Field(None, env='ADMIN_PASSWORD')
 
     class Config:
         env_file = '.env'

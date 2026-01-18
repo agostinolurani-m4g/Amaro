@@ -59,6 +59,19 @@ Metti le foto nelle cartelle Drive indicate (eventi e galleria generale); la pag
 - I documenti vengono salvati in `apps/web/app/uploads/` e protetti: il download richiede login con l'account del socio.
 - Schema del database aggiornato automaticamente all'avvio (`ensure_member_schema`) per includere i nuovi campi del socio (dati anagrafici, password hash, documenti).
 
+## Gestione database (admin UI)
+
+Per gestire dati e tabelle da un'interfaccia web:
+
+1. Imposta le credenziali in `apps/web/.env`:
+
+```
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD=cambia-questa-password
+```
+
+2. Avvia l'app e visita `http://127.0.0.1:8000/admin` per accedere al pannello.
+
 ## Deploy
 
 Servono un backend Python attivo e le variabili ambiente configurate. Opzioni economiche compatibili con FastAPI:

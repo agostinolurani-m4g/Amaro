@@ -19,6 +19,7 @@ from sqlalchemy import inspect, text
 from sqlalchemy.orm import Session
 from starlette.middleware.sessions import SessionMiddleware
 
+from .admin import setup_admin
 from .config import settings
 from .database import Base, SessionLocal, engine, get_session
 from .models import Event, Member, MerchItem, MemberDocument
@@ -62,109 +63,19 @@ WEEKDAY_LABELS = [
     "Dom",
 ]
 
-CALENDAR_MONTHS: list[dict[str, object]] = [
-    {
-        "month": "Gennaio",
-        "events": [
-            {"date": "06/01", "title": "Ciclocross di inizio stagione"},
-            {"date": "19/01", "title": "Raduno sociale invernale"},
-            {"date": "26/01", "title": "Cronoscalata amatoriale"},
-        ],
-    },
-    {
-        "month": "Febbraio",
-        "events": [
-            {"date": "02/02", "title": "Granfondo del Gelo"},
-            {"date": "16/02", "title": "Training day su strada"},
-            {"date": "23/02", "title": "Pedalata solidale"},
-        ],
-    },
-    {
-        "month": "Marzo",
-        "events": [
-            {"date": "09/03", "title": "Strade Bianche"},
-            {"date": "17/03", "title": "Raduno di primavera"},
-            {"date": "31/03", "title": "Classica collinare"},
-        ],
-    },
-    {
-        "month": "Aprile",
-        "events": [
-            {"date": "07/04", "title": "Giro delle Fiandre"},
-            {"date": "14/04", "title": "Classica delle Ardenne"},
-            {"date": "28/04", "title": "Uscita lunga sociale"},
-        ],
-    },
-    {
-        "month": "Maggio",
-        "events": [
-            {"date": "05/05", "title": "Tappa Giro d'Italia"},
-            {"date": "19/05", "title": "Crono cittadina"},
-            {"date": "26/05", "title": "Giornata gravel"},
-        ],
-    },
-    {
-        "month": "Giugno",
-        "events": [
-            {"date": "02/06", "title": "Giro del Lago"},
-            {"date": "16/06", "title": "Raduno estivo"},
-            {"date": "30/06", "title": "Tour panoramico"},
-        ],
-    },
-    {
-        "month": "Luglio",
-        "events": [
-            {"date": "07/07", "title": "Giro d'Italia Women"},
-            {"date": "14/07", "title": "Alpe day"},
-            {"date": "28/07", "title": "Pedalata al tramonto"},
-        ],
-    },
-    {
-        "month": "Agosto",
-        "events": [
-            {"date": "04/08", "title": "Raduno in quota"},
-            {"date": "18/08", "title": "Tour dei passi"},
-            {"date": "25/08", "title": "Giro delle valli"},
-        ],
-    },
-    {
-        "month": "Settembre",
-        "events": [
-            {"date": "01/09", "title": "Gran premio di fine estate"},
-            {"date": "15/09", "title": "Giro dell'Appennino"},
-            {"date": "29/09", "title": "Pedalata vintage"},
-        ],
-    },
-    {
-        "month": "Ottobre",
-        "events": [
-            {"date": "06/10", "title": "Giro di Lombardia"},
-            {"date": "20/10", "title": "Granfondo d'autunno"},
-            {"date": "27/10", "title": "Uscita foglie rosse"},
-        ],
-    },
-    {
-        "month": "Novembre",
-        "events": [
-            {"date": "10/11", "title": "Criterium cittadino"},
-            {"date": "17/11", "title": "Raduno solidale"},
-            {"date": "24/11", "title": "Trail misto strada"},
-        ],
-    },
-    {
-        "month": "Dicembre",
-        "events": [
-            {"date": "08/12", "title": "Cicloturistica di Natale"},
-            {"date": "15/12", "title": "Brindisi di fine anno"},
-            {"date": "29/12", "title": "Uscita di chiusura stagione"},
-        ],
-    },
-]
-
-CALENDAR_FEATURED: list[dict[str, str]] = [
-    {"date": "07/04", "title": "Giro delle Fiandre", "month": "Aprile"},
-    {"date": "05/05", "title": "Tappa Giro d'Italia", "month": "Maggio"},
-    {"date": "06/10", "title": "Giro di Lombardia", "month": "Ottobre"},
+ITALIAN_MONTHS = [
+    "Gennaio",
+    "Febbraio",
+    "Marzo",
+    "Aprile",
+    "Maggio",
+    "Giugno",
+    "Luglio",
+    "Agosto",
+    "Settembre",
+    "Ottobre",
+    "Novembre",
+    "Dicembre",
 ]
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -180,6 +91,7 @@ templates = Jinja2Templates(directory=templates_dir)
 templates.env.globals["current_year"] = datetime.utcnow().year
 logger = logging.getLogger(__name__)
 app.add_middleware(SessionMiddleware, secret_key=settings.session_secret, session_cookie="amaro_session")
+setup_admin(app)
 
 UPLOADS_DIR = (BASE_DIR / settings.uploads_path).resolve()
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
@@ -334,50 +246,95 @@ def _verify_password(raw: str, hashed: str | None) -> bool:
     return bool(hashed) and _hash_password(raw) == hashed
 
 
-def _calendar_current_month() -> dict[str, object] | None:
-    month_index = date.today().month - 1
-    if 0 <= month_index < len(CALENDAR_MONTHS):
-        return CALENDAR_MONTHS[month_index]
-    return None
+def _month_label(month: int) -> str:
+    if 1 <= month <= len(ITALIAN_MONTHS):
+        return ITALIAN_MONTHS[month - 1]
+    return calendar.month_name[month]
 
 
-def _build_month_view() -> dict[str, object]:
+def _build_month_view(session: Session) -> dict[str, object]:
     today = date.today()
-    month_data = _calendar_current_month()
-    month_name = (
-        month_data.get("month")
-        if isinstance(month_data, dict) and isinstance(month_data.get("month"), str)
-        else calendar.month_name[today.month]
-    )
+    month_name = _month_label(today.month)
     weeks = calendar.Calendar(firstweekday=0).monthdayscalendar(today.year, today.month)
     event_map: dict[int, list[str]] = {}
-    if isinstance(month_data, dict):
-        events = month_data.get("events", [])
-        if isinstance(events, list):
-            for event in events:
-                if not isinstance(event, dict):
-                    continue
-                date_value = event.get("date")
-                title = event.get("title")
-                if not isinstance(date_value, str) or not isinstance(title, str):
-                    continue
-                parts = date_value.split("/")
-                if len(parts) < 2:
-                    continue
-                day_part, month_part = parts[0], parts[1]
-                if not (day_part.isdigit() and month_part.isdigit()):
-                    continue
-                day = int(day_part)
-                month = int(month_part)
-                if month != today.month:
-                    continue
-                event_map.setdefault(day, []).append(title)
+    month_start = date(today.year, today.month, 1)
+    month_end = date(today.year, today.month, calendar.monthrange(today.year, today.month)[1])
+    events = (
+        session.query(Event)
+        .filter(Event.date >= month_start, Event.date <= month_end)
+        .order_by(Event.date.asc())
+        .all()
+    )
+    for event in events:
+        if not event.date:
+            continue
+        event_map.setdefault(event.date.day, []).append(event.title)
     return {
         "month_name": month_name,
         "year": today.year,
         "weeks": weeks,
         "events": event_map,
     }
+
+
+def _build_calendar_months(session: Session) -> list[dict[str, object]]:
+    year = date.today().year
+    months: list[dict[str, object]] = [
+        {"month": name, "events": []} for name in ITALIAN_MONTHS
+    ]
+    year_start = date(year, 1, 1)
+    year_end = date(year, 12, 31)
+    events = (
+        session.query(Event)
+        .filter(Event.date >= year_start, Event.date <= year_end)
+        .order_by(Event.date.asc())
+        .all()
+    )
+    for event in events:
+        if not event.date:
+            continue
+        month_index = event.date.month - 1
+        if 0 <= month_index < len(months):
+            months[month_index]["events"].append(
+                {
+                    "date": f"{event.date.day:02d}/{event.date.month:02d}",
+                    "title": event.title,
+                }
+            )
+    return months
+
+
+def _build_featured_events(
+    session: Session, limit: int = 3
+) -> list[dict[str, str]]:
+    today = date.today()
+    upcoming = (
+        session.query(Event)
+        .filter(Event.date >= today)
+        .order_by(Event.date.asc())
+        .limit(limit)
+        .all()
+    )
+    events = upcoming
+    if len(events) < limit:
+        events = (
+            session.query(Event)
+            .order_by(Event.date.asc())
+            .limit(limit)
+            .all()
+        )
+    featured: list[dict[str, str]] = []
+    for event in events:
+        if not event.date:
+            continue
+        featured.append(
+            {
+                "date": f"{event.date.day:02d}/{event.date.month:02d}",
+                "title": event.title,
+                "month": _month_label(event.date.month),
+            }
+        )
+    return featured
 
 
 def _member_from_session(request: Request, session: Session) -> Member | None:
@@ -443,12 +400,13 @@ def _build_payment_result_context(
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request, session: Session = Depends(get_session)) -> HTMLResponse:
     merch_preview = session.query(MerchItem).order_by(MerchItem.id).limit(3).all()
-    calendar_view = _build_month_view()
+    calendar_view = _build_month_view(session)
+    featured_events = _build_featured_events(session)
     return templates.TemplateResponse(
         "home.html",
         {
             "request": request,
-            "featured_events": CALENDAR_FEATURED,
+            "featured_events": featured_events,
             "calendar_view": calendar_view,
             "weekday_labels": WEEKDAY_LABELS,
             "merch_preview": merch_preview,
@@ -549,12 +507,13 @@ def merch_checkout(
 
 
 @app.get("/calendario", response_class=HTMLResponse)
-def calendar_view(request: Request) -> HTMLResponse:
+def calendar_view(request: Request, session: Session = Depends(get_session)) -> HTMLResponse:
+    calendar_months = _build_calendar_months(session)
     return templates.TemplateResponse(
         "calendar.html",
         {
             "request": request,
-            "calendar_months": CALENDAR_MONTHS,
+            "calendar_months": calendar_months,
             "settings": settings,
         },
     )
