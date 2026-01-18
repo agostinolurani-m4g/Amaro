@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import logging
 
+from datetime import date as dt_date, datetime as dt_datetime
+
 from fastapi import FastAPI
 from sqladmin import Admin, ModelView
 from sqladmin.authentication import AuthenticationBackend
@@ -34,19 +36,32 @@ class AdminAuth(AuthenticationBackend):
         return bool(request.session.get("admin_authenticated"))
 
 
-class EventAdmin(ModelView, model=Event):
+def _format_it_date(value: object) -> str:
+    if isinstance(value, (dt_date, dt_datetime)):
+        return value.strftime("%d/%m/%Y")
+    return ""
+
+
+class AmaroAdmin(ModelView):
+    column_type_formatters = {
+        dt_date: _format_it_date,
+        dt_datetime: _format_it_date,
+    }
+
+
+class EventAdmin(AmaroAdmin, model=Event):
     column_list = ["id", "title", "slug", "date", "location"]
     column_searchable_list = ["title", "slug", "location"]
     column_sortable_list = ["id", "date", "title"]
 
 
-class MerchItemAdmin(ModelView, model=MerchItem):
+class MerchItemAdmin(AmaroAdmin, model=MerchItem):
     column_list = ["id", "name", "slug", "price_cents", "stock", "image_url"]
     column_searchable_list = ["name", "slug"]
     column_sortable_list = ["id", "name", "price_cents", "stock"]
 
 
-class MemberAdmin(ModelView, model=Member):
+class MemberAdmin(AmaroAdmin, model=Member):
     column_list = [
         "id",
         "first_name",
@@ -62,7 +77,7 @@ class MemberAdmin(ModelView, model=Member):
     form_excluded_columns = ["password_hash", "access_code", "documents"]
 
 
-class MemberDocumentAdmin(ModelView, model=MemberDocument):
+class MemberDocumentAdmin(AmaroAdmin, model=MemberDocument):
     column_list = ["id", "member", "original_name", "content_type", "uploaded_at"]
     column_labels = {
         "member": "Socio",
