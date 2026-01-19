@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <section class="section">
+    <article class="card card--spacious">
+      <h1>Pagamento Tessera</h1>
+      <p>
+        Quota per <strong>{{ sport_type }}</strong>: {{ membership_fee }} &euro;.
+        Dopo il pagamento potrai completare i dati anagrafici e caricare i documenti.
+      </p>
+      <p class="muted">Ti invieremo il link per completare il tesseramento a {{ email }}.</p>
+      <div class="hero__actions">
+        <form method="post" action="{{ payment.redirect_url }}">
+          {% for name, value in payment.payload.items() %}
+            <input type="hidden" name="{{ name }}" value="{{ value }}">
+          {% endfor %}
+          <button class="btn btn-primary" type="submit">Vai al pagamento sicuro</button>
+        </form>
+        <a class="btn btn-secondary" href="/tesseramento">Indietro</a>
+      </div>
+    </article>
+  </section>
+{% endblock %}

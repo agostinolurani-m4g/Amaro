@@ -19,8 +19,15 @@
       {% if label %}
         <p class="muted">{{ label }}</p>
       {% endif %}
+      {% if email_notice %}
+        <p class="muted">{{ email_notice }}</p>
+      {% endif %}
+      {% set return_label = "Torna al sito" %}
+      {% if return_url and "tesseramento/dati" in return_url %}
+        {% set return_label = "Completa tesseramento" %}
+      {% endif %}
       <div class="hero__actions">
-        <a class="btn btn-primary" href="{{ return_url }}">Torna al sito</a>
+        <a class="btn btn-primary" href="{{ return_url }}">{{ return_label }}</a>
         {% if retry_url %}
           <a class="btn btn-secondary" href="{{ retry_url }}">Riprova pagamento</a>
         {% endif %}

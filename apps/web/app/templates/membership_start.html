@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <section class="section">
+    <article class="card card--spacious">
+      <h1>Tesseramento</h1>
+      <p class="muted">
+        Scegli la disciplina e completa il pagamento. Dopo il pagamento ti chiederemo i dati anagrafici
+        e i documenti necessari per finalizzare il tesseramento.
+      </p>
+      <p class="muted">
+        Quota annuale per disciplina ({{ membership_fee_range }} &euro;):
+        {% for option in sport_types %}
+          <strong>{{ option }}</strong> {{ sport_type_fees[option] }} &euro;{% if not loop.last %} / {% endif %}
+        {% endfor %}.
+      </p>
+      <form method="post" action="/tesseramento/pagamento" class="form stacked">
+        <label for="sport_type">Disciplina</label>
+        <select id="sport_type" name="sport_type" required>
+          {% for option in sport_types %}
+            <option value="{{ option }}">{{ option }}</option>
+          {% endfor %}
+        </select>
+        <label for="email">Email</label>
+        <input id="email" name="email" type="email" placeholder="maria@esempio.com" required />
+        <p class="muted">Ti invieremo il link per completare il tesseramento.</p>
+        <button class="btn btn-primary" type="submit">Vai al pagamento</button>
+      </form>
+    </article>
+  </section>
+{% endblock %}

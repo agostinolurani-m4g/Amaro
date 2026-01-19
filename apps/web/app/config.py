@@ -18,6 +18,13 @@ class Settings(BaseSettings):
     session_secret: str = Field('change-me-session', env='SESSION_SECRET')
     admin_username: str | None = Field(None, env='ADMIN_USERNAME')
     admin_password: str | None = Field(None, env='ADMIN_PASSWORD')
+    smtp_host: str | None = Field(None, env='SMTP_HOST')
+    smtp_port: int = Field(587, env='SMTP_PORT')
+    smtp_user: str | None = Field(None, env='SMTP_USER')
+    smtp_password: str | None = Field(None, env='SMTP_PASSWORD')
+    smtp_from: str | None = Field(None, env='SMTP_FROM')
+    smtp_use_tls: bool = Field(True, env='SMTP_USE_TLS')
+    smtp_use_ssl: bool = Field(False, env='SMTP_USE_SSL')
 
     class Config:
         env_file = '.env'

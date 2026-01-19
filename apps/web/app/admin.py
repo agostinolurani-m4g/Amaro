@@ -11,7 +11,7 @@ from starlette.requests import Request
 
 from .config import settings
 from .database import engine
-from .models import Event, Member, MemberDocument, MerchItem
+from .models import Event, Member, MemberDocument, MembershipPayment, MerchItem
 
 logger = logging.getLogger(__name__)
 
@@ -100,6 +100,22 @@ class MemberDocumentAdmin(AmaroAdmin, model=MemberDocument):
     }
 
 
+class MembershipPaymentAdmin(AmaroAdmin, model=MembershipPayment):
+    column_list = [
+        "id",
+        "reference",
+        "email",
+        "sport_type",
+        "amount_cents",
+        "status",
+        "member_id",
+        "created_at",
+        "paid_at",
+    ]
+    column_searchable_list = ["reference", "sport_type", "email"]
+    column_sortable_list = ["id", "created_at", "paid_at", "status"]
+
+
 def setup_admin(app: FastAPI) -> None:
     if not settings.admin_username or not settings.admin_password:
         logger.warning(
@@ -113,3 +129,4 @@ def setup_admin(app: FastAPI) -> None:
     admin.add_view(MerchItemAdmin)
     admin.add_view(MemberAdmin)
     admin.add_view(MemberDocumentAdmin)
+    admin.add_view(MembershipPaymentAdmin)

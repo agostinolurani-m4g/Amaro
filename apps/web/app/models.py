@@ -76,3 +76,19 @@ class MemberDocument(Base):
         DateTime(timezone=True), server_default=func.now()
     )
     member: Mapped["Member"] = relationship("Member", back_populates="documents")
+
+
+class MembershipPayment(Base):
+    __tablename__ = "membership_payments"
+
+    id: Mapped[int] = Column(Integer, primary_key=True)
+    reference: Mapped[str] = Column(String(40), unique=True, nullable=False)
+    email: Mapped[str | None] = Column(String(140))
+    sport_type: Mapped[str] = Column(String(80), nullable=False)
+    amount_cents: Mapped[int] = Column(Integer, nullable=False)
+    status: Mapped[str] = Column(String(20), default="pending")
+    created_at: Mapped[DateTime] = Column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    paid_at: Mapped[DateTime | None] = Column(DateTime(timezone=True))
+    member_id: Mapped[int | None] = Column(ForeignKey("members.id"))

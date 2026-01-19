@@ -4,18 +4,22 @@
   <section class="section">
     <article class="card card--spacious">
       <h1>Tesseramento</h1>
-      <p class="muted">
-        La quota annuale ? di <strong>{{ membership_fee }} ?</strong> e include copertura assicurativa di base, accesso agli eventi
-        sociali e alle attivit? sportive. Per completare la richiesta servono <strong>carta d'identit?</strong> e
-        <strong>certificato medico</strong> in corso di validit?, oltre al pagamento Nexi/XPay.
-        Dopo il pagamento riceverai la password per accedere all'area tesserati e consultare i documenti caricati.
-      </p>
-      {% if success %}
+      {% if payment_reference %}
         <p class="alert alert--success">
-          Grazie! Ti abbiamo inviato una conferma: completa il pagamento Nexi/XPay dal link dedicato.
+          Pagamento registrato. Completa i dati per finalizzare il tesseramento.
         </p>
       {% endif %}
+      <p class="muted">
+        La quota annuale varia in base alla disciplina ({{ membership_fee_range }} &euro;):
+        {% for option in sport_types %}
+          <strong>{{ option }}</strong> {{ sport_type_fees[option] }} &euro;{% if not loop.last %} / {% endif %}
+        {% endfor %}.
+        Include copertura assicurativa di base, accesso agli eventi sociali e alle attivit&agrave; sportive. Per completare la
+        richiesta servono <strong>carta d'identit&agrave;</strong> e <strong>certificato medico</strong> in corso di validit&agrave;.
+        Dopo l'invio riceverai la password per accedere all'area tesserati e consultare i documenti caricati.
+      </p>
       <form method="post" enctype="multipart/form-data" class="form stacked">
+        <input type="hidden" name="payment_reference" value="{{ payment_reference }}" />
         <div class="form-grid">
           <div>
             <label for="first_name">Nome</label>
@@ -28,7 +32,14 @@
         </div>
 
         <label for="email">Email</label>
-        <input id="email" name="email" type="email" placeholder="maria@esempio.com" required />
+        <input
+          id="email"
+          name="email"
+          type="email"
+          placeholder="maria@esempio.com"
+          value="{{ prefill_email or '' }}"
+          required
+        />
 
         <label for="phone">Telefono</label>
         <input id="phone" name="phone" type="tel" placeholder="+39 333 1234567" required />
@@ -58,7 +69,7 @@
         <div class="form-grid">
           <div>
             <label for="document_type">Tipo documento (CI/Passaporto)</label>
-            <input id="document_type" name="document_type" type="text" placeholder="Carta d'identità" required />
+            <input id="document_type" name="document_type" type="text" placeholder="Carta d'identit&agrave;" required />
           </div>
           <div>
             <label for="document_number">Numero documento</label>
@@ -68,7 +79,7 @@
 
         <div class="form-grid">
           <div>
-            <label for="document_id">Codice tessera (se già assegnato)</label>
+            <label for="document_id">Codice tessera (se gi&agrave; assegnato)</label>
             <input id="document_id" name="document_id" type="text" />
           </div>
         </div>
@@ -76,24 +87,16 @@
         <label for="medical_certificate_expiry">Scadenza certificato medico</label>
         <input id="medical_certificate_expiry" name="medical_certificate_expiry" type="date" required />
 
-        <label for="membership_type">Tipologia</label>
-        <select id="membership_type" name="membership_type" required>
-          {% for option in membership_types %}
-            <option value="{{ option }}">{{ option }}</option>
-          {% endfor %}
-        </select>
+        <input type="hidden" name="membership_type" value="Socio ordinario" />
 
-        <label for="sport_type">Disciplina</label>
-        <select id="sport_type" name="sport_type" required>
-          {% for option in sport_types %}
-            <option value="{{ option }}">{{ option }}</option>
-          {% endfor %}
-        </select>
+        <label>Disciplina</label>
+        <p class="muted"><strong>{{ selected_sport_type }}</strong></p>
+        <input type="hidden" name="sport_type" value="{{ selected_sport_type }}" />
 
         <label for="message">Hai qualcosa da raccontarci?</label>
         <textarea id="message" name="message" rows="3" placeholder="Quali progetti ti interessano?"></textarea>
 
-        <label for="documents">Documenti / immagini (PDF, JPG, PNG) - carica certificato medico e documento d'identit?</label>
+        <label for="documents">Documenti / immagini (PDF, JPG, PNG) - carica certificato medico e documento d'identit&agrave;</label>
         <input
           id="documents"
           name="documents"
@@ -103,10 +106,10 @@
           required
         />
 
-        <button class="btn btn-primary" type="submit">Invia dati e prosegui con Nexi/XPay</button>
+        <button class="btn btn-primary" type="submit">Invia dati e completa il tesseramento</button>
       </form>
       <p class="muted">
-        Gli allegati vengono salvati nella cartella {{ uploads_path }}. Dopo il pagamento riceverai la password per
+        Gli allegati vengono salvati nella cartella {{ uploads_path }}. Dopo l'invio riceverai la password per
         l'area tesserati, dove potrai cercare e scaricare i tuoi documenti.
       </p>
     </article>

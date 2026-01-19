@@ -5,7 +5,9 @@ import logging
 import shutil
 import hashlib
 import secrets
+import smtplib
 from datetime import date, datetime
+from email.message import EmailMessage
 from pathlib import Path
 from typing import Sequence
 from uuid import uuid4
@@ -22,7 +24,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from .admin import setup_admin
 from .config import settings
 from .database import Base, SessionLocal, engine, get_session
-from .models import Event, Member, MerchItem, MemberDocument
+from .models import Event, Member, MerchItem, MemberDocument, MembershipPayment
 from .nexi import NexiPaymentContext, NexiXpayClient
 from .seed import seed_sample_data
 
@@ -48,10 +50,16 @@ MEMBERSHIP_TYPES = [
     "Sostenitore",
 ]
 
-SPORT_TYPES = [
-    "Solo ciclismo",
-    "Ciclismo + Atletica",
-]
+SPORT_TYPE_FEES = {
+    "Solo ciclismo": 50,
+    "Ciclismo + Atletica": 60,
+    "Solo atletica": 15,
+}
+
+SPORT_TYPES = list(SPORT_TYPE_FEES.keys())
+MEMBERSHIP_FEE_MIN = min(SPORT_TYPE_FEES.values())
+MEMBERSHIP_FEE_MAX = max(SPORT_TYPE_FEES.values())
+MEMBERSHIP_FEE_RANGE_LABEL = f"{MEMBERSHIP_FEE_MIN}-{MEMBERSHIP_FEE_MAX}"
 
 WEEKDAY_LABELS = [
     "Lun",
@@ -77,6 +85,8 @@ ITALIAN_MONTHS = [
     "Novembre",
     "Dicembre",
 ]
+
+SHOW_MERCH_PREVIEW = False
 
 BASE_DIR = Path(__file__).resolve().parent
 static_dir = Path(settings.static_path)
@@ -108,6 +118,7 @@ def on_startup() -> None:
     Base.metadata.create_all(bind=engine)
     ensure_member_schema()
     ensure_merch_schema()
+    ensure_membership_payment_schema()
     session = SessionLocal()
     try:
         seed_sample_data(session)
@@ -117,6 +128,62 @@ def on_startup() -> None:
 
 def format_price(cents: int) -> str:
     return f"{cents / 100:.2f}"
+
+
+def membership_fee_for_sport(sport_type: str | None) -> int:
+    if not sport_type:
+        return settings.membership_fee_eur
+    return SPORT_TYPE_FEES.get(sport_type, settings.membership_fee_eur)
+
+
+def build_payment_reference(prefix: str) -> str:
+    safe_prefix = "".join(ch for ch in prefix if ch.isalnum()).upper()
+    safe_prefix = safe_prefix or "PAY"
+    return f"{safe_prefix}{uuid4().hex[:12].upper()}"
+
+
+def _membership_form_link(request: Request, ref: str) -> str:
+    base_url = str(request.url_for("membership_form"))
+    return f"{base_url}?ref={ref}"
+
+
+def _send_membership_completion_email(email: str, link: str) -> bool:
+    if not settings.smtp_host or not settings.smtp_from:
+        logger.warning("SMTP not configured; skipping membership email.")
+        return False
+    message = EmailMessage()
+    message["Subject"] = f"{settings.app_name} - Completa tesseramento"
+    message["From"] = settings.smtp_from
+    message["To"] = email
+    message.set_content(
+        "Ciao,\n\nAbbiamo ricevuto il pagamento. Per completare il tesseramento apri questo link:\n"
+        f"{link}\n\nSe non hai richiesto tu, ignora questa email.\n"
+    )
+    server = None
+    try:
+        if settings.smtp_use_ssl:
+            server = smtplib.SMTP_SSL(
+                settings.smtp_host, settings.smtp_port, timeout=10
+            )
+        else:
+            server = smtplib.SMTP(
+                settings.smtp_host, settings.smtp_port, timeout=10
+            )
+            if settings.smtp_use_tls:
+                server.starttls()
+        if settings.smtp_user and settings.smtp_password:
+            server.login(settings.smtp_user, settings.smtp_password)
+        server.send_message(message)
+        return True
+    except Exception:
+        logger.exception("Failed to send membership completion email")
+        return False
+    finally:
+        if server:
+            try:
+                server.quit()
+            except Exception:
+                pass
 
 
 def _require_nexi_client() -> NexiXpayClient:
@@ -231,6 +298,24 @@ def ensure_merch_schema() -> None:
     if "image_url" not in columns:
         with engine.begin() as conn:
             conn.execute(text("ALTER TABLE merch_items ADD COLUMN image_url VARCHAR(255)"))
+
+
+def ensure_membership_payment_schema() -> None:
+    inspector = inspect(engine)
+    if "membership_payments" not in inspector.get_table_names():
+        return
+    columns = {col["name"] for col in inspector.get_columns("membership_payments")}
+    required_columns: dict[str, str] = {
+        "email": "VARCHAR(140)",
+    }
+    with engine.begin() as conn:
+        for column, ddl in required_columns.items():
+            if column not in columns:
+                conn.execute(
+                    text(
+                        f"ALTER TABLE membership_payments ADD COLUMN {column} {ddl}"
+                    )
+                )
 
 
 def _hash_password(raw: str) -> str:
@@ -397,9 +482,77 @@ def _build_payment_result_context(
     }
 
 
+def _payment_reference_from_request(request: Request) -> str | None:
+    ref = request.query_params.get("ref")
+    return ref if isinstance(ref, str) and ref else None
+
+
+def _apply_reference_payment(
+    ref: str | None, session: Session, success: bool, request: Request | None
+) -> dict[str, object]:
+    if not ref:
+        return {}
+
+    payment = session.query(MembershipPayment).filter_by(reference=ref).first()
+    if payment:
+        if payment.member_id:
+            return {
+                "return_url": "/area-tesserati",
+                "label": "Tesseramento completato",
+            }
+        completion_url = (
+            _membership_form_link(request, payment.reference)
+            if request
+            else f"/tesseramento/dati?ref={payment.reference}"
+        )
+        if success:
+            was_pending = payment.status != "paid"
+            if payment.status != "paid":
+                payment.status = "paid"
+                payment.paid_at = datetime.utcnow()
+                session.commit()
+            email_notice = None
+            if payment.email and was_pending and request:
+                if _send_membership_completion_email(payment.email, completion_url):
+                    email_notice = f"Ti abbiamo inviato il link a {payment.email}."
+            context = {
+                "return_url": completion_url,
+                "retry_url": None,
+                "label": f"Tesseramento {payment.sport_type}",
+            }
+            if email_notice:
+                context["email_notice"] = email_notice
+            return context
+        if payment.status != "failed":
+            payment.status = "failed"
+            session.commit()
+        return {
+            "return_url": "/tesseramento",
+            "retry_url": f"/tesseramento/pagamento?ref={payment.reference}",
+            "label": f"Tesseramento {payment.sport_type}",
+        }
+
+    member = session.query(Member).filter_by(payment_reference=ref).first()
+    if not member:
+        return {}
+
+    if success:
+        member.payment_status = "paid"
+    elif member.payment_status != "paid":
+        member.payment_status = "failed"
+    session.commit()
+    return {
+        "return_url": "/area-tesserati",
+        "label": f"Tesseramento {member.first_name} {member.last_name}",
+        "password_hint": member.access_code if success else None,
+    }
+
+
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request, session: Session = Depends(get_session)) -> HTMLResponse:
-    merch_preview = session.query(MerchItem).order_by(MerchItem.id).limit(3).all()
+    merch_preview: list[MerchItem] = []
+    if SHOW_MERCH_PREVIEW:
+        merch_preview = session.query(MerchItem).order_by(MerchItem.id).limit(3).all()
     calendar_view = _build_month_view(session)
     featured_events = _build_featured_events(session)
     return templates.TemplateResponse(
@@ -410,6 +563,7 @@ def home(request: Request, session: Session = Depends(get_session)) -> HTMLRespo
             "calendar_view": calendar_view,
             "weekday_labels": WEEKDAY_LABELS,
             "merch_preview": merch_preview,
+            "show_merch_preview": SHOW_MERCH_PREVIEW,
             "membership_fee": settings.membership_fee_eur,
             "settings": settings,
             "price_fn": format_price,
@@ -475,7 +629,7 @@ def merch_checkout(
 
     quantity = max(1, min(quantity, item.stock or 1))
     total_cents = item.price_cents * quantity
-    payment_reference = f"merch-{item.slug}-{reqid()}"
+    payment_reference = build_payment_reference("MER")
     _set_pending_payment(
         request,
         {
@@ -486,11 +640,15 @@ def merch_checkout(
             "label": f"Ordine merch: {item.name} x{quantity}",
         },
     )
+    success_url = f"{settings.nexipay_success_url}?ref={payment_reference}"
+    failure_url = f"{settings.nexipay_failure_url}?ref={payment_reference}"
     payment = _require_nexi_client().prepare_payment(
         amount_cents=total_cents,
         order_id=payment_reference,
         description=f"{item.name} × {quantity}",
         email=None,
+        success_url=success_url,
+        failure_url=failure_url,
     )
 
     return templates.TemplateResponse(
@@ -531,17 +689,155 @@ def association(request: Request) -> HTMLResponse:
 
 
 @app.get("/tesseramento", response_class=HTMLResponse)
-def membership_form(
-    request: Request, success: bool | None = False
+def membership_start(request: Request) -> HTMLResponse:
+    return templates.TemplateResponse(
+        "membership_start.html",
+        {
+            "request": request,
+            "membership_fee_range": MEMBERSHIP_FEE_RANGE_LABEL,
+            "sport_types": SPORT_TYPES,
+            "sport_type_fees": SPORT_TYPE_FEES,
+            "settings": settings,
+        },
+    )
+
+
+@app.post("/tesseramento/pagamento", response_class=HTMLResponse)
+def membership_payment_start(
+    request: Request,
+    sport_type: str = Form(...),
+    email: str = Form(...),
+    session: Session = Depends(get_session),
 ) -> HTMLResponse:
+    sport_type = sport_type.strip()
+    email = email.strip()
+    if not email:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email obbligatoria.",
+        )
+    if sport_type not in SPORT_TYPE_FEES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Disciplina non valida.",
+        )
+    membership_fee = membership_fee_for_sport(sport_type)
+    payment_reference = build_payment_reference("MEM")
+    payment = MembershipPayment(
+        reference=payment_reference,
+        email=email,
+        sport_type=sport_type,
+        amount_cents=membership_fee * 100,
+        status="pending",
+    )
+    session.add(payment)
+    session.commit()
+
+    success_url = f"{settings.nexipay_success_url}?ref={payment_reference}"
+    failure_url = f"{settings.nexipay_failure_url}?ref={payment_reference}"
+    payment_context: NexiPaymentContext = _require_nexi_client().prepare_payment(
+        amount_cents=membership_fee * 100,
+        order_id=payment_reference,
+        description=f"Tesseramento {sport_type}",
+        email=email,
+        success_url=success_url,
+        failure_url=failure_url,
+    )
+    _set_pending_payment(
+        request,
+        {
+            "kind": "membership",
+            "reference": payment_reference,
+            "return_url": f"/tesseramento/dati?ref={payment_reference}",
+            "retry_url": f"/tesseramento/pagamento?ref={payment_reference}",
+            "label": f"Tesseramento {sport_type}",
+        },
+    )
+    return templates.TemplateResponse(
+        "membership_checkout.html",
+        {
+            "request": request,
+            "sport_type": sport_type,
+            "membership_fee": membership_fee,
+            "email": email,
+            "payment": payment_context,
+            "settings": settings,
+        },
+    )
+
+
+@app.get("/tesseramento/pagamento", response_class=HTMLResponse)
+def membership_payment_retry(
+    request: Request, ref: str, session: Session = Depends(get_session)
+) -> HTMLResponse:
+    payment = session.query(MembershipPayment).filter_by(reference=ref).first()
+    if not payment:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Pagamento tesseramento non trovato",
+        )
+    if payment.status == "paid" and not payment.member_id:
+        return RedirectResponse(
+            url=f"/tesseramento/dati?ref={payment.reference}",
+            status_code=status.HTTP_303_SEE_OTHER,
+        )
+    if payment.member_id:
+        return RedirectResponse(
+            url="/area-tesserati", status_code=status.HTTP_303_SEE_OTHER
+        )
+    membership_fee = payment.amount_cents // 100
+    success_url = f"{settings.nexipay_success_url}?ref={payment.reference}"
+    failure_url = f"{settings.nexipay_failure_url}?ref={payment.reference}"
+    payment_context: NexiPaymentContext = _require_nexi_client().prepare_payment(
+        amount_cents=payment.amount_cents,
+        order_id=payment.reference,
+        description=f"Tesseramento {payment.sport_type}",
+        email=payment.email,
+        success_url=success_url,
+        failure_url=failure_url,
+    )
+    _set_pending_payment(
+        request,
+        {
+            "kind": "membership",
+            "reference": payment.reference,
+            "return_url": f"/tesseramento/dati?ref={payment.reference}",
+            "retry_url": f"/tesseramento/pagamento?ref={payment.reference}",
+            "label": f"Tesseramento {payment.sport_type}",
+        },
+    )
+    return templates.TemplateResponse(
+        "membership_checkout.html",
+        {
+            "request": request,
+            "sport_type": payment.sport_type,
+            "membership_fee": membership_fee,
+            "email": payment.email,
+            "payment": payment_context,
+            "settings": settings,
+        },
+    )
+
+
+@app.get("/tesseramento/dati", response_class=HTMLResponse)
+def membership_form(request: Request, ref: str, session: Session = Depends(get_session)) -> HTMLResponse:
+    payment = session.query(MembershipPayment).filter_by(reference=ref).first()
+    if not payment or payment.status != "paid" or payment.member_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Pagamento non valido o gia' completato.",
+        )
     return templates.TemplateResponse(
         "membership.html",
         {
             "request": request,
-            "success": success,
-            "membership_fee": settings.membership_fee_eur,
-            "membership_types": MEMBERSHIP_TYPES,
+            "payment_reference": payment.reference,
+            "membership_fee_range": MEMBERSHIP_FEE_RANGE_LABEL,
             "sport_types": SPORT_TYPES,
+            "sport_type_fees": SPORT_TYPE_FEES,
+            "selected_sport_type": payment.sport_type,
+            "lock_sport_type": True,
+            "prefill_email": payment.email,
             "settings": settings,
             "uploads_path": settings.uploads_path,
         },
@@ -549,8 +845,10 @@ def membership_form(
 
 
 @app.post("/tesseramento")
+@app.post("/tesseramento/dati")
 def membership_submit(
     request: Request,
+    payment_reference: str = Form(...),
     first_name: str = Form(...),
     last_name: str = Form(...),
     email: str = Form(...),
@@ -563,12 +861,29 @@ def membership_submit(
     document_number: str = Form(...),
     document_id: str | None = Form(None),
     medical_certificate_expiry: date = Form(...),
-    membership_type: str = Form(...),
+    membership_type: str | None = Form(None),
     sport_type: str = Form(...),
     message: str | None = Form(None),
     documents: list[UploadFile] = File(...),
     session: Session = Depends(get_session),
 ) -> RedirectResponse:
+    payment = (
+        session.query(MembershipPayment)
+        .filter_by(reference=payment_reference)
+        .first()
+    )
+    if not payment or payment.status != "paid" or payment.member_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Pagamento non valido o gia' completato.",
+        )
+    if payment.sport_type != sport_type:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Disciplina non valida per il pagamento effettuato.",
+        )
+    if not membership_type:
+        membership_type = MEMBERSHIP_TYPES[0]
     for field_value in [document_type, document_number]:
         if not _normalize(field_value):
             raise HTTPException(
@@ -592,21 +907,25 @@ def membership_submit(
         document_id=_normalize(document_id),
         medical_certificate_expiry=medical_certificate_expiry,
         membership_type=membership_type,
-        sport_type=sport_type,
+        sport_type=payment.sport_type,
         message=_normalize(message),
         access_code=password_plain,
         password_hash=password_hash,
-        payment_status="pending",
+        payment_status="paid",
+        payment_reference=payment.reference,
     )
     session.add(member)
     session.flush()
     saved_docs = _save_uploaded_documents(member.id, documents)
     if saved_docs:
         session.add_all(saved_docs)
+    payment.member_id = member.id
+    payment.status = "completed"
     session.commit()
     request.session["member_id"] = member.id
+    request.session["member_password_hint"] = password_plain
     return RedirectResponse(
-        url=f"/tesseramento/pagamento/{member.id}", status_code=status.HTTP_303_SEE_OTHER
+        url="/area-tesserati", status_code=status.HTTP_303_SEE_OTHER
     )
 
 
@@ -620,7 +939,10 @@ def membership_payment(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Richiesta di tesseramento non trovata",
         )
-    payment_reference = f"member-{member.id}-{reqid()}"
+    payment_reference = build_payment_reference("MEM")
+    member.payment_reference = payment_reference
+    session.commit()
+    membership_fee = membership_fee_for_sport(member.sport_type)
     _set_pending_payment(
         request,
         {
@@ -632,11 +954,15 @@ def membership_payment(
             "label": f"Tesseramento {member.first_name} {member.last_name}",
         },
     )
+    success_url = f"{settings.nexipay_success_url}?ref={payment_reference}"
+    failure_url = f"{settings.nexipay_failure_url}?ref={payment_reference}"
     payment_context: NexiPaymentContext = _require_nexi_client().prepare_payment(
-        amount_cents=settings.membership_fee_eur * 100,
+        amount_cents=membership_fee * 100,
         order_id=payment_reference,
         description=f"Tesseramento {(member.name or '').strip() or f'{member.first_name} {member.last_name}'}",
         email=member.email,
+        success_url=success_url,
+        failure_url=failure_url,
     )
     is_owner = request.session.get("member_id") == member.id
     documents = list(member.documents) if is_owner else []
@@ -648,7 +974,7 @@ def membership_payment(
             "payment": payment_context,
             "documents": documents,
             "settings": settings,
-            "membership_fee": settings.membership_fee_eur,
+            "membership_fee": membership_fee,
             "is_owner": is_owner,
         },
     )
@@ -660,6 +986,15 @@ def nexi_success(
 ) -> HTMLResponse:
     pending = _pop_pending_payment(request)
     context = _build_payment_result_context(pending, session, success=True)
+    ref_context = _apply_reference_payment(
+        _payment_reference_from_request(request),
+        session,
+        success=True,
+        request=request,
+    )
+    for key, value in ref_context.items():
+        if value is not None:
+            context[key] = value
     return templates.TemplateResponse(
         "payment_result.html",
         {
@@ -677,6 +1012,15 @@ def nexi_failure(
 ) -> HTMLResponse:
     pending = _pop_pending_payment(request)
     context = _build_payment_result_context(pending, session, success=False)
+    ref_context = _apply_reference_payment(
+        _payment_reference_from_request(request),
+        session,
+        success=False,
+        request=request,
+    )
+    for key, value in ref_context.items():
+        if value is not None:
+            context[key] = value
     return templates.TemplateResponse(
         "payment_result.html",
         {
@@ -691,6 +1035,10 @@ def nexi_failure(
 @app.get("/area-tesserati", response_class=HTMLResponse)
 def member_area(request: Request, session: Session = Depends(get_session)) -> HTMLResponse:
     member = _member_from_session(request, session)
+    membership_fee = (
+        membership_fee_for_sport(member.sport_type) if member else None
+    )
+    password_hint = request.session.pop("member_password_hint", None)
     documents: list[MemberDocument] = list(member.documents) if member else []
     return templates.TemplateResponse(
         "member_area.html",
@@ -699,7 +1047,9 @@ def member_area(request: Request, session: Session = Depends(get_session)) -> HT
             "member": member,
             "documents": documents,
             "settings": settings,
-            "membership_fee": settings.membership_fee_eur,
+            "membership_fee": membership_fee,
+            "membership_fee_range": MEMBERSHIP_FEE_RANGE_LABEL,
+            "password_hint": password_hint,
         },
     )
 

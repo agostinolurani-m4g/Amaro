@@ -42,7 +42,13 @@ class NexiXpayClient:
         )
 
     def prepare_payment(
-        self, amount_cents: int, order_id: str, description: str, email: str | None = None
+        self,
+        amount_cents: int,
+        order_id: str,
+        description: str,
+        email: str | None = None,
+        success_url: str | None = None,
+        failure_url: str | None = None,
     ) -> NexiPaymentContext:
         """
         Costruisce i parametri per il flusso Nexi/XPay verso DispatcherServlet.
@@ -55,7 +61,7 @@ class NexiXpayClient:
             raise ValueError("Amount must be greater than zero")
 
         # Codice transazione nel formato richiesto da Nexi.
-        cod_trans = "PS" + datetime.utcnow().strftime("%Y%m%d%H%M%S")
+        cod_trans = order_id or ("PS" + datetime.utcnow().strftime("%Y%m%d%H%M%S"))
         divisa = self.currency
         importo = amount_cents
 
@@ -67,8 +73,8 @@ class NexiXpayClient:
             "importo": importo,
             "divisa": divisa,
             "codTrans": cod_trans,
-            "url": self.success_url,
-            "url_back": self.failure_url,
+            "url": success_url or self.success_url,
+            "url_back": failure_url or self.failure_url,
             "mac": mac,
         }
         if email:

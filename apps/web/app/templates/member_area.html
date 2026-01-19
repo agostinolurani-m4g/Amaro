@@ -6,6 +6,12 @@
       <h1>Area tesserati</h1>
 
       {% if member %}
+        {% if password_hint %}
+          <p class="alert alert--success">
+            Password area tesserati: <strong>{{ password_hint }}</strong>.
+            Salvala, ti servira' per rientrare e scaricare i documenti.
+          </p>
+        {% endif %}
         {% if member.payment_status != "paid" %}
           <p class="alert">
             Pagamento obbligatorio: completa il pagamento per accedere all'area tesserati.
@@ -56,7 +62,6 @@
             <form method="post" action="/area-tesserati/logout">
               <button class="btn btn-secondary" type="submit">Esci</button>
             </form>
-            <a class="btn btn-primary" href="/tesseramento">Aggiorna dati</a>
           </div>
         {% endif %}
       {% else %}
@@ -76,7 +81,7 @@
           <button class="btn btn-primary" type="submit">Entra</button>
         </form>
         <p class="muted">
-          Non hai ancora una password? Compila il tesseramento ({{ membership_fee }} ?) e carica certificato medico e documento d'identit?:
+          Non hai ancora una password? Compila il tesseramento ({{ membership_fee_range }} ?) e carica certificato medico e documento d'identit?:
           genereremo le credenziali dopo il pagamento.
         </p>
       {% endif %}
