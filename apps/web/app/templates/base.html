@@ -23,6 +23,9 @@
         <a href="/calendario">Calendario</a>
         <a href="/area-tesserati">Area soci</a>
         <a href="/tesseramento">Tesserati</a>
+        {% if request.session.get("admin_authenticated") %}
+        <a href="/admin-tools">Admin tools</a>
+        {% endif %}
       </nav>
     </header>
 

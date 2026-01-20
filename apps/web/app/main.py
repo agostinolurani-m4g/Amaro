@@ -1102,7 +1102,7 @@ def member_logout(request: Request) -> RedirectResponse:
     return RedirectResponse(url="/area-tesserati", status_code=status.HTTP_303_SEE_OTHER)
 
 
-@app.get("/admin/tools", response_class=HTMLResponse)
+@app.get("/admin-tools", response_class=HTMLResponse)
 def admin_tools(request: Request, session: Session = Depends(get_session)) -> HTMLResponse:
     _require_admin(request)
     members = (
@@ -1126,7 +1126,7 @@ def admin_tools(request: Request, session: Session = Depends(get_session)) -> HT
     )
 
 
-@app.post("/admin/tools/documents")
+@app.post("/admin-tools/documents")
 def admin_upload_documents(
     request: Request,
     member_id: int = Form(...),
@@ -1148,10 +1148,10 @@ def admin_upload_documents(
         )
     else:
         request.session["admin_notice"] = "Nessun file caricato."
-    return RedirectResponse(url="/admin/tools", status_code=status.HTTP_303_SEE_OTHER)
+    return RedirectResponse(url="/admin-tools", status_code=status.HTTP_303_SEE_OTHER)
 
 
-@app.post("/admin/tools/password")
+@app.post("/admin-tools/password")
 def admin_reset_member_password(
     request: Request,
     member_id: int = Form(...),
@@ -1172,7 +1172,7 @@ def admin_reset_member_password(
         "member_name": member_name or f"Socio #{member.id}",
         "password": password_plain,
     }
-    return RedirectResponse(url="/admin/tools", status_code=status.HTTP_303_SEE_OTHER)
+    return RedirectResponse(url="/admin-tools", status_code=status.HTTP_303_SEE_OTHER)
 
 
 @app.get("/tesseramento/documenti/{document_id}")
