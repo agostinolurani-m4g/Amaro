@@ -1,63 +1,72 @@
-{% extends "base.html" %}
+{% extends "layout.html" %}
 
 {% block content %}
-<section class="section">
-  <div class="section__header">
-    <h2>Admin - Documenti e password soci</h2>
-    <p>Carica documenti per i soci e rigenera una password quando serve.</p>
-  </div>
-
+<div class="col-12">
   {% if notice %}
-  <div class="alert alert--success">{{ notice }}</div>
+  <div class="alert alert-success" role="alert">{{ notice }}</div>
   {% endif %}
 
   {% if password_reset %}
-  <div class="alert alert--success">
+  <div class="alert alert-success" role="alert">
     Nuova password per {{ password_reset.member_name }}:
-    <div class="code-block">{{ password_reset.password }}</div>
+    <div class="mt-2">
+      <code>{{ password_reset.password }}</code>
+    </div>
   </div>
   {% endif %}
+</div>
 
-  {% if not members %}
-  <div class="alert">Nessun socio disponibile.</div>
-  {% else %}
-  <div class="card card--spacious">
-    <h3>Carica documenti</h3>
-    <form class="form" action="/admin-tools/documents" method="post" enctype="multipart/form-data">
-      <label>
-        Socio
-        <select name="member_id" required>
-          {% for member in members %}
-          <option value="{{ member.id }}">
-            {{ member.last_name }} {{ member.first_name }} - {{ member.email }} (ID {{ member.id }})
-          </option>
-          {% endfor %}
-        </select>
-      </label>
-      <label>
-        Documenti (puoi selezionare piu file)
-        <input type="file" name="documents" multiple required />
-      </label>
-      <button class="btn btn-primary" type="submit">Carica</button>
-    </form>
+{% if not members %}
+<div class="col-12">
+  <div class="alert alert-warning" role="alert">Nessun socio disponibile.</div>
+</div>
+{% else %}
+<div class="col-12 col-lg-6">
+  <div class="card">
+    <div class="card-body">
+      <h3 class="card-title">Carica documenti</h3>
+      <form action="{{ url_for('admin:tools') }}" method="post" enctype="multipart/form-data">
+        <input type="hidden" name="action" value="upload_documents" />
+        <div class="mb-3">
+          <label class="form-label">Socio</label>
+          <select class="form-select" name="member_id" required>
+            {% for member in members %}
+            <option value="{{ member.id }}">
+              {{ member.last_name }} {{ member.first_name }} - {{ member.email }} (ID {{ member.id }})
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Documenti (puoi selezionare piu file)</label>
+          <input class="form-control" type="file" name="documents" multiple required />
+        </div>
+        <button class="btn btn-primary" type="submit">Carica</button>
+      </form>
+    </div>
   </div>
+</div>
 
-  <div class="card card--spacious">
-    <h3>Rigenera password socio</h3>
-    <form class="form" action="/admin-tools/password" method="post">
-      <label>
-        Socio
-        <select name="member_id" required>
-          {% for member in members %}
-          <option value="{{ member.id }}">
-            {{ member.last_name }} {{ member.first_name }} - {{ member.email }} (ID {{ member.id }})
-          </option>
-          {% endfor %}
-        </select>
-      </label>
-      <button class="btn btn-secondary" type="submit">Rigenera password</button>
-    </form>
+<div class="col-12 col-lg-6">
+  <div class="card">
+    <div class="card-body">
+      <h3 class="card-title">Rigenera password socio</h3>
+      <form action="{{ url_for('admin:tools') }}" method="post">
+        <input type="hidden" name="action" value="reset_password" />
+        <div class="mb-3">
+          <label class="form-label">Socio</label>
+          <select class="form-select" name="member_id" required>
+            {% for member in members %}
+            <option value="{{ member.id }}">
+              {{ member.last_name }} {{ member.first_name }} - {{ member.email }} (ID {{ member.id }})
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+        <button class="btn btn-secondary" type="submit">Rigenera password</button>
+      </form>
+    </div>
   </div>
-  {% endif %}
-</section>
+</div>
+{% endif %}
 {% endblock %}

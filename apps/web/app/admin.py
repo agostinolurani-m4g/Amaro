@@ -1,19 +1,63 @@
 from __future__ import annotations
 
+import hashlib
 import logging
-
+import secrets
+import shutil
 from datetime import date as dt_date, datetime as dt_datetime
+from pathlib import Path
+from uuid import uuid4
 
 from fastapi import FastAPI
-from sqladmin import Admin, ModelView
+from sqladmin import Admin, BaseView, ModelView, expose
 from sqladmin.authentication import AuthenticationBackend
+from starlette.datastructures import UploadFile
 from starlette.requests import Request
+from starlette.responses import RedirectResponse
 
 from .config import settings
-from .database import engine
+from .database import SessionLocal, engine
 from .models import Event, Member, MemberDocument, MembershipPayment, MerchItem
 
 logger = logging.getLogger(__name__)
+BASE_DIR = Path(__file__).resolve().parent
+UPLOADS_DIR = (BASE_DIR / settings.uploads_path).resolve()
+UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def _hash_password(raw: str) -> str:
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
+def _generate_member_password() -> tuple[str, str]:
+    password = secrets.token_urlsafe(6)
+    return password, _hash_password(password)
+
+
+def _save_uploaded_documents(
+    member_id: int, uploads: list[UploadFile]
+) -> list[MemberDocument]:
+    saved: list[MemberDocument] = []
+    if not uploads:
+        return saved
+    for upload in uploads:
+        if not upload.filename:
+            continue
+        stored_filename = f"{member_id}_{uuid4().hex}_{Path(upload.filename).name}"
+        destination = UPLOADS_DIR / stored_filename
+        upload.file.seek(0)
+        with destination.open("wb") as out:
+            shutil.copyfileobj(upload.file, out)
+        upload.file.close()
+        saved.append(
+            MemberDocument(
+                member_id=member_id,
+                original_name=Path(upload.filename).name,
+                stored_filename=stored_filename,
+                content_type=upload.content_type,
+            )
+        )
+    return saved
 
 
 class AdminAuth(AuthenticationBackend):
@@ -100,6 +144,93 @@ class MemberDocumentAdmin(AmaroAdmin, model=MemberDocument):
     }
 
 
+class AdminToolsView(BaseView):
+    name = "Tools"
+    icon = "fa-solid fa-toolbox"
+
+    @expose("/tools", methods=["GET", "POST"], identity="tools")
+    async def tools(self, request: Request) -> object:
+        session = SessionLocal()
+        try:
+            if request.method == "POST":
+                form = await request.form()
+                action = form.get("action")
+                member_id = form.get("member_id")
+                notice = None
+                password_reset = None
+
+                if not member_id or not str(member_id).isdigit():
+                    notice = "Seleziona un socio valido."
+                else:
+                    member = session.get(Member, int(member_id))
+                    if not member:
+                        notice = "Socio non trovato."
+                    elif action == "upload_documents":
+                        uploads = form.getlist("documents")
+                        saved_docs = _save_uploaded_documents(member.id, uploads)
+                        if saved_docs:
+                            session.add_all(saved_docs)
+                            session.commit()
+                            notice = (
+                                f"Caricati {len(saved_docs)} documenti per "
+                                f"{member.first_name} {member.last_name}."
+                            )
+                        else:
+                            notice = "Nessun file caricato."
+                    elif action == "reset_password":
+                        password_plain, password_hash = _generate_member_password()
+                        member.access_code = password_plain
+                        member.password_hash = password_hash
+                        session.commit()
+                        member_name = (
+                            f"{member.first_name} {member.last_name}".strip()
+                            or member.name
+                            or f"Socio #{member.id}"
+                        )
+                        password_reset = {
+                            "member_name": member_name,
+                            "password": password_plain,
+                        }
+                        notice = "Password rigenerata."
+                    else:
+                        notice = "Azione non valida."
+
+                if notice:
+                    request.session["admin_notice"] = notice
+                if password_reset:
+                    request.session["admin_password_reset"] = password_reset
+                return RedirectResponse(
+                    request.url_for("admin:tools"), status_code=303
+                )
+
+            members = (
+                session.query(Member)
+                .order_by(
+                    Member.last_name.asc(),
+                    Member.first_name.asc(),
+                    Member.id.asc(),
+                )
+                .all()
+            )
+            notice = request.session.pop("admin_notice", None)
+            password_reset = request.session.pop("admin_password_reset", None)
+            if not isinstance(password_reset, dict):
+                password_reset = None
+            context = {
+                "request": request,
+                "members": members,
+                "notice": notice,
+                "password_reset": password_reset,
+                "title": "Admin tools",
+                "subtitle": "Documenti e password soci",
+            }
+            return await self.templates.TemplateResponse(
+                request, "admin_tools.html", context
+            )
+        finally:
+            session.close()
+
+
 class MembershipPaymentAdmin(AmaroAdmin, model=MembershipPayment):
     column_list = [
         "id",
@@ -124,9 +255,15 @@ def setup_admin(app: FastAPI) -> None:
         return
 
     authentication_backend = AdminAuth(secret_key=settings.session_secret)
-    admin = Admin(app, engine, authentication_backend=authentication_backend)
+    admin = Admin(
+        app,
+        engine,
+        authentication_backend=authentication_backend,
+        templates_dir=str(BASE_DIR / "templates"),
+    )
     admin.add_view(EventAdmin)
     admin.add_view(MerchItemAdmin)
     admin.add_view(MemberAdmin)
     admin.add_view(MemberDocumentAdmin)
     admin.add_view(MembershipPaymentAdmin)
+    admin.add_view(AdminToolsView)
