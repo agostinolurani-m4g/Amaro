@@ -259,7 +259,7 @@ def setup_admin(app: FastAPI) -> None:
         app,
         engine,
         authentication_backend=authentication_backend,
-        templates_dir=str(BASE_DIR / "templates"),
+        templates_dir=str(BASE_DIR / "admin_templates"),
     )
     admin.add_view(EventAdmin)
     admin.add_view(MerchItemAdmin)
