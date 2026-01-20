@@ -331,6 +331,17 @@ def _verify_password(raw: str, hashed: str | None) -> bool:
     return bool(hashed) and _hash_password(raw) == hashed
 
 
+def _require_admin(request: Request) -> None:
+    if not settings.admin_username or not settings.admin_password:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Admin non configurato"
+        )
+    if not request.session.get("admin_authenticated"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Accesso admin richiesto"
+        )
+
+
 def _month_label(month: int) -> str:
     if 1 <= month <= len(ITALIAN_MONTHS):
         return ITALIAN_MONTHS[month - 1]
@@ -1089,6 +1100,79 @@ def member_logout(request: Request) -> RedirectResponse:
     request.session.pop("member_id", None)
     request.session.pop("member_password_hint", None)
     return RedirectResponse(url="/area-tesserati", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@app.get("/admin/tools", response_class=HTMLResponse)
+def admin_tools(request: Request, session: Session = Depends(get_session)) -> HTMLResponse:
+    _require_admin(request)
+    members = (
+        session.query(Member)
+        .order_by(Member.last_name.asc(), Member.first_name.asc(), Member.id.asc())
+        .all()
+    )
+    notice = request.session.pop("admin_notice", None)
+    password_reset = request.session.pop("admin_password_reset", None)
+    if not isinstance(password_reset, dict):
+        password_reset = None
+    return templates.TemplateResponse(
+        "admin_tools.html",
+        {
+            "request": request,
+            "members": members,
+            "notice": notice,
+            "password_reset": password_reset,
+            "settings": settings,
+        },
+    )
+
+
+@app.post("/admin/tools/documents")
+def admin_upload_documents(
+    request: Request,
+    member_id: int = Form(...),
+    documents: list[UploadFile] = File(...),
+    session: Session = Depends(get_session),
+) -> RedirectResponse:
+    _require_admin(request)
+    member = session.get(Member, member_id)
+    if not member:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Socio non trovato"
+        )
+    saved_docs = _save_uploaded_documents(member.id, documents)
+    if saved_docs:
+        session.add_all(saved_docs)
+        session.commit()
+        request.session["admin_notice"] = (
+            f"Caricati {len(saved_docs)} documenti per {member.first_name} {member.last_name}."
+        )
+    else:
+        request.session["admin_notice"] = "Nessun file caricato."
+    return RedirectResponse(url="/admin/tools", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@app.post("/admin/tools/password")
+def admin_reset_member_password(
+    request: Request,
+    member_id: int = Form(...),
+    session: Session = Depends(get_session),
+) -> RedirectResponse:
+    _require_admin(request)
+    member = session.get(Member, member_id)
+    if not member:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Socio non trovato"
+        )
+    password_plain, password_hash = _generate_member_password()
+    member.access_code = password_plain
+    member.password_hash = password_hash
+    session.commit()
+    member_name = f"{member.first_name} {member.last_name}".strip() or member.name
+    request.session["admin_password_reset"] = {
+        "member_name": member_name or f"Socio #{member.id}",
+        "password": password_plain,
+    }
+    return RedirectResponse(url="/admin/tools", status_code=status.HTTP_303_SEE_OTHER)
 
 
 @app.get("/tesseramento/documenti/{document_id}")
