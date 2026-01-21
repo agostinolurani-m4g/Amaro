@@ -24,7 +24,14 @@ from starlette.middleware.sessions import SessionMiddleware
 from .admin import setup_admin
 from .config import settings
 from .database import Base, SessionLocal, engine, get_session
-from .models import Event, Member, MerchItem, MemberDocument, MembershipPayment
+from .models import (
+    Event,
+    Member,
+    MemberDocument,
+    MembershipPayment,
+    MerchItem,
+    MEMBERSHIP_STATUS_PENDING,
+)
 from .nexi import NexiPaymentContext, NexiXpayClient
 from .seed import seed_sample_data
 
@@ -285,11 +292,25 @@ def ensure_member_schema() -> None:
         "sport_type": "TEXT",
         "access_code": "TEXT",
         "password_hash": "TEXT",
+        "membership_status": "TEXT",
     }
+    added_membership_status = False
     with engine.begin() as conn:
         for column, ddl in required_columns.items():
             if column not in columns:
                 conn.execute(text(f"ALTER TABLE members ADD COLUMN {column} {ddl}"))
+                if column == "membership_status":
+                    added_membership_status = True
+    if "membership_status" in columns or added_membership_status:
+        with engine.begin() as conn:
+            conn.execute(
+                text(
+                    "UPDATE members "
+                    "SET membership_status = :status "
+                    "WHERE membership_status IS NULL"
+                ),
+                {"status": MEMBERSHIP_STATUS_PENDING},
+            )
 
 
 def ensure_merch_schema() -> None:
@@ -909,6 +930,7 @@ def membership_submit(
         membership_type=membership_type,
         sport_type=payment.sport_type,
         message=_normalize(message),
+        membership_status=MEMBERSHIP_STATUS_PENDING,
         access_code=password_plain,
         password_hash=password_hash,
         payment_status="paid",

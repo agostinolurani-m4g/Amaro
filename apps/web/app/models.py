@@ -3,6 +3,9 @@ from sqlalchemy.orm import Mapped, relationship
 
 from .database import Base
 
+MEMBERSHIP_STATUS_PENDING = "da_tesserare"
+MEMBERSHIP_STATUS_COMPLETED = "tesserato"
+
 
 class Event(Base):
     __tablename__ = "events"
@@ -52,6 +55,9 @@ class Member(Base):
     membership_type: Mapped[str] = Column(String(80), nullable=False)
     sport_type: Mapped[str | None] = Column(String(80))
     message: Mapped[str | None] = Column(Text)
+    membership_status: Mapped[str] = Column(
+        String(40), default=MEMBERSHIP_STATUS_PENDING
+    )
     payment_status: Mapped[str] = Column(String(60), default="pending")
     payment_reference: Mapped[str | None] = Column(String(120))
     access_code: Mapped[str | None] = Column(String(80))

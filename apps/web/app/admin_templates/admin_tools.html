@@ -68,5 +68,45 @@
     </div>
   </div>
 </div>
+
+<div class="col-12 col-lg-6">
+  <div class="card">
+    <div class="card-body">
+      <h3 class="card-title">Pacchetto ACSI</h3>
+      {% if pending_members_count %}
+      <p class="muted">Soci da inviare: {{ pending_members_count }}</p>
+      <a class="btn btn-primary" href="{{ url_for('admin:acsi_export') }}">Scarica pacchetto</a>
+      {% else %}
+      <p class="muted">Nessun socio da inviare ad ACSI.</p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<div class="col-12 col-lg-6">
+  <div class="card">
+    <div class="card-body">
+      <h3 class="card-title">Carica tessera e segna tesserato</h3>
+      <form action="{{ url_for('admin:tools') }}" method="post" enctype="multipart/form-data">
+        <input type="hidden" name="action" value="upload_card" />
+        <div class="mb-3">
+          <label class="form-label">Socio</label>
+          <select class="form-select" name="member_id" required>
+            {% for member in members %}
+            <option value="{{ member.id }}">
+              {{ member.last_name }} {{ member.first_name }} - {{ member.email }} (ID {{ member.id }})
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Tessera (PDF, JPG, PNG)</label>
+          <input class="form-control" type="file" name="documents" multiple required />
+        </div>
+        <button class="btn btn-primary" type="submit">Carica e aggiorna stato</button>
+      </form>
+    </div>
+  </div>
+</div>
 {% endif %}
 {% endblock %}

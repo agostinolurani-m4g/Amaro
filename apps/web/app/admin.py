@@ -1,23 +1,39 @@
 from __future__ import annotations
 
+import csv
 import hashlib
+import io
 import logging
+import os
+import re
 import secrets
 import shutil
+import tempfile
+import zipfile
 from datetime import date as dt_date, datetime as dt_datetime
 from pathlib import Path
 from uuid import uuid4
 
 from fastapi import FastAPI
+from sqlalchemy import or_
 from sqladmin import Admin, BaseView, ModelView, expose
 from sqladmin.authentication import AuthenticationBackend
+from starlette.background import BackgroundTask
 from starlette.datastructures import UploadFile
 from starlette.requests import Request
-from starlette.responses import RedirectResponse
+from starlette.responses import FileResponse, RedirectResponse
+from sqlalchemy.orm import Session
 
 from .config import settings
 from .database import SessionLocal, engine
-from .models import Event, Member, MemberDocument, MembershipPayment, MerchItem
+from .models import (
+    Event,
+    Member,
+    MemberDocument,
+    MembershipPayment,
+    MerchItem,
+    MEMBERSHIP_STATUS_COMPLETED,
+)
 
 logger = logging.getLogger(__name__)
 BASE_DIR = Path(__file__).resolve().parent
@@ -58,6 +74,103 @@ def _save_uploaded_documents(
             )
         )
     return saved
+
+
+def _safe_filename(value: str) -> str:
+    cleaned = re.sub(r"[^A-Za-z0-9._-]+", "_", value.strip())
+    cleaned = cleaned.strip("_")
+    return cleaned or "file"
+
+
+def _membership_status_label(status: str | None) -> str:
+    if status == MEMBERSHIP_STATUS_COMPLETED:
+        return "Tesserato"
+    return "Da tesserare"
+
+
+def _members_pending_acsi(session: Session) -> list[Member]:
+    return (
+        session.query(Member)
+        .filter(Member.payment_status == "paid")
+        .filter(
+            or_(
+                Member.membership_status.is_(None),
+                Member.membership_status != MEMBERSHIP_STATUS_COMPLETED,
+            )
+        )
+        .order_by(Member.last_name.asc(), Member.first_name.asc(), Member.id.asc())
+        .all()
+    )
+
+
+def _build_acsi_export(members: list[Member]) -> str:
+    csv_buffer = io.StringIO(newline="")
+    writer = csv.writer(csv_buffer, delimiter=";")
+    writer.writerow(
+        [
+            "ID",
+            "Cognome",
+            "Nome",
+            "Email",
+            "Telefono",
+            "Data di nascita",
+            "Luogo di nascita",
+            "Residenza",
+            "Codice fiscale",
+            "Tipo documento",
+            "Numero documento",
+            "Codice tessera",
+            "Tessera sanitaria",
+            "Scadenza certificato medico",
+            "Tipo tessera",
+            "Disciplina",
+            "Messaggio",
+            "Documenti",
+        ]
+    )
+    for member in members:
+        documents = ", ".join(doc.original_name for doc in member.documents)
+        writer.writerow(
+            [
+                member.id,
+                member.last_name,
+                member.first_name,
+                member.email,
+                member.phone or "",
+                _format_it_date(member.birth_date),
+                member.birth_place or "",
+                member.residence or "",
+                member.codice_fiscale or "",
+                member.document_type or "",
+                member.document_number or "",
+                member.document_id or "",
+                member.tessera_sanitaria or "",
+                _format_it_date(member.medical_certificate_expiry),
+                member.membership_type,
+                member.sport_type or "",
+                member.message or "",
+                documents,
+            ]
+        )
+
+    temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".zip")
+    temp_path = temp_file.name
+    temp_file.close()
+
+    with zipfile.ZipFile(temp_path, "w", zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr("acsi_tesseramento.csv", csv_buffer.getvalue())
+        for member in members:
+            folder = _safe_filename(
+                f"{member.last_name}_{member.first_name}_{member.id}"
+            )
+            for document in member.documents:
+                path = UPLOADS_DIR / document.stored_filename
+                if not path.exists():
+                    continue
+                doc_name = _safe_filename(document.original_name)
+                archive.write(path, arcname=f"{folder}/{document.id}_{doc_name}")
+
+    return temp_path
 
 
 class AdminAuth(AuthenticationBackend):
@@ -113,6 +226,7 @@ class MemberAdmin(AmaroAdmin, model=Member):
         "email",
         "phone",
         "membership_type",
+        "membership_status",
         "payment_status",
         "created_at",
     ]
@@ -192,6 +306,20 @@ class AdminToolsView(BaseView):
                             "password": password_plain,
                         }
                         notice = "Password rigenerata."
+                    elif action == "upload_card":
+                        uploads = form.getlist("documents")
+                        saved_docs = _save_uploaded_documents(member.id, uploads)
+                        if saved_docs:
+                            session.add_all(saved_docs)
+                            member.membership_status = MEMBERSHIP_STATUS_COMPLETED
+                            session.commit()
+                            notice = (
+                                f"Tessera caricata per {member.first_name} "
+                                f"{member.last_name}. Stato: "
+                                f"{_membership_status_label(member.membership_status)}."
+                            )
+                        else:
+                            notice = "Nessun file caricato."
                     else:
                         notice = "Azione non valida."
 
@@ -212,6 +340,7 @@ class AdminToolsView(BaseView):
                 )
                 .all()
             )
+            pending_members = _members_pending_acsi(session)
             notice = request.session.pop("admin_notice", None)
             password_reset = request.session.pop("admin_password_reset", None)
             if not isinstance(password_reset, dict):
@@ -219,6 +348,7 @@ class AdminToolsView(BaseView):
             context = {
                 "request": request,
                 "members": members,
+                "pending_members_count": len(pending_members),
                 "notice": notice,
                 "password_reset": password_reset,
                 "title": "Admin tools",
@@ -229,6 +359,26 @@ class AdminToolsView(BaseView):
             )
         finally:
             session.close()
+
+    @expose("/tools/acsi-export", methods=["GET"], identity="acsi_export")
+    async def tools_acsi_export(self, request: Request) -> object:
+        session = SessionLocal()
+        try:
+            members = _members_pending_acsi(session)
+            if not members:
+                request.session["admin_notice"] = "Nessun socio da inviare ad ACSI."
+                return RedirectResponse(request.url_for("admin:tools"), status_code=303)
+            export_path = _build_acsi_export(members)
+        finally:
+            session.close()
+
+        filename = f"acsi_tesseramento_{dt_date.today():%Y%m%d}.zip"
+        return FileResponse(
+            export_path,
+            media_type="application/zip",
+            filename=filename,
+            background=BackgroundTask(os.unlink, export_path),
+        )
 
 
 class MembershipPaymentAdmin(AmaroAdmin, model=MembershipPayment):
