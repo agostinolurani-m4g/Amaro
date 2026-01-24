@@ -7,14 +7,52 @@
         {{ event.date.strftime("%d %B %Y") if event.date else "Data da definire" }}
       </p>
       <h1>{{ event.title }}</h1>
-      <p class="muted">{{ event.location or "Luogo in aggiornamento" }}</p>
-      <p class="hero-quote">{{ event.hero_quote }}</p>
-      <p>{{ event.description }}</p>
-      <p>{{ event.summary }}</p>
+      <div class="event-meta">
+        <div>
+          <span class="event-meta__label">Luogo</span>
+          <span>{{ event.location or "In aggiornamento" }}</span>
+        </div>
+        <div>
+          <span class="event-meta__label">Attivita</span>
+          <span>{{ event.activity or "In aggiornamento" }}</span>
+        </div>
+      </div>
+      {% if event.cover_image_url %}
+        <figure class="event-hero">
+          <img src="{{ event.cover_image_url }}" alt="Foto evento {{ event.title }}" />
+        </figure>
+      {% endif %}
+      {% if event.hero_quote %}
+        <p class="hero-quote">{{ event.hero_quote }}</p>
+      {% endif %}
+      {% if event.description %}
+        <p>{{ event.description | e | replace("\n", "<br>") | safe }}</p>
+      {% endif %}
+      {% if event.summary %}
+        <p>{{ event.summary | e | replace("\n", "<br>") | safe }}</p>
+      {% endif %}
       <div class="card__actions">
         <a class="btn btn-primary" href="/merch">Sostienici con il merch</a>
         <a class="btn btn-secondary" href="/tesseramento">Tesserati</a>
       </div>
     </article>
   </section>
+
+  {% if event_gallery %}
+  <section class="section">
+    <article class="card">
+      <h2>Foto dell'evento</h2>
+      <div class="gallery-grid">
+        {% for image in event_gallery %}
+          <figure class="gallery-card">
+            <img src="{{ image.url }}" alt="{{ image.caption or event.title }}" />
+            {% if image.caption %}
+              <figcaption>{{ image.caption }}</figcaption>
+            {% endif %}
+          </figure>
+        {% endfor %}
+      </div>
+    </article>
+  </section>
+  {% endif %}
 {% endblock %}

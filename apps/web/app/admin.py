@@ -23,6 +23,7 @@ from starlette.datastructures import UploadFile
 from starlette.requests import Request
 from starlette.responses import FileResponse, RedirectResponse
 from sqlalchemy.orm import Session
+from wtforms.validators import DataRequired
 
 from .config import settings
 from .database import SessionLocal, engine
@@ -80,6 +81,26 @@ def _safe_filename(value: str) -> str:
     cleaned = re.sub(r"[^A-Za-z0-9._-]+", "_", value.strip())
     cleaned = cleaned.strip("_")
     return cleaned or "file"
+
+
+def _slugify(value: str) -> str:
+    value = value.strip().lower()
+    value = re.sub(r"[^a-z0-9]+", "-", value)
+    return value.strip("-") or "evento"
+
+
+def _unique_event_slug(base_slug: str, event_id: int | None = None) -> str:
+    slug = base_slug
+    counter = 1
+    while True:
+        with SessionLocal() as session:
+            query = session.query(Event).filter(Event.slug == slug)
+            if event_id:
+                query = query.filter(Event.id != event_id)
+            if not query.first():
+                return slug
+        counter += 1
+        slug = f"{base_slug}-{counter}"
 
 
 def _membership_status_label(status: str | None) -> str:
@@ -207,9 +228,55 @@ class AmaroAdmin(ModelView):
 
 
 class EventAdmin(AmaroAdmin, model=Event):
-    column_list = ["id", "title", "slug", "date", "location"]
-    column_searchable_list = ["title", "slug", "location"]
-    column_sortable_list = ["id", "date", "title"]
+    column_list = ["id", "title", "date", "location", "activity", "is_featured", "slug"]
+    column_searchable_list = ["title", "location", "activity"]
+    column_sortable_list = ["id", "date", "title", "location", "is_featured"]
+    column_labels = {
+        "title": "Nome evento",
+        "description": "Descrizione",
+        "date": "Data",
+        "location": "Luogo",
+        "activity": "Attivita",
+        "is_featured": "In evidenza",
+        "slug": "Slug",
+        "cover_image_url": "Foto copertina (URL)",
+        "gallery_urls": "Foto evento",
+    }
+    form_columns = [
+        "title",
+        "description",
+        "date",
+        "location",
+        "activity",
+        "is_featured",
+        "cover_image_url",
+        "gallery_urls",
+    ]
+    form_args = {
+        "title": {"validators": [DataRequired()]},
+        "description": {"validators": [DataRequired()]},
+        "date": {"validators": [DataRequired()]},
+        "location": {"validators": [DataRequired()]},
+        "activity": {"validators": [DataRequired()]},
+    }
+    form_widget_args = {
+        "activity": {"placeholder": "Ciclismo, Atletica, Trail, ..."},
+        "cover_image_url": {"placeholder": "https://..."},
+        "description": {"rows": 6},
+        "gallery_urls": {
+            "placeholder": "Una foto per riga. Opzionale: URL|didascalia",
+            "rows": 5,
+        },
+    }
+
+    async def on_model_change(
+        self, data: dict, model: Event, is_created: bool, request: Request
+    ) -> None:
+        if not model.slug:
+            title = data.get("title") or model.title or ""
+            if title:
+                base_slug = _slugify(title)
+                model.slug = _unique_event_slug(base_slug, model.id)
 
 
 class MerchItemAdmin(AmaroAdmin, model=MerchItem):

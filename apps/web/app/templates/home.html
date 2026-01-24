@@ -24,7 +24,9 @@
           <li>
             <span class="calendar-date">{{ event.date }}</span>
             <div>
-              <strong>{{ event.title }}</strong>
+              <strong>
+                <a class="link" href="/eventi/{{ event.slug }}">{{ event.title }}</a>
+              </strong>
               <span class="muted">{{ event.month }}</span>
             </div>
           </li>

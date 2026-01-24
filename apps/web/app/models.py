@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Date, DateTime, ForeignKey, Integer, String, Text, func
+from sqlalchemy import Column, Date, DateTime, ForeignKey, Integer, String, Text, Boolean, func
 from sqlalchemy.orm import Mapped, relationship
 
 from .database import Base
@@ -14,11 +14,15 @@ class Event(Base):
     title: Mapped[str] = Column(String(160), nullable=False)
     slug: Mapped[str] = Column(String(160), unique=True, nullable=False)
     description: Mapped[str | None] = Column(Text)
+    activity: Mapped[str | None] = Column(String(120))
     location: Mapped[str | None] = Column(String(120))
     summary: Mapped[str | None] = Column(Text)
     date: Mapped[Date | None] = Column(Date)
     hero_quote: Mapped[str | None] = Column(String(240))
     teaser: Mapped[str | None] = Column(String(240))
+    cover_image_url: Mapped[str | None] = Column(String(255))
+    gallery_urls: Mapped[str | None] = Column(Text)
+    is_featured: Mapped[bool] = Column(Boolean, default=False)
 
 
 class MerchItem(Base):

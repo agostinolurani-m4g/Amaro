@@ -71,8 +71,8 @@ a {
 
 .site-nav a {
   font-size: 0.95rem;
-  letter-spacing: 0.08rem;
-  text-transform: uppercase;
+  letter-spacing: 0.02rem;
+  text-transform: none;
   color: var(--text-main);
   transition: color 0.2s ease;
 }
@@ -110,8 +110,8 @@ a {
   font-size: 0.9rem;
   color: var(--text-muted);
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
+  text-transform: none;
+  letter-spacing: 0.02em;
   margin: 0 0 0.5rem 0;
 }
 
@@ -120,6 +120,34 @@ a {
   display: flex;
   flex-wrap: wrap;
   gap: 0.75rem;
+}
+
+.event-meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.75rem;
+  margin: 0.75rem 0 1rem;
+}
+
+.event-meta__label {
+  display: block;
+  font-size: 0.75rem;
+  text-transform: none;
+  letter-spacing: 0.02em;
+  color: var(--text-muted);
+}
+
+.event-hero {
+  margin: 1rem 0;
+  border: 1px solid var(--border-muted);
+  background: var(--bg-base);
+}
+
+.event-hero img {
+  width: 100%;
+  max-height: 420px;
+  object-fit: cover;
+  display: block;
 }
 
 .card-grid {
@@ -137,13 +165,13 @@ a {
   border: 1px solid var(--border-muted);
   color: var(--text-main);
   font-weight: 600;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.01em;
 }
 
 .link {
   color: var(--text-main);
   font-weight: 600;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.01em;
   text-decoration: underline;
 }
 
@@ -185,7 +213,7 @@ a {
 }
 
 .hero-quote {
-  font-style: italic;
+  font-style: normal;
   color: var(--text-muted);
 }
 
@@ -196,7 +224,7 @@ a {
   border: none;
   padding: 0.75rem 1.5rem;
   cursor: pointer;
-  font-weight: 700;
+  font-weight: 600;
   transition: background 0.1s ease;
 }
 
@@ -241,14 +269,12 @@ a {
 
 .hero-photo__img {
   width: 100%;
-  object-fit: cover;
-  min-height: 220px;      /* più bassa */
-  max-height: 260px;      /* limite verticale */
+  display: block;
 }
 
 .hero-photo__media {
-  width: min(100%, 840px);
-  height: clamp(140px, 38vw, 460px);
+  width: 100%;
+  height: clamp(260px, 55vw, 560px);
   margin: 0 auto;
 }
 
@@ -257,7 +283,7 @@ a {
   height: 100%;
   min-height: 0;
   max-height: none;
-  object-fit: contain;
+  object-fit: cover;
 }
 
 .merch-item__media {
@@ -355,8 +381,8 @@ a {
 .calendar-date {
   font-size: 0.85rem;
   font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  text-transform: none;
   white-space: nowrap;
 }
 
@@ -382,8 +408,8 @@ a {
   text-align: center;
   font-size: 0.75rem;
   font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  text-transform: none;
   color: var(--text-muted);
 }
 

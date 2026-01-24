@@ -124,6 +124,7 @@ except ValueError as exc:
 def on_startup() -> None:
     Base.metadata.create_all(bind=engine)
     ensure_member_schema()
+    ensure_event_schema()
     ensure_merch_schema()
     ensure_membership_payment_schema()
     session = SessionLocal()
@@ -232,6 +233,22 @@ def _normalize(value: str | None) -> str | None:
     return value.strip() if value else None
 
 
+def _parse_gallery_urls(value: str | None) -> list[dict[str, str]]:
+    if not value:
+        return []
+    items: list[dict[str, str]] = []
+    for raw in value.splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        if "|" in line:
+            url, caption = line.split("|", 1)
+            items.append({"url": url.strip(), "caption": caption.strip()})
+        else:
+            items.append({"url": line, "caption": ""})
+    return [item for item in items if item["url"]]
+
+
 def fetch_drive_images(folder_id: str | None, api_key: str | None, limit: int = 18) -> list[dict[str, str]]:
     if not folder_id or not api_key:
         return []
@@ -310,6 +327,33 @@ def ensure_member_schema() -> None:
                     "WHERE membership_status IS NULL"
                 ),
                 {"status": MEMBERSHIP_STATUS_PENDING},
+            )
+
+
+def ensure_event_schema() -> None:
+    inspector = inspect(engine)
+    columns = {col["name"] for col in inspector.get_columns("events")}
+    required_columns: dict[str, str] = {
+        "activity": "TEXT",
+        "cover_image_url": "TEXT",
+        "gallery_urls": "TEXT",
+        "is_featured": "INTEGER",
+    }
+    added_is_featured = False
+    with engine.begin() as conn:
+        for column, ddl in required_columns.items():
+            if column not in columns:
+                conn.execute(text(f"ALTER TABLE events ADD COLUMN {column} {ddl}"))
+                if column == "is_featured":
+                    added_is_featured = True
+    if "is_featured" in columns or added_is_featured:
+        with engine.begin() as conn:
+            conn.execute(
+                text(
+                    "UPDATE events "
+                    "SET is_featured = 0 "
+                    "WHERE is_featured IS NULL"
+                )
             )
 
 
@@ -405,6 +449,7 @@ def _build_calendar_months(session: Session) -> list[dict[str, object]]:
                 {
                     "date": f"{event.date.day:02d}/{event.date.month:02d}",
                     "title": event.title,
+                    "slug": event.slug,
                 }
             )
     return months
@@ -414,21 +459,43 @@ def _build_featured_events(
     session: Session, limit: int = 3
 ) -> list[dict[str, str]]:
     today = date.today()
-    upcoming = (
-        session.query(Event)
+    featured_query = session.query(Event).filter(Event.is_featured.is_(True))
+    events = (
+        featured_query
         .filter(Event.date >= today)
-        .order_by(Event.date.asc())
+        .order_by(Event.date.is_(None), Event.date.asc())
         .limit(limit)
         .all()
     )
-    events = upcoming
     if len(events) < limit:
-        events = (
+        remaining = limit - len(events)
+        existing_ids = [event.id for event in events]
+        extra_query = featured_query
+        if existing_ids:
+            extra_query = extra_query.filter(~Event.id.in_(existing_ids))
+        extra = (
+            extra_query
+            .order_by(Event.date.is_(None), Event.date.asc())
+            .limit(remaining)
+            .all()
+        )
+        events.extend(extra)
+    if not events:
+        upcoming = (
             session.query(Event)
-            .order_by(Event.date.asc())
+            .filter(Event.date >= today)
+            .order_by(Event.date.is_(None), Event.date.asc())
             .limit(limit)
             .all()
         )
+        events = upcoming
+        if len(events) < limit:
+            events = (
+                session.query(Event)
+                .order_by(Event.date.is_(None), Event.date.asc())
+                .limit(limit)
+                .all()
+            )
     featured: list[dict[str, str]] = []
     for event in events:
         if not event.date:
@@ -438,6 +505,7 @@ def _build_featured_events(
                 "date": f"{event.date.day:02d}/{event.date.month:02d}",
                 "title": event.title,
                 "month": _month_label(event.date.month),
+                "slug": event.slug,
             }
         )
     return featured
@@ -599,9 +667,15 @@ def read_event(
     event = session.query(Event).filter_by(slug=slug).first()
     if not event:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Evento non trovato")
+    event_gallery = _parse_gallery_urls(event.gallery_urls)
     return templates.TemplateResponse(
         "event_detail.html",
-        {"request": request, "event": event, "settings": settings},
+        {
+            "request": request,
+            "event": event,
+            "event_gallery": event_gallery,
+            "settings": settings,
+        },
     )
 
 
