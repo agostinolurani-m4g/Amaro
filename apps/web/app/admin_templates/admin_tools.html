@@ -38,8 +38,16 @@
           </select>
         </div>
         <div class="mb-3">
-          <label class="form-label">Documenti (puoi selezionare piu file)</label>
-          <input class="form-control" type="file" name="documents" multiple required />
+          <label class="form-label">Carta d'identita / Passaporto</label>
+          <input class="form-control" type="file" name="identity_documents" multiple />
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Tessera sanitaria</label>
+          <input class="form-control" type="file" name="health_documents" multiple />
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Certificato Medico Agonistico (1 per disciplina scelta)</label>
+          <input class="form-control" type="file" name="medical_documents" multiple />
         </div>
         <button class="btn btn-primary" type="submit">Carica</button>
       </form>

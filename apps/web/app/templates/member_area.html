@@ -12,6 +12,12 @@
             Salvala, ti servira' per rientrare e scaricare i documenti.
           </p>
         {% endif %}
+        {% if upload_notice %}
+          <p class="alert alert--success">{{ upload_notice }}</p>
+        {% endif %}
+        {% if profile_notice %}
+          <p class="alert alert--success">{{ profile_notice }}</p>
+        {% endif %}
         {% if member.payment_status != "paid" %}
           <p class="alert">
             Pagamento obbligatorio: completa il pagamento per accedere all'area tesserati.
@@ -44,19 +50,201 @@
             </div>
           </div>
 
+          <div class="card">
+            <h3>Aggiorna i tuoi dati</h3>
+            <p class="muted">
+              Puoi modificare i tuoi dati anagrafici e di contatto. Se cambi email userai quella per il login.
+            </p>
+            <form method="post" action="/area-tesserati/profilo" class="form">
+              <div class="form-grid">
+                <div>
+                  <label for="profile_first_name">Nome</label>
+                  <input
+                    id="profile_first_name"
+                    name="first_name"
+                    type="text"
+                    value="{{ member.first_name }}"
+                    required
+                  />
+                </div>
+                <div>
+                  <label for="profile_last_name">Cognome</label>
+                  <input
+                    id="profile_last_name"
+                    name="last_name"
+                    type="text"
+                    value="{{ member.last_name }}"
+                    required
+                  />
+                </div>
+              </div>
+
+              <label for="profile_email">Email</label>
+              <input
+                id="profile_email"
+                name="email"
+                type="email"
+                value="{{ member.email }}"
+                required
+              />
+
+              <label for="profile_phone">Telefono</label>
+              <input
+                id="profile_phone"
+                name="phone"
+                type="tel"
+                value="{{ member.phone or '' }}"
+                required
+              />
+
+              <div class="form-grid">
+                <div>
+                  <label for="profile_birth_date">Data di nascita</label>
+                  <input
+                    id="profile_birth_date"
+                    name="birth_date"
+                    type="date"
+                    value="{{ member.birth_date.isoformat() if member.birth_date else '' }}"
+                    required
+                  />
+                </div>
+                <div>
+                  <label for="profile_birth_place">Luogo di nascita</label>
+                  <input
+                    id="profile_birth_place"
+                    name="birth_place"
+                    type="text"
+                    value="{{ member.birth_place or '' }}"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div class="form-grid">
+                <div>
+                  <label for="profile_residence">Residenza</label>
+                  <input
+                    id="profile_residence"
+                    name="residence"
+                    type="text"
+                    value="{{ member.residence or '' }}"
+                    required
+                  />
+                </div>
+                <div>
+                  <label for="profile_codice_fiscale">Codice fiscale</label>
+                  <input
+                    id="profile_codice_fiscale"
+                    name="codice_fiscale"
+                    type="text"
+                    value="{{ member.codice_fiscale or '' }}"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div class="form-grid">
+                <div>
+                  <label for="profile_document_type">Tipo documento</label>
+                  <input
+                    id="profile_document_type"
+                    name="document_type"
+                    type="text"
+                    value="{{ member.document_type or '' }}"
+                    required
+                  />
+                </div>
+                <div>
+                  <label for="profile_document_number">Numero documento</label>
+                  <input
+                    id="profile_document_number"
+                    name="document_number"
+                    type="text"
+                    value="{{ member.document_number or '' }}"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div class="form-grid">
+                <div>
+                  <label for="profile_document_id">Codice tessera (se assegnato)</label>
+                  <input
+                    id="profile_document_id"
+                    name="document_id"
+                    type="text"
+                    value="{{ member.document_id or '' }}"
+                  />
+                </div>
+                <div>
+                  <label for="profile_medical_certificate_expiry">Scadenza certificato medico</label>
+                  <input
+                    id="profile_medical_certificate_expiry"
+                    name="medical_certificate_expiry"
+                    type="date"
+                    value="{{ member.medical_certificate_expiry.isoformat() if member.medical_certificate_expiry else '' }}"
+                    required
+                  />
+                </div>
+              </div>
+
+              <button class="btn btn-primary" type="submit">Salva modifiche</button>
+            </form>
+          </div>
+
           <h2>Documenti caricati</h2>
           {% if documents %}
             <ul class="document-list">
               {% for doc in documents %}
                 <li>
                   <a href="/tesseramento/documenti/{{ doc.id }}">{{ doc.original_name }}</a>
-                  <span class="muted">caricato il {{ doc.uploaded_at.strftime('%d/%m/%Y') }}</span>
+                  <span class="muted">
+                    {{ doc.document_category or "Documento" }} - caricato il {{ doc.uploaded_at.strftime('%d/%m/%Y') }}
+                  </span>
                 </li>
               {% endfor %}
             </ul>
           {% else %}
-            <p class="muted">Nessun documento al momento. Carica certificato medico e documento d'identit? dal form.</p>
+            <p class="muted">
+              Nessun documento al momento. Carica carta d'identit&agrave;, tessera sanitaria e certificato medico dal form.
+            </p>
           {% endif %}
+
+          <div class="card">
+            <h3>Carica altri documenti</h3>
+            <p class="muted">
+              Puoi aggiungere nuovi documenti quando vuoi (certificato medico, carta d'identita, tessera, ecc.).
+            </p>
+            <form method="post" action="/area-tesserati/documenti" enctype="multipart/form-data" class="form">
+              <label for="extra_identity_documents">Carta d'identit&agrave; / Passaporto</label>
+              <input
+                id="extra_identity_documents"
+                name="identity_documents"
+                type="file"
+                accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                multiple
+              />
+
+              <label for="extra_health_documents">Tessera sanitaria</label>
+              <input
+                id="extra_health_documents"
+                name="health_documents"
+                type="file"
+                accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                multiple
+              />
+
+              <label for="extra_medical_documents">Certificato Medico Agonistico (1 per disciplina scelta)</label>
+              <input
+                id="extra_medical_documents"
+                name="medical_documents"
+                type="file"
+                accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                multiple
+              />
+              <button class="btn btn-primary" type="submit">Carica documenti</button>
+            </form>
+          </div>
 
           <div class="hero__actions">
             <form method="post" action="/area-tesserati/logout">
@@ -67,6 +255,9 @@
       {% else %}
         {% if login_error %}
           <p class="alert">{{ login_error }}</p>
+        {% endif %}
+        {% if reset_notice %}
+          <p class="alert alert--success">{{ reset_notice }}</p>
         {% endif %}
         <p class="muted">
           Accedi con l'email usata per il tesseramento e la password che ti abbiamo consegnato dopo il pagamento.
@@ -80,8 +271,20 @@
 
           <button class="btn btn-primary" type="submit">Entra</button>
         </form>
+        {% if password_reset_enabled %}
+          <div class="card">
+            <h3>Password dimenticata?</h3>
+            <p class="muted">Ti inviamo un link per reimpostarla via email.</p>
+            <form action="/area-tesserati/password-reset/request" method="post" class="form">
+              <label for="reset_email">Email</label>
+              <input id="reset_email" name="email" type="email" placeholder="maria@esempio.com" required />
+              <button class="btn btn-secondary" type="submit">Invia link reset</button>
+            </form>
+          </div>
+        {% endif %}
         <p class="muted">
-          Non hai ancora una password? Compila il tesseramento ({{ membership_fee_range }} ?) e carica certificato medico e documento d'identit?:
+          Non hai ancora una password? Compila il tesseramento ({{ membership_fee_range }} ?) e carica carta d'identit&agrave;,
+          tessera sanitaria e certificato medico:
           genereremo le credenziali dopo il pagamento.
         </p>
       {% endif %}

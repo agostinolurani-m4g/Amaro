@@ -3,6 +3,10 @@ from sqlalchemy.orm import Mapped, relationship
 
 from .database import Base
 
+DOCUMENT_CATEGORY_IDENTITY = "Carta d'identita / Passaporto"
+DOCUMENT_CATEGORY_HEALTH = "Tessera sanitaria"
+DOCUMENT_CATEGORY_MEDICAL = "Certificato medico agonistico"
+
 MEMBERSHIP_STATUS_PENDING = "da_tesserare"
 MEMBERSHIP_STATUS_COMPLETED = "tesserato"
 
@@ -66,6 +70,8 @@ class Member(Base):
     payment_reference: Mapped[str | None] = Column(String(120))
     access_code: Mapped[str | None] = Column(String(80))
     password_hash: Mapped[str | None] = Column(String(200))
+    password_reset_token_hash: Mapped[str | None] = Column(String(200))
+    password_reset_expires_at: Mapped[DateTime | None] = Column(DateTime(timezone=True))
     created_at: Mapped[DateTime] = Column(
         DateTime(timezone=True), server_default=func.now()
     )
@@ -79,6 +85,7 @@ class MemberDocument(Base):
 
     id: Mapped[int] = Column(Integer, primary_key=True)
     member_id: Mapped[int] = Column(ForeignKey("members.id"), nullable=False)
+    document_category: Mapped[str | None] = Column(String(80))
     original_name: Mapped[str] = Column(String(255), nullable=False)
     stored_filename: Mapped[str] = Column(String(255), nullable=False)
     content_type: Mapped[str | None] = Column(String(120))

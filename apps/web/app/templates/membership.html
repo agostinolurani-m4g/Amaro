@@ -15,7 +15,8 @@
           <strong>{{ option }}</strong> {{ sport_type_fees[option] }} &euro;{% if not loop.last %} / {% endif %}
         {% endfor %}.
         Include copertura assicurativa di base, accesso agli eventi sociali e alle attivit&agrave; sportive. Per completare la
-        richiesta servono <strong>carta d'identit&agrave;</strong> e <strong>certificato medico</strong> in corso di validit&agrave;.
+        richiesta servono <strong>carta d'identit&agrave;</strong>, <strong>tessera sanitaria</strong> e
+        <strong>certificato medico agonistico</strong> (1 per disciplina scelta).
         Dopo l'invio riceverai la password per accedere all'area tesserati e consultare i documenti caricati.
       </p>
       <form method="post" enctype="multipart/form-data" class="form stacked">
@@ -96,15 +97,38 @@
         <label for="message">Hai qualcosa da raccontarci?</label>
         <textarea id="message" name="message" rows="3" placeholder="Quali progetti ti interessano?"></textarea>
 
-        <label for="documents">Documenti / immagini (PDF, JPG, PNG) - carica certificato medico e documento d'identit&agrave;</label>
-        <input
-          id="documents"
-          name="documents"
-          type="file"
-          accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
-          multiple
-          required
-        />
+        <div class="card">
+          <h3>Documenti richiesti</h3>
+          <label for="identity_documents">Carta d'identit&agrave; / Passaporto</label>
+          <input
+            id="identity_documents"
+            name="identity_documents"
+            type="file"
+            accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+            multiple
+            required
+          />
+
+          <label for="health_documents">Tessera sanitaria</label>
+          <input
+            id="health_documents"
+            name="health_documents"
+            type="file"
+            accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+            multiple
+            required
+          />
+
+          <label for="medical_documents">Certificato Medico Agonistico (1 per disciplina scelta)</label>
+          <input
+            id="medical_documents"
+            name="medical_documents"
+            type="file"
+            accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+            multiple
+            required
+          />
+        </div>
 
         <button class="btn btn-primary" type="submit">Invia dati e completa il tesseramento</button>
       </form>

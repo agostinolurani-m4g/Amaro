@@ -55,7 +55,7 @@ a {
 }
 
 .brand__logo {
-  max-width: 110px;
+  max-width: 78px;
   display: block;
 }
 
@@ -75,6 +75,18 @@ a {
   text-transform: none;
   color: var(--text-main);
   transition: color 0.2s ease;
+}
+
+.site-nav .nav-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.site-nav .nav-icon img {
+  width: 58px;
+  height: 38px;
+  display: block;
 }
 
 .site-nav a:hover,

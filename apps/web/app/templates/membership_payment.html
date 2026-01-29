@@ -38,12 +38,16 @@
             {% for doc in documents %}
               <li>
                 <a href="/tesseramento/documenti/{{ doc.id }}">{{ doc.original_name }}</a>
-                <span class="muted">caricato il {{ doc.uploaded_at.strftime('%d/%m/%Y') }}</span>
+                <span class="muted">
+                  {{ doc.document_category or "Documento" }} - caricato il {{ doc.uploaded_at.strftime('%d/%m/%Y') }}
+                </span>
               </li>
             {% endfor %}
           </ul>
         {% else %}
-          <p class="muted">Non hai ancora caricato allegati. Carica certificato medico e documento d'identit?.</p>
+          <p class="muted">
+            Non hai ancora caricato allegati. Carica carta d'identit&agrave;, tessera sanitaria e certificato medico.
+          </p>
         {% endif %}
       {% else %}
         <p class="muted">Effettua il login nell'area tesserati per consultare e scaricare i documenti allegati.</p>

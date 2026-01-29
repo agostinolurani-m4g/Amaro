@@ -6,7 +6,7 @@ import shutil
 import hashlib
 import secrets
 import smtplib
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from email.message import EmailMessage
 from pathlib import Path
 from typing import Sequence
@@ -25,6 +25,9 @@ from .admin import setup_admin
 from .config import settings
 from .database import Base, SessionLocal, engine, get_session
 from .models import (
+    DOCUMENT_CATEGORY_HEALTH,
+    DOCUMENT_CATEGORY_IDENTITY,
+    DOCUMENT_CATEGORY_MEDICAL,
     Event,
     Member,
     MemberDocument,
@@ -124,6 +127,7 @@ except ValueError as exc:
 def on_startup() -> None:
     Base.metadata.create_all(bind=engine)
     ensure_member_schema()
+    ensure_member_document_schema()
     ensure_event_schema()
     ensure_merch_schema()
     ensure_membership_payment_schema()
@@ -194,6 +198,45 @@ def _send_membership_completion_email(email: str, link: str) -> bool:
                 pass
 
 
+def _send_password_reset_email(email: str, link: str) -> bool:
+    if not settings.smtp_host or not settings.smtp_from:
+        logger.warning("SMTP not configured; skipping password reset email.")
+        return False
+    message = EmailMessage()
+    message["Subject"] = f"{settings.app_name} - Reset password area tesserati"
+    message["From"] = settings.smtp_from
+    message["To"] = email
+    message.set_content(
+        "Ciao,\n\nPer reimpostare la password dell'area tesserati apri questo link:\n"
+        f"{link}\n\nSe non hai richiesto tu il reset, ignora questa email.\n"
+    )
+    server = None
+    try:
+        if settings.smtp_use_ssl:
+            server = smtplib.SMTP_SSL(
+                settings.smtp_host, settings.smtp_port, timeout=10
+            )
+        else:
+            server = smtplib.SMTP(
+                settings.smtp_host, settings.smtp_port, timeout=10
+            )
+            if settings.smtp_use_tls:
+                server.starttls()
+        if settings.smtp_user and settings.smtp_password:
+            server.login(settings.smtp_user, settings.smtp_password)
+        server.send_message(message)
+        return True
+    except Exception:
+        logger.exception("Failed to send password reset email")
+        return False
+    finally:
+        if server:
+            try:
+                server.quit()
+            except Exception:
+                pass
+
+
 def _require_nexi_client() -> NexiXpayClient:
     if not nexi_client:
         raise HTTPException(
@@ -204,7 +247,9 @@ def _require_nexi_client() -> NexiXpayClient:
 
 
 def _save_uploaded_documents(
-    member_id: int, uploads: Sequence[UploadFile] | None
+    member_id: int,
+    uploads: Sequence[UploadFile] | None,
+    category: str | None = None,
 ) -> list[MemberDocument]:
     saved: list[MemberDocument] = []
     if not uploads:
@@ -221,12 +266,46 @@ def _save_uploaded_documents(
         saved.append(
             MemberDocument(
                 member_id=member_id,
+                document_category=category,
                 original_name=Path(upload.filename).name,
                 stored_filename=stored_filename,
                 content_type=upload.content_type,
             )
         )
     return saved
+
+
+def _save_categorized_documents(
+    member_id: int,
+    documents_by_category: dict[str, UploadFile | Sequence[UploadFile] | None],
+) -> list[MemberDocument]:
+    saved: list[MemberDocument] = []
+    for category, uploads in documents_by_category.items():
+        if not uploads:
+            continue
+        if isinstance(uploads, UploadFile):
+            uploads_list = [uploads]
+        else:
+            uploads_list = list(uploads)
+        saved.extend(_save_uploaded_documents(member_id, uploads_list, category))
+    return saved
+
+
+def _require_uploads(
+    uploads: Sequence[UploadFile] | None, label: str
+) -> list[UploadFile]:
+    if not uploads:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Documento mancante: {label}.",
+        )
+    cleaned = [upload for upload in uploads if upload.filename]
+    if not cleaned:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Documento mancante: {label}.",
+        )
+    return cleaned
 
 
 def _normalize(value: str | None) -> str | None:
@@ -310,6 +389,8 @@ def ensure_member_schema() -> None:
         "access_code": "TEXT",
         "password_hash": "TEXT",
         "membership_status": "TEXT",
+        "password_reset_token_hash": "TEXT",
+        "password_reset_expires_at": "DATETIME",
     }
     added_membership_status = False
     with engine.begin() as conn:
@@ -328,6 +409,22 @@ def ensure_member_schema() -> None:
                 ),
                 {"status": MEMBERSHIP_STATUS_PENDING},
             )
+
+
+def ensure_member_document_schema() -> None:
+    inspector = inspect(engine)
+    if "member_documents" not in inspector.get_table_names():
+        return
+    columns = {col["name"] for col in inspector.get_columns("member_documents")}
+    required_columns: dict[str, str] = {
+        "document_category": "TEXT",
+    }
+    with engine.begin() as conn:
+        for column, ddl in required_columns.items():
+            if column not in columns:
+                conn.execute(
+                    text(f"ALTER TABLE member_documents ADD COLUMN {column} {ddl}")
+                )
 
 
 def ensure_event_schema() -> None:
@@ -384,6 +481,10 @@ def ensure_membership_payment_schema() -> None:
 
 
 def _hash_password(raw: str) -> str:
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
+def _hash_reset_token(raw: str) -> str:
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
@@ -959,7 +1060,9 @@ def membership_submit(
     membership_type: str | None = Form(None),
     sport_type: str = Form(...),
     message: str | None = Form(None),
-    documents: list[UploadFile] = File(...),
+    identity_documents: list[UploadFile] = File(...),
+    health_documents: list[UploadFile] = File(...),
+    medical_documents: list[UploadFile] = File(...),
     session: Session = Depends(get_session),
 ) -> RedirectResponse:
     payment = (
@@ -1012,7 +1115,23 @@ def membership_submit(
     )
     session.add(member)
     session.flush()
-    saved_docs = _save_uploaded_documents(member.id, documents)
+    identity_documents = _require_uploads(
+        identity_documents, DOCUMENT_CATEGORY_IDENTITY
+    )
+    health_documents = _require_uploads(
+        health_documents, DOCUMENT_CATEGORY_HEALTH
+    )
+    medical_documents = _require_uploads(
+        medical_documents, DOCUMENT_CATEGORY_MEDICAL
+    )
+    saved_docs = _save_categorized_documents(
+        member.id,
+        {
+            DOCUMENT_CATEGORY_IDENTITY: identity_documents,
+            DOCUMENT_CATEGORY_HEALTH: health_documents,
+            DOCUMENT_CATEGORY_MEDICAL: medical_documents,
+        },
+    )
     if saved_docs:
         session.add_all(saved_docs)
     payment.member_id = member.id
@@ -1135,6 +1254,10 @@ def member_area(request: Request, session: Session = Depends(get_session)) -> HT
         membership_fee_for_sport(member.sport_type) if member else None
     )
     password_hint = request.session.pop("member_password_hint", None)
+    upload_notice = request.session.pop("member_notice", None)
+    profile_notice = request.session.pop("member_profile_notice", None)
+    reset_notice = request.session.pop("member_reset_notice", None)
+    password_reset_enabled = bool(settings.smtp_host and settings.smtp_from)
     documents: list[MemberDocument] = list(member.documents) if member else []
     return templates.TemplateResponse(
         "member_area.html",
@@ -1146,8 +1269,95 @@ def member_area(request: Request, session: Session = Depends(get_session)) -> HT
             "membership_fee": membership_fee,
             "membership_fee_range": MEMBERSHIP_FEE_RANGE_LABEL,
             "password_hint": password_hint,
+            "upload_notice": upload_notice,
+            "profile_notice": profile_notice,
+            "reset_notice": reset_notice,
+            "password_reset_enabled": password_reset_enabled,
         },
     )
+
+
+@app.post("/area-tesserati/documenti")
+def member_upload_documents(
+    request: Request,
+    identity_documents: list[UploadFile] | None = File(None),
+    health_documents: list[UploadFile] | None = File(None),
+    medical_documents: list[UploadFile] | None = File(None),
+    session: Session = Depends(get_session),
+) -> RedirectResponse:
+    member = _member_from_session(request, session)
+    if not member:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Devi effettuare il login.",
+        )
+    if member.payment_status != "paid":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Pagamento obbligatorio.",
+        )
+    saved_docs = _save_categorized_documents(
+        member.id,
+        {
+            DOCUMENT_CATEGORY_IDENTITY: identity_documents,
+            DOCUMENT_CATEGORY_HEALTH: health_documents,
+            DOCUMENT_CATEGORY_MEDICAL: medical_documents,
+        },
+    )
+    if saved_docs:
+        session.add_all(saved_docs)
+        session.commit()
+        notice = f"Caricati {len(saved_docs)} documenti."
+    else:
+        notice = "Nessun documento caricato."
+    request.session["member_notice"] = notice
+    return RedirectResponse(url="/area-tesserati", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@app.post("/area-tesserati/profilo")
+def member_update_profile(
+    request: Request,
+    first_name: str = Form(...),
+    last_name: str = Form(...),
+    email: str = Form(...),
+    phone: str = Form(...),
+    birth_date: date = Form(...),
+    birth_place: str = Form(...),
+    residence: str = Form(...),
+    codice_fiscale: str = Form(...),
+    document_type: str = Form(...),
+    document_number: str = Form(...),
+    document_id: str | None = Form(None),
+    medical_certificate_expiry: date = Form(...),
+    session: Session = Depends(get_session),
+) -> RedirectResponse:
+    member = _member_from_session(request, session)
+    if not member:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Devi effettuare il login.",
+        )
+    if member.payment_status != "paid":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Pagamento obbligatorio.",
+        )
+    member.first_name = first_name.strip()
+    member.last_name = last_name.strip()
+    member.name = f"{member.first_name} {member.last_name}".strip()
+    member.email = email.strip()
+    member.phone = _normalize(phone)
+    member.birth_date = birth_date
+    member.birth_place = _normalize(birth_place)
+    member.residence = _normalize(residence)
+    member.codice_fiscale = _normalize(codice_fiscale)
+    member.document_type = _normalize(document_type)
+    member.document_number = _normalize(document_number)
+    member.document_id = _normalize(document_id)
+    member.medical_certificate_expiry = medical_certificate_expiry
+    session.commit()
+    request.session["member_profile_notice"] = "Dati aggiornati."
+    return RedirectResponse(url="/area-tesserati", status_code=status.HTTP_303_SEE_OTHER)
 
 
 @app.post("/area-tesserati/login", response_model=None)
@@ -1184,6 +1394,130 @@ def member_login(
 def member_logout(request: Request) -> RedirectResponse:
     request.session.pop("member_id", None)
     request.session.pop("member_password_hint", None)
+    return RedirectResponse(url="/area-tesserati", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@app.post("/area-tesserati/password-reset/request")
+def password_reset_request(
+    request: Request,
+    email: str = Form(...),
+    session: Session = Depends(get_session),
+) -> RedirectResponse:
+    if not settings.smtp_host or not settings.smtp_from:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Reset password non disponibile.",
+        )
+    member = (
+        session.query(Member)
+        .filter(Member.email == email.strip())
+        .order_by(Member.id.desc())
+        .first()
+    )
+    if member:
+        token = secrets.token_urlsafe(24)
+        member.password_reset_token_hash = _hash_reset_token(token)
+        member.password_reset_expires_at = datetime.utcnow() + timedelta(hours=2)
+        session.commit()
+        reset_url = str(request.url_for("password_reset_form"))
+        reset_link = f"{reset_url}?token={token}"
+        _send_password_reset_email(member.email, reset_link)
+    request.session["member_reset_notice"] = (
+        "Se l'email esiste, riceverai un link per reimpostare la password."
+    )
+    return RedirectResponse(url="/area-tesserati", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@app.get("/area-tesserati/password-reset", response_class=HTMLResponse)
+def password_reset_form(
+    request: Request,
+    token: str | None = None,
+    session: Session = Depends(get_session),
+) -> HTMLResponse:
+    reset_error = None
+    member = None
+    if not token:
+        reset_error = "Link di reset non valido."
+    else:
+        token_hash = _hash_reset_token(token)
+        member = (
+            session.query(Member)
+            .filter(Member.password_reset_token_hash == token_hash)
+            .first()
+        )
+        if not member:
+            reset_error = "Link di reset non valido."
+        elif (
+            member.password_reset_expires_at
+            and member.password_reset_expires_at < datetime.utcnow()
+        ):
+            reset_error = "Link di reset scaduto."
+            member = None
+    return templates.TemplateResponse(
+        "password_reset.html",
+        {
+            "request": request,
+            "settings": settings,
+            "token": token,
+            "reset_error": reset_error,
+            "token_valid": member is not None,
+        },
+    )
+
+
+@app.post("/area-tesserati/password-reset")
+def password_reset_confirm(
+    request: Request,
+    token: str = Form(...),
+    password: str = Form(...),
+    password_confirm: str = Form(...),
+    session: Session = Depends(get_session),
+) -> HTMLResponse:
+    reset_error = None
+    if not password.strip():
+        reset_error = "Inserisci una password valida."
+    elif password.strip() != password_confirm.strip():
+        reset_error = "Le password non coincidono."
+
+    member = None
+    if not reset_error:
+        token_hash = _hash_reset_token(token)
+        member = (
+            session.query(Member)
+            .filter(Member.password_reset_token_hash == token_hash)
+            .first()
+        )
+        if not member:
+            reset_error = "Link di reset non valido."
+        elif (
+            member.password_reset_expires_at
+            and member.password_reset_expires_at < datetime.utcnow()
+        ):
+            reset_error = "Link di reset scaduto."
+            member = None
+
+    if reset_error or not member:
+        return templates.TemplateResponse(
+            "password_reset.html",
+            {
+                "request": request,
+                "settings": settings,
+                "token": token,
+                "reset_error": reset_error,
+                "token_valid": False,
+            },
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+
+    new_password = password.strip()
+    member.password_hash = _hash_password(new_password)
+    member.access_code = new_password
+    member.password_reset_token_hash = None
+    member.password_reset_expires_at = None
+    session.commit()
+    request.session["member_reset_notice"] = (
+        "Password aggiornata. Ora puoi effettuare il login."
+    )
     return RedirectResponse(url="/area-tesserati", status_code=status.HTTP_303_SEE_OTHER)
 
 

@@ -21,8 +21,17 @@
         <a href="/">Home</a>
         <a href="/associazione">Associazione</a>
         <a href="/calendario">Calendario</a>
-        <a href="/area-tesserati">Area soci</a>
-        <a href="/tesseramento">Tesserati</a>
+        {% set member_logged = request.session.get("member_id") %}
+        <a
+          class="nav-icon"
+          href="{{ '/area-tesserati' if member_logged else '/tesseramento' }}"
+          aria-label="Area personale"
+        >
+          <img
+            src="{{ url_for('static', path='img/logo_ap.png') }}"
+            alt="Area personale"
+          />
+        </a>
       </nav>
     </header>
 

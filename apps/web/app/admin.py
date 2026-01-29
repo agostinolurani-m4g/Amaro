@@ -28,6 +28,9 @@ from wtforms.validators import DataRequired
 from .config import settings
 from .database import SessionLocal, engine
 from .models import (
+    DOCUMENT_CATEGORY_HEALTH,
+    DOCUMENT_CATEGORY_IDENTITY,
+    DOCUMENT_CATEGORY_MEDICAL,
     Event,
     Member,
     MemberDocument,
@@ -52,7 +55,9 @@ def _generate_member_password() -> tuple[str, str]:
 
 
 def _save_uploaded_documents(
-    member_id: int, uploads: list[UploadFile]
+    member_id: int,
+    uploads: list[UploadFile],
+    category: str | None = None,
 ) -> list[MemberDocument]:
     saved: list[MemberDocument] = []
     if not uploads:
@@ -69,11 +74,24 @@ def _save_uploaded_documents(
         saved.append(
             MemberDocument(
                 member_id=member_id,
+                document_category=category,
                 original_name=Path(upload.filename).name,
                 stored_filename=stored_filename,
                 content_type=upload.content_type,
             )
         )
+    return saved
+
+
+def _save_categorized_documents(
+    member_id: int,
+    documents_by_category: dict[str, list[UploadFile] | None],
+) -> list[MemberDocument]:
+    saved: list[MemberDocument] = []
+    for category, uploads in documents_by_category.items():
+        if not uploads:
+            continue
+        saved.extend(_save_uploaded_documents(member_id, uploads, category))
     return saved
 
 
@@ -150,7 +168,10 @@ def _build_acsi_export(members: list[Member]) -> str:
         ]
     )
     for member in members:
-        documents = ", ".join(doc.original_name for doc in member.documents)
+        documents = ", ".join(
+            f"{doc.document_category or 'Documento'}: {doc.original_name}"
+            for doc in member.documents
+        )
         writer.writerow(
             [
                 member.id,
@@ -303,11 +324,19 @@ class MemberAdmin(AmaroAdmin, model=Member):
 
 
 class MemberDocumentAdmin(AmaroAdmin, model=MemberDocument):
-    column_list = ["id", "member", "original_name", "content_type", "uploaded_at"]
+    column_list = [
+        "id",
+        "member",
+        "document_category",
+        "original_name",
+        "content_type",
+        "uploaded_at",
+    ]
     column_labels = {
         "member": "Socio",
         "member.first_name": "Nome",
         "member.last_name": "Cognome",
+        "document_category": "Categoria",
     }
     column_searchable_list = [
         "original_name",
@@ -347,8 +376,17 @@ class AdminToolsView(BaseView):
                     if not member:
                         notice = "Socio non trovato."
                     elif action == "upload_documents":
-                        uploads = form.getlist("documents")
-                        saved_docs = _save_uploaded_documents(member.id, uploads)
+                        identity_documents = form.getlist("identity_documents")
+                        health_documents = form.getlist("health_documents")
+                        medical_documents = form.getlist("medical_documents")
+                        saved_docs = _save_categorized_documents(
+                            member.id,
+                            {
+                                DOCUMENT_CATEGORY_IDENTITY: identity_documents,
+                                DOCUMENT_CATEGORY_HEALTH: health_documents,
+                                DOCUMENT_CATEGORY_MEDICAL: medical_documents,
+                            },
+                        )
                         if saved_docs:
                             session.add_all(saved_docs)
                             session.commit()
