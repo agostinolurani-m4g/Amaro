@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-import csv
 import hashlib
-import io
 import logging
 import os
 import re
@@ -10,9 +8,11 @@ import secrets
 import shutil
 import tempfile
 import zipfile
+from copy import deepcopy
 from datetime import date as dt_date, datetime as dt_datetime
 from pathlib import Path
 from uuid import uuid4
+from xml.etree import ElementTree as ET
 
 from fastapi import FastAPI
 from sqlalchemy import or_
@@ -43,6 +43,30 @@ logger = logging.getLogger(__name__)
 BASE_DIR = Path(__file__).resolve().parent
 UPLOADS_DIR = (BASE_DIR / settings.uploads_path).resolve()
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+ACSI_TEMPLATE_FILENAME = "Modello_tesseramento_ACSI_NUOVO.xlsx"
+ACSI_TEMPLATE_PATH = BASE_DIR / "static" / "files" / ACSI_TEMPLATE_FILENAME
+ACSI_SHEET_PATH = "xl/worksheets/sheet1.xml"
+ACSI_DATA_START_ROW = 13
+ACSI_COLUMNS = list("ABCDEFGHIJKLMNOPQ")
+ACSI_QUALIFICA_DEFAULT = "Socio - 2116"
+ACSI_ASSICURAZIONE_DEFAULT = "Base Sport - 102"
+ACSI_CONSENSO_DEFAULT = "SI"
+ACSI_DISCIPLINE_BY_SPORT: dict[str, dict[str, list[str]]] = {
+    "Solo ciclismo": {
+        "coni": ["Ciclismo su strada - AX005"],
+        "acsi": ["CICLISMO - 184"],
+    },
+    "Solo atletica": {
+        "coni": ["Atletica Leggera - AF001"],
+        "acsi": ["ATLETICA - 136"],
+    },
+    "Ciclismo + Atletica": {
+        "coni": ["Ciclismo su strada - AX005", "Atletica Leggera - AF001"],
+        "acsi": ["CICLISMO - 184", "ATLETICA - 136"],
+    },
+}
+ACSI_NS = {"main": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
+ACSI_CELL_REF_RE = re.compile(r"^([A-Z]+)(\d+)$")
 
 
 def _hash_password(raw: str) -> str:
@@ -142,65 +166,185 @@ def _members_pending_acsi(session: Session) -> list[Member]:
     )
 
 
+def _acsi_disciplines_for_member(member: Member) -> tuple[list[str], list[str]]:
+    sport_type = (member.sport_type or "").strip()
+    mapping = ACSI_DISCIPLINE_BY_SPORT.get(sport_type)
+    if not mapping:
+        return [], []
+    coni = list(mapping.get("coni", []))
+    acsi = list(mapping.get("acsi", []))
+    return coni, acsi
+
+
+def _acsi_row_values(member: Member) -> dict[str, str]:
+    coni, acsi = _acsi_disciplines_for_member(member)
+    values = {
+        "A": member.document_id or "",
+        "B": member.last_name or "",
+        "C": member.first_name or "",
+        "D": member.codice_fiscale or "",
+        "E": ACSI_QUALIFICA_DEFAULT,
+        "F": member.email or "",
+        "G": member.phone or "",
+        "H": ACSI_ASSICURAZIONE_DEFAULT,
+        "I": coni[0] if len(coni) > 0 else "",
+        "J": coni[1] if len(coni) > 1 else "",
+        "K": coni[2] if len(coni) > 2 else "",
+        "L": acsi[0] if len(acsi) > 0 else "",
+        "M": acsi[1] if len(acsi) > 1 else "",
+        "N": acsi[2] if len(acsi) > 2 else "",
+        "O": ACSI_CONSENSO_DEFAULT,
+        "P": ACSI_CONSENSO_DEFAULT,
+        "Q": ACSI_CONSENSO_DEFAULT,
+    }
+    return values
+
+
+def _split_cell_ref(cell_ref: str) -> tuple[str, int] | None:
+    match = ACSI_CELL_REF_RE.match(cell_ref)
+    if not match:
+        return None
+    return match.group(1), int(match.group(2))
+
+
+def _set_inline_cell_value(cell: ET.Element, value: str) -> None:
+    for child in list(cell):
+        cell.remove(child)
+    if value == "":
+        cell.attrib.pop("t", None)
+        return
+    cell.attrib["t"] = "inlineStr"
+    is_el = ET.SubElement(cell, f"{{{ACSI_NS['main']}}}is")
+    t_el = ET.SubElement(is_el, f"{{{ACSI_NS['main']}}}t")
+    if value.startswith(" ") or value.endswith(" "):
+        t_el.attrib["{http://www.w3.org/XML/1998/namespace}space"] = "preserve"
+    t_el.text = value
+
+
+def _write_acsi_excel(
+    members: list[Member],
+    template_path: Path,
+    output_path: str,
+) -> None:
+    if not template_path.exists():
+        raise FileNotFoundError(f"Template ACSI non trovato: {template_path}")
+
+    ET.register_namespace("", ACSI_NS["main"])
+
+    def tag(name: str) -> str:
+        return f"{{{ACSI_NS['main']}}}{name}"
+
+    with zipfile.ZipFile(template_path, "r") as source:
+        with zipfile.ZipFile(output_path, "w", zipfile.ZIP_DEFLATED) as dest:
+            for item in source.infolist():
+                if item.filename != ACSI_SHEET_PATH:
+                    dest.writestr(item, source.read(item.filename))
+                    continue
+
+                root = ET.fromstring(source.read(item.filename))
+                sheet_data = root.find("main:sheetData", ACSI_NS)
+                if sheet_data is None:
+                    raise ValueError("Sheet ACSI non valido: sheetData mancante")
+
+                rows = sheet_data.findall("main:row", ACSI_NS)
+                rows_by_index = {
+                    int(row.attrib["r"]): row
+                    for row in rows
+                    if row.attrib.get("r") and row.attrib["r"].isdigit()
+                }
+                template_row = rows_by_index.get(ACSI_DATA_START_ROW)
+                if template_row is None:
+                    raise ValueError("Riga modello ACSI mancante (riga 13)")
+
+                template_cells_by_col: dict[str, ET.Element] = {}
+                for cell in template_row.findall("main:c", ACSI_NS):
+                    cell_ref = cell.attrib.get("r", "")
+                    cell_info = _split_cell_ref(cell_ref)
+                    if not cell_info:
+                        continue
+                    template_cells_by_col[cell_info[0]] = cell
+
+                def clone_row(row_index: int) -> ET.Element:
+                    new_row = deepcopy(template_row)
+                    new_row.attrib["r"] = str(row_index)
+                    for cell in new_row.findall("main:c", ACSI_NS):
+                        cell_ref = cell.attrib.get("r", "")
+                        cell_info = _split_cell_ref(cell_ref)
+                        if cell_info:
+                            cell.attrib["r"] = f"{cell_info[0]}{row_index}"
+                        for child in list(cell):
+                            cell.remove(child)
+                        cell.attrib.pop("t", None)
+                    return new_row
+
+                def insert_row(row_index: int, row: ET.Element) -> None:
+                    inserted = False
+                    for idx, existing in enumerate(sheet_data.findall("main:row", ACSI_NS)):
+                        existing_ref = existing.attrib.get("r")
+                        if existing_ref and existing_ref.isdigit() and int(existing_ref) > row_index:
+                            sheet_data.insert(idx, row)
+                            inserted = True
+                            break
+                    if not inserted:
+                        sheet_data.append(row)
+
+                for offset, member in enumerate(members):
+                    row_index = ACSI_DATA_START_ROW + offset
+                    row = rows_by_index.get(row_index)
+                    if row is None:
+                        row = clone_row(row_index)
+                        insert_row(row_index, row)
+                        rows_by_index[row_index] = row
+
+                    cells_by_col: dict[str, ET.Element] = {}
+                    for cell in row.findall("main:c", ACSI_NS):
+                        cell_ref = cell.attrib.get("r", "")
+                        cell_info = _split_cell_ref(cell_ref)
+                        if not cell_info:
+                            continue
+                        cells_by_col[cell_info[0]] = cell
+
+                    values = _acsi_row_values(member)
+                    for col in ACSI_COLUMNS:
+                        cell = cells_by_col.get(col)
+                        if cell is None:
+                            cell = ET.SubElement(row, tag("c"), {"r": f"{col}{row_index}"})
+                            template_cell = template_cells_by_col.get(col)
+                            if template_cell is not None and "s" in template_cell.attrib:
+                                cell.attrib["s"] = template_cell.attrib["s"]
+                            cells_by_col[col] = cell
+                        _set_inline_cell_value(cell, str(values.get(col, "")))
+
+                dim = root.find("main:dimension", ACSI_NS)
+                if dim is not None:
+                    dim_ref = dim.attrib.get("ref", "")
+                    dim_end_row = 0
+                    match = re.match(r"^([A-Z]+)(\d+):([A-Z]+)(\d+)$", dim_ref)
+                    if match:
+                        dim_end_row = int(match.group(4))
+                    last_row_needed = ACSI_DATA_START_ROW + max(len(members) - 1, 0)
+                    new_end = max(dim_end_row, last_row_needed)
+                    if new_end:
+                        dim.attrib["ref"] = f"A1:Q{new_end}"
+
+                dest.writestr(
+                    item,
+                    ET.tostring(root, encoding="utf-8", xml_declaration=True),
+                )
+
+
 def _build_acsi_export(members: list[Member]) -> str:
-    csv_buffer = io.StringIO(newline="")
-    writer = csv.writer(csv_buffer, delimiter=";")
-    writer.writerow(
-        [
-            "ID",
-            "Cognome",
-            "Nome",
-            "Email",
-            "Telefono",
-            "Data di nascita",
-            "Luogo di nascita",
-            "Residenza",
-            "Codice fiscale",
-            "Tipo documento",
-            "Numero documento",
-            "Codice tessera",
-            "Tessera sanitaria",
-            "Scadenza certificato medico",
-            "Tipo tessera",
-            "Disciplina",
-            "Messaggio",
-            "Documenti",
-        ]
-    )
-    for member in members:
-        documents = ", ".join(
-            f"{doc.document_category or 'Documento'}: {doc.original_name}"
-            for doc in member.documents
-        )
-        writer.writerow(
-            [
-                member.id,
-                member.last_name,
-                member.first_name,
-                member.email,
-                member.phone or "",
-                _format_it_date(member.birth_date),
-                member.birth_place or "",
-                member.residence or "",
-                member.codice_fiscale or "",
-                member.document_type or "",
-                member.document_number or "",
-                member.document_id or "",
-                member.tessera_sanitaria or "",
-                _format_it_date(member.medical_certificate_expiry),
-                member.membership_type,
-                member.sport_type or "",
-                member.message or "",
-                documents,
-            ]
-        )
+    temp_xlsx = tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx")
+    temp_xlsx_path = temp_xlsx.name
+    temp_xlsx.close()
+    _write_acsi_excel(members, ACSI_TEMPLATE_PATH, temp_xlsx_path)
 
     temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".zip")
     temp_path = temp_file.name
     temp_file.close()
 
     with zipfile.ZipFile(temp_path, "w", zipfile.ZIP_DEFLATED) as archive:
-        archive.writestr("acsi_tesseramento.csv", csv_buffer.getvalue())
+        archive.write(temp_xlsx_path, arcname="acsi_tesseramento.xlsx")
         for member in members:
             folder = _safe_filename(
                 f"{member.last_name}_{member.first_name}_{member.id}"
@@ -211,6 +355,11 @@ def _build_acsi_export(members: list[Member]) -> str:
                     continue
                 doc_name = _safe_filename(document.original_name)
                 archive.write(path, arcname=f"{folder}/{document.id}_{doc_name}")
+
+    try:
+        os.unlink(temp_xlsx_path)
+    except OSError:
+        logger.warning("Impossibile rimuovere il file temporaneo ACSI: %s", temp_xlsx_path)
 
     return temp_path
 
