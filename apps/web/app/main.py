@@ -31,6 +31,7 @@ from .models import (
     DOCUMENT_CATEGORY_IDENTITY,
     DOCUMENT_CATEGORY_MEDICAL,
     Event,
+    EventRegistration,
     Member,
     MemberDocument,
     MembershipPayment,
@@ -293,6 +294,18 @@ def _save_categorized_documents(
     return saved
 
 
+def _save_event_document(
+    registration_id: int, upload: UploadFile
+) -> tuple[str, str, str | None]:
+    stored_filename = f"event_{registration_id}_{uuid4().hex}_{Path(upload.filename).name}"
+    destination = UPLOADS_DIR / stored_filename
+    upload.file.seek(0)
+    with destination.open("wb") as out:
+        shutil.copyfileobj(upload.file, out)
+    upload.file.close()
+    return stored_filename, Path(upload.filename).name, upload.content_type
+
+
 def _require_uploads(
     uploads: Sequence[UploadFile] | None, label: str
 ) -> list[UploadFile]:
@@ -452,14 +465,27 @@ def ensure_event_schema() -> None:
         "cover_image_url": "TEXT",
         "gallery_urls": "TEXT",
         "is_featured": "INTEGER",
+        "require_first_name": "INTEGER",
+        "require_last_name": "INTEGER",
+        "require_email": "INTEGER",
+        "require_phone": "INTEGER",
+        "require_residence": "INTEGER",
+        "require_intolerances": "INTEGER",
+        "require_acsi_fci": "INTEGER",
+        "require_medical_certificate": "INTEGER",
+        "require_privacy_photo": "INTEGER",
+        "require_privacy_other": "INTEGER",
     }
     added_is_featured = False
+    added_require_defaults = False
     with engine.begin() as conn:
         for column, ddl in required_columns.items():
             if column not in columns:
                 conn.execute(text(f"ALTER TABLE events ADD COLUMN {column} {ddl}"))
                 if column == "is_featured":
                     added_is_featured = True
+                if column.startswith("require_"):
+                    added_require_defaults = True
     if "is_featured" in columns or added_is_featured:
         with engine.begin() as conn:
             conn.execute(
@@ -467,6 +493,78 @@ def ensure_event_schema() -> None:
                     "UPDATE events "
                     "SET is_featured = 0 "
                     "WHERE is_featured IS NULL"
+                )
+            )
+    if any(col.startswith("require_") for col in columns) or added_require_defaults:
+        with engine.begin() as conn:
+            conn.execute(
+                text(
+                    "UPDATE events "
+                    "SET require_first_name = 1 "
+                    "WHERE require_first_name IS NULL"
+                )
+            )
+            conn.execute(
+                text(
+                    "UPDATE events "
+                    "SET require_last_name = 1 "
+                    "WHERE require_last_name IS NULL"
+                )
+            )
+            conn.execute(
+                text(
+                    "UPDATE events "
+                    "SET require_email = 1 "
+                    "WHERE require_email IS NULL"
+                )
+            )
+            conn.execute(
+                text(
+                    "UPDATE events "
+                    "SET require_phone = 1 "
+                    "WHERE require_phone IS NULL"
+                )
+            )
+            conn.execute(
+                text(
+                    "UPDATE events "
+                    "SET require_residence = 0 "
+                    "WHERE require_residence IS NULL"
+                )
+            )
+            conn.execute(
+                text(
+                    "UPDATE events "
+                    "SET require_intolerances = 0 "
+                    "WHERE require_intolerances IS NULL"
+                )
+            )
+            conn.execute(
+                text(
+                    "UPDATE events "
+                    "SET require_acsi_fci = 0 "
+                    "WHERE require_acsi_fci IS NULL"
+                )
+            )
+            conn.execute(
+                text(
+                    "UPDATE events "
+                    "SET require_medical_certificate = 0 "
+                    "WHERE require_medical_certificate IS NULL"
+                )
+            )
+            conn.execute(
+                text(
+                    "UPDATE events "
+                    "SET require_privacy_photo = 1 "
+                    "WHERE require_privacy_photo IS NULL"
+                )
+            )
+            conn.execute(
+                text(
+                    "UPDATE events "
+                    "SET require_privacy_other = 1 "
+                    "WHERE require_privacy_other IS NULL"
                 )
             )
 
@@ -786,14 +884,137 @@ def read_event(
     if not event:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Evento non trovato")
     event_gallery = _parse_gallery_urls(event.gallery_urls)
+    registration_notice = None
+    if request.query_params.get("registered") == "1":
+        registration_notice = "Iscrizione ricevuta. Ti contatteremo via email."
     return templates.TemplateResponse(
         "event_detail.html",
         {
             "request": request,
             "event": event,
             "event_gallery": event_gallery,
+            "registration_notice": registration_notice,
+            "registration_errors": [],
+            "form_values": {
+                "first_name": "",
+                "last_name": "",
+                "email": "",
+                "phone": "",
+                "residence": "",
+                "intolerances": "",
+                "privacy_photo": False,
+                "privacy_other": False,
+            },
             "settings": settings,
         },
+    )
+
+
+@app.post("/eventi/{slug}/iscrizione", response_class=HTMLResponse)
+def register_event(
+    request: Request,
+    slug: str,
+    first_name: str = Form(""),
+    last_name: str = Form(""),
+    email: str = Form(""),
+    phone: str = Form(""),
+    residence: str = Form(""),
+    intolerances: str = Form(""),
+    privacy_photo: str | None = Form(None),
+    privacy_other: str | None = Form(None),
+    acsi_fci_document: UploadFile | None = File(None),
+    medical_certificate: UploadFile | None = File(None),
+    session: Session = Depends(get_session),
+) -> HTMLResponse:
+    event = session.query(Event).filter_by(slug=slug).first()
+    if not event:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Evento non trovato")
+
+    normalized = {
+        "first_name": _normalize(first_name) or "",
+        "last_name": _normalize(last_name) or "",
+        "email": _normalize(email) or "",
+        "phone": _normalize(phone) or "",
+        "residence": _normalize(residence) or "",
+        "intolerances": _normalize(intolerances) or "",
+        "privacy_photo": bool(privacy_photo),
+        "privacy_other": bool(privacy_other),
+    }
+    errors: list[str] = []
+
+    def require(flag: bool, value: str, label: str) -> None:
+        if flag and not value:
+            errors.append(f"{label} obbligatorio.")
+
+    require(event.require_first_name, normalized["first_name"], "Nome")
+    require(event.require_last_name, normalized["last_name"], "Cognome")
+    require(event.require_email, normalized["email"], "Email")
+    require(event.require_phone, normalized["phone"], "Cellulare")
+    require(event.require_residence, normalized["residence"], "Residenza")
+    require(event.require_intolerances, normalized["intolerances"], "Intolleranze/Allergie")
+
+    if event.require_privacy_photo and not normalized["privacy_photo"]:
+        errors.append("Consenso privacy foto obbligatorio.")
+    if event.require_privacy_other and not normalized["privacy_other"]:
+        errors.append("Consenso privacy obbligatorio.")
+
+    acsi_fci_upload = acsi_fci_document if acsi_fci_document and acsi_fci_document.filename else None
+    medical_upload = medical_certificate if medical_certificate and medical_certificate.filename else None
+    if event.require_acsi_fci and not acsi_fci_upload:
+        errors.append("Tessera ACSI/FCI obbligatoria.")
+    if event.require_medical_certificate and not medical_upload:
+        errors.append("Certificato medico obbligatorio.")
+
+    if errors:
+        event_gallery = _parse_gallery_urls(event.gallery_urls)
+        return templates.TemplateResponse(
+            "event_detail.html",
+            {
+                "request": request,
+                "event": event,
+                "event_gallery": event_gallery,
+                "registration_notice": None,
+                "registration_errors": errors,
+                "form_values": normalized,
+                "settings": settings,
+            },
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+
+    registration = EventRegistration(
+        event_id=event.id,
+        first_name=normalized["first_name"],
+        last_name=normalized["last_name"],
+        email=normalized["email"],
+        phone=normalized["phone"],
+        residence=normalized["residence"],
+        intolerances=normalized["intolerances"],
+        privacy_photo=normalized["privacy_photo"],
+        privacy_other=normalized["privacy_other"],
+    )
+    session.add(registration)
+    session.flush()
+
+    if acsi_fci_upload:
+        stored_filename, original_name, content_type = _save_event_document(
+            registration.id, acsi_fci_upload
+        )
+        registration.acsi_fci_stored_filename = stored_filename
+        registration.acsi_fci_original_name = original_name
+        registration.acsi_fci_content_type = content_type
+
+    if medical_upload:
+        stored_filename, original_name, content_type = _save_event_document(
+            registration.id, medical_upload
+        )
+        registration.medical_stored_filename = stored_filename
+        registration.medical_original_name = original_name
+        registration.medical_content_type = content_type
+
+    session.commit()
+    return RedirectResponse(
+        url=f"/eventi/{slug}?registered=1",
+        status_code=status.HTTP_303_SEE_OTHER,
     )
 
 
@@ -1399,6 +1620,10 @@ def member_login(
                 "login_error": "Credenziali non valide o password errata.",
                 "settings": settings,
                 "membership_fee": settings.membership_fee_eur,
+                "membership_fee_range": MEMBERSHIP_FEE_RANGE_LABEL,
+                "password_reset_enabled": bool(
+                    settings.smtp_host and settings.smtp_from
+                ),
             },
             status_code=status.HTTP_401_UNAUTHORIZED,
         )
@@ -1431,7 +1656,7 @@ def password_reset_request(
         .order_by(Member.id.desc())
         .first()
     )
-    if member:
+    if member and member.payment_status == "paid":
         token = secrets.token_urlsafe(24)
         member.password_reset_token_hash = _hash_reset_token(token)
         member.password_reset_expires_at = datetime.utcnow() + timedelta(hours=2)
@@ -1464,6 +1689,9 @@ def password_reset_form(
         )
         if not member:
             reset_error = "Link di reset non valido."
+        elif member.payment_status != "paid":
+            reset_error = "Reset disponibile solo dopo il pagamento."
+            member = None
         elif (
             member.password_reset_expires_at
             and member.password_reset_expires_at < datetime.utcnow()
@@ -1506,6 +1734,9 @@ def password_reset_confirm(
         )
         if not member:
             reset_error = "Link di reset non valido."
+        elif member.payment_status != "paid":
+            reset_error = "Reset disponibile solo dopo il pagamento."
+            member = None
         elif (
             member.password_reset_expires_at
             and member.password_reset_expires_at < datetime.utcnow()

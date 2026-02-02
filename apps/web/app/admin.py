@@ -32,6 +32,7 @@ from .models import (
     DOCUMENT_CATEGORY_IDENTITY,
     DOCUMENT_CATEGORY_MEDICAL,
     Event,
+    EventRegistration,
     Member,
     MemberDocument,
     MembershipPayment,
@@ -411,6 +412,16 @@ class EventAdmin(AmaroAdmin, model=Event):
         "slug": "Slug",
         "cover_image_url": "Foto copertina (URL)",
         "gallery_urls": "Foto evento",
+        "require_first_name": "Nome obbligatorio",
+        "require_last_name": "Cognome obbligatorio",
+        "require_email": "Email obbligatoria",
+        "require_phone": "Cellulare obbligatorio",
+        "require_residence": "Residenza obbligatoria",
+        "require_intolerances": "Intolleranze/Allergie obbligatorie",
+        "require_acsi_fci": "Tessera ACSI/FCI obbligatoria",
+        "require_medical_certificate": "Certificato medico obbligatorio",
+        "require_privacy_photo": "Privacy foto obbligatoria",
+        "require_privacy_other": "Privacy obbligatoria",
     }
     form_columns = [
         "title",
@@ -421,6 +432,16 @@ class EventAdmin(AmaroAdmin, model=Event):
         "is_featured",
         "cover_image_url",
         "gallery_urls",
+        "require_first_name",
+        "require_last_name",
+        "require_email",
+        "require_phone",
+        "require_residence",
+        "require_intolerances",
+        "require_acsi_fci",
+        "require_medical_certificate",
+        "require_privacy_photo",
+        "require_privacy_other",
     ]
     form_args = {
         "title": {"validators": [DataRequired()]},
@@ -447,6 +468,39 @@ class EventAdmin(AmaroAdmin, model=Event):
             if title:
                 base_slug = _slugify(title)
                 model.slug = _unique_event_slug(base_slug, model.id)
+
+
+class EventRegistrationAdmin(AmaroAdmin, model=EventRegistration):
+    column_list = [
+        "id",
+        "event",
+        "first_name",
+        "last_name",
+        "email",
+        "phone",
+        "created_at",
+    ]
+    column_searchable_list = ["first_name", "last_name", "email", "phone"]
+    column_sortable_list = ["id", "created_at"]
+    column_labels = {
+        "event": "Evento",
+        "first_name": "Nome",
+        "last_name": "Cognome",
+        "phone": "Cellulare",
+        "privacy_photo": "Privacy foto",
+        "privacy_other": "Privacy",
+        "acsi_fci_original_name": "Tessera ACSI/FCI",
+        "medical_original_name": "Certificato medico",
+    }
+    form_excluded_columns = [
+        "event",
+        "event_id",
+        "acsi_fci_stored_filename",
+        "acsi_fci_content_type",
+        "medical_stored_filename",
+        "medical_content_type",
+        "created_at",
+    ]
 
 
 class MerchItemAdmin(AmaroAdmin, model=MerchItem):
@@ -666,6 +720,7 @@ def setup_admin(app: FastAPI) -> None:
         templates_dir=str(BASE_DIR / "admin_templates"),
     )
     admin.add_view(EventAdmin)
+    admin.add_view(EventRegistrationAdmin)
     admin.add_view(MerchItemAdmin)
     admin.add_view(MemberAdmin)
     admin.add_view(MemberDocumentAdmin)

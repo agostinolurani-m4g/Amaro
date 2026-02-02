@@ -7,6 +7,16 @@
         {{ event.date.strftime("%d %B %Y") if event.date else "Data da definire" }}
       </p>
       <h1>{{ event.title }}</h1>
+      {% if registration_notice %}
+        <p class="alert alert--success">{{ registration_notice }}</p>
+      {% endif %}
+      {% if registration_errors %}
+        <p class="alert">
+          {% for message in registration_errors %}
+            {{ message }}{% if not loop.last %}<br>{% endif %}
+          {% endfor %}
+        </p>
+      {% endif %}
       <div class="event-meta">
         <div>
           <span class="event-meta__label">Luogo</span>
@@ -32,9 +42,139 @@
         <p>{{ event.summary | format_text }}</p>
       {% endif %}
       <div class="card__actions">
-        <a class="btn btn-primary" href="/merch">Sostienici con il merch</a>
+        <a class="btn btn-primary" href="#iscrizione-evento">Iscriviti all'evento</a>
         <a class="btn btn-secondary" href="/tesseramento">Tesserati</a>
       </div>
+    </article>
+  </section>
+
+  <section class="section" id="iscrizione-evento">
+    <article class="card card--spacious">
+      <h2>Iscriviti all'evento</h2>
+      <p class="muted">Compila i dati richiesti. I campi con * sono obbligatori.</p>
+      <form
+        method="post"
+        action="/eventi/{{ event.slug }}/iscrizione"
+        enctype="multipart/form-data"
+        class="form stacked"
+      >
+        <div class="form-grid">
+          <div>
+            <label for="reg_first_name">Nome{% if event.require_first_name %} *{% endif %}</label>
+            <input
+              id="reg_first_name"
+              name="first_name"
+              type="text"
+              placeholder="Maria"
+              value="{{ form_values.first_name }}"
+              {% if event.require_first_name %}required{% endif %}
+            />
+          </div>
+          <div>
+            <label for="reg_last_name">Cognome{% if event.require_last_name %} *{% endif %}</label>
+            <input
+              id="reg_last_name"
+              name="last_name"
+              type="text"
+              placeholder="Rossi"
+              value="{{ form_values.last_name }}"
+              {% if event.require_last_name %}required{% endif %}
+            />
+          </div>
+        </div>
+
+        <div class="form-grid">
+          <div>
+            <label for="reg_email">Email{% if event.require_email %} *{% endif %}</label>
+            <input
+              id="reg_email"
+              name="email"
+              type="email"
+              placeholder="maria@esempio.com"
+              value="{{ form_values.email }}"
+              {% if event.require_email %}required{% endif %}
+            />
+          </div>
+          <div>
+            <label for="reg_phone">Cellulare{% if event.require_phone %} *{% endif %}</label>
+            <input
+              id="reg_phone"
+              name="phone"
+              type="tel"
+              placeholder="+39 333 123 4567"
+              value="{{ form_values.phone }}"
+              {% if event.require_phone %}required{% endif %}
+            />
+          </div>
+        </div>
+
+        <label for="reg_residence">Residenza{% if event.require_residence %} *{% endif %}</label>
+        <input
+          id="reg_residence"
+          name="residence"
+          type="text"
+          placeholder="Udine, Italia"
+          value="{{ form_values.residence }}"
+          {% if event.require_residence %}required{% endif %}
+        />
+
+        <label for="reg_intolerances">Intolleranze/Allergie{% if event.require_intolerances %} *{% endif %}</label>
+        <textarea
+          id="reg_intolerances"
+          name="intolerances"
+          rows="3"
+          placeholder="Indica eventuali intolleranze o allergie."
+          {% if event.require_intolerances %}required{% endif %}
+        >{{ form_values.intolerances }}</textarea>
+
+        <div class="form-grid">
+          <div>
+            <label for="acsi_fci_document">Tessera ACSI/FCI{% if event.require_acsi_fci %} *{% endif %}</label>
+            <input
+              id="acsi_fci_document"
+              name="acsi_fci_document"
+              type="file"
+              accept=".pdf,image/*"
+              {% if event.require_acsi_fci %}required{% endif %}
+            />
+          </div>
+          <div>
+            <label for="medical_certificate">Certificato medico{% if event.require_medical_certificate %} *{% endif %}</label>
+            <input
+              id="medical_certificate"
+              name="medical_certificate"
+              type="file"
+              accept=".pdf,image/*"
+              {% if event.require_medical_certificate %}required{% endif %}
+            />
+          </div>
+        </div>
+
+        <div>
+          <label>
+            <input
+              type="checkbox"
+              name="privacy_photo"
+              {% if form_values.privacy_photo %}checked{% endif %}
+              {% if event.require_privacy_photo %}required{% endif %}
+            />
+            Accetto la privacy foto/video{% if event.require_privacy_photo %} *{% endif %}
+          </label>
+        </div>
+        <div>
+          <label>
+            <input
+              type="checkbox"
+              name="privacy_other"
+              {% if form_values.privacy_other %}checked{% endif %}
+              {% if event.require_privacy_other %}required{% endif %}
+            />
+            Accetto l'informativa privacy{% if event.require_privacy_other %} *{% endif %}
+          </label>
+        </div>
+
+        <button class="btn btn-primary" type="submit">Invia iscrizione</button>
+      </form>
     </article>
   </section>
 

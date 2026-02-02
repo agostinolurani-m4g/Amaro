@@ -259,10 +259,14 @@
         {% if reset_notice %}
           <p class="alert alert--success">{{ reset_notice }}</p>
         {% endif %}
+        <div class="hero__actions">
+          <a class="btn btn-primary" href="#login-form">Accedi</a>
+          <a class="btn btn-secondary" href="/tesseramento">Tesserati</a>
+        </div>
         <p class="muted">
           Accedi con l'email usata per il tesseramento e la password che ti abbiamo consegnato dopo il pagamento.
         </p>
-        <form action="/area-tesserati/login" method="post" class="form">
+        <form id="login-form" action="/area-tesserati/login" method="post" class="form">
           <label for="login_email">Email</label>
           <input id="login_email" name="email" type="email" placeholder="maria@esempio.com" required />
 
@@ -274,7 +278,7 @@
         {% if password_reset_enabled %}
           <div class="card">
             <h3>Password dimenticata?</h3>
-            <p class="muted">Ti inviamo un link per reimpostarla via email.</p>
+            <p class="muted">Ti inviamo un link per reimpostarla via email. Disponibile solo dopo il pagamento.</p>
             <form action="/area-tesserati/password-reset/request" method="post" class="form">
               <label for="reset_email">Email</label>
               <input id="reset_email" name="email" type="email" placeholder="maria@esempio.com" required />

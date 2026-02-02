@@ -27,6 +27,20 @@ class Event(Base):
     cover_image_url: Mapped[str | None] = Column(String(255))
     gallery_urls: Mapped[str | None] = Column(Text)
     is_featured: Mapped[bool] = Column(Boolean, default=False)
+    require_first_name: Mapped[bool] = Column(Boolean, default=True)
+    require_last_name: Mapped[bool] = Column(Boolean, default=True)
+    require_email: Mapped[bool] = Column(Boolean, default=True)
+    require_phone: Mapped[bool] = Column(Boolean, default=True)
+    require_residence: Mapped[bool] = Column(Boolean, default=False)
+    require_intolerances: Mapped[bool] = Column(Boolean, default=False)
+    require_acsi_fci: Mapped[bool] = Column(Boolean, default=False)
+    require_medical_certificate: Mapped[bool] = Column(Boolean, default=False)
+    require_privacy_photo: Mapped[bool] = Column(Boolean, default=True)
+    require_privacy_other: Mapped[bool] = Column(Boolean, default=True)
+
+    registrations: Mapped[list["EventRegistration"]] = relationship(
+        "EventRegistration", back_populates="event", cascade="all, delete-orphan"
+    )
 
 
 class MerchItem(Base):
@@ -109,3 +123,29 @@ class MembershipPayment(Base):
     )
     paid_at: Mapped[DateTime | None] = Column(DateTime(timezone=True))
     member_id: Mapped[int | None] = Column(ForeignKey("members.id"))
+
+
+class EventRegistration(Base):
+    __tablename__ = "event_registrations"
+
+    id: Mapped[int] = Column(Integer, primary_key=True)
+    event_id: Mapped[int] = Column(ForeignKey("events.id"), nullable=False)
+    first_name: Mapped[str | None] = Column(String(80))
+    last_name: Mapped[str | None] = Column(String(80))
+    email: Mapped[str | None] = Column(String(140))
+    phone: Mapped[str | None] = Column(String(40))
+    residence: Mapped[str | None] = Column(String(220))
+    intolerances: Mapped[str | None] = Column(Text)
+    privacy_photo: Mapped[bool] = Column(Boolean, default=False)
+    privacy_other: Mapped[bool] = Column(Boolean, default=False)
+    acsi_fci_original_name: Mapped[str | None] = Column(String(255))
+    acsi_fci_stored_filename: Mapped[str | None] = Column(String(255))
+    acsi_fci_content_type: Mapped[str | None] = Column(String(120))
+    medical_original_name: Mapped[str | None] = Column(String(255))
+    medical_stored_filename: Mapped[str | None] = Column(String(255))
+    medical_content_type: Mapped[str | None] = Column(String(120))
+    created_at: Mapped[DateTime] = Column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+    event: Mapped["Event"] = relationship("Event", back_populates="registrations")
