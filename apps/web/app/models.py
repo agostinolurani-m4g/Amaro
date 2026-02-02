@@ -27,6 +27,7 @@ class Event(Base):
     cover_image_url: Mapped[str | None] = Column(String(255))
     gallery_urls: Mapped[str | None] = Column(Text)
     is_featured: Mapped[bool] = Column(Boolean, default=False)
+    is_amaro_event: Mapped[bool] = Column(Boolean, default=False)
     require_first_name: Mapped[bool] = Column(Boolean, default=True)
     require_last_name: Mapped[bool] = Column(Boolean, default=True)
     require_email: Mapped[bool] = Column(Boolean, default=True)

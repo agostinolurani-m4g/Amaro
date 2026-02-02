@@ -42,16 +42,35 @@
         <p>{{ event.summary | format_text }}</p>
       {% endif %}
       <div class="card__actions">
-        <a class="btn btn-primary" href="#iscrizione-evento">Iscriviti all'evento</a>
-        <a class="btn btn-secondary" href="/tesseramento">Tesserati</a>
+        {% if event.is_amaro_event %}
+          <a class="btn btn-primary" href="#iscrizione-evento">Iscriviti all'evento</a>
+          <a class="btn btn-secondary" href="/tesseramento">Tesserati</a>
+        {% endif %}
       </div>
     </article>
   </section>
 
+  {% if event.is_amaro_event %}
   <section class="section" id="iscrizione-evento">
     <article class="card card--spacious">
       <h2>Iscriviti all'evento</h2>
       <p class="muted">Compila i dati richiesti. I campi con * sono obbligatori.</p>
+      {% if settings.privacy_policy_url or settings.privacy_photo_url or settings.privacy_other_url %}
+        <p class="muted">
+          Documenti privacy:
+          {% if settings.privacy_policy_url %}
+            <a class="link" href="{{ settings.privacy_policy_url }}" target="_blank" rel="noopener">Informativa privacy</a>
+          {% endif %}
+          {% if settings.privacy_photo_url %}
+            {% if settings.privacy_policy_url %} · {% endif %}
+            <a class="link" href="{{ settings.privacy_photo_url }}" target="_blank" rel="noopener">Liberatoria foto/video</a>
+          {% endif %}
+          {% if settings.privacy_other_url %}
+            {% if settings.privacy_policy_url or settings.privacy_photo_url %} · {% endif %}
+            <a class="link" href="{{ settings.privacy_other_url }}" target="_blank" rel="noopener">Altro</a>
+          {% endif %}
+        </p>
+      {% endif %}
       <form
         method="post"
         action="/eventi/{{ event.slug }}/iscrizione"
@@ -177,6 +196,7 @@
       </form>
     </article>
   </section>
+  {% endif %}
 
   {% if event_gallery %}
   <section class="section">

@@ -25,6 +25,9 @@ class Settings(BaseSettings):
     smtp_from: str | None = Field(None, env='SMTP_FROM')
     smtp_use_tls: bool = Field(True, env='SMTP_USE_TLS')
     smtp_use_ssl: bool = Field(False, env='SMTP_USE_SSL')
+    privacy_policy_url: str | None = Field(None, env='PRIVACY_POLICY_URL')
+    privacy_photo_url: str | None = Field(None, env='PRIVACY_PHOTO_URL')
+    privacy_other_url: str | None = Field(None, env='PRIVACY_OTHER_URL')
 
     class Config:
         env_file = '.env'

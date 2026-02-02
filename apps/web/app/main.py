@@ -465,6 +465,7 @@ def ensure_event_schema() -> None:
         "cover_image_url": "TEXT",
         "gallery_urls": "TEXT",
         "is_featured": "INTEGER",
+        "is_amaro_event": "INTEGER",
         "require_first_name": "INTEGER",
         "require_last_name": "INTEGER",
         "require_email": "INTEGER",
@@ -477,6 +478,7 @@ def ensure_event_schema() -> None:
         "require_privacy_other": "INTEGER",
     }
     added_is_featured = False
+    added_is_amaro_event = False
     added_require_defaults = False
     with engine.begin() as conn:
         for column, ddl in required_columns.items():
@@ -484,6 +486,8 @@ def ensure_event_schema() -> None:
                 conn.execute(text(f"ALTER TABLE events ADD COLUMN {column} {ddl}"))
                 if column == "is_featured":
                     added_is_featured = True
+                if column == "is_amaro_event":
+                    added_is_amaro_event = True
                 if column.startswith("require_"):
                     added_require_defaults = True
     if "is_featured" in columns or added_is_featured:
@@ -493,6 +497,15 @@ def ensure_event_schema() -> None:
                     "UPDATE events "
                     "SET is_featured = 0 "
                     "WHERE is_featured IS NULL"
+                )
+            )
+    if "is_amaro_event" in columns or added_is_amaro_event:
+        with engine.begin() as conn:
+            conn.execute(
+                text(
+                    "UPDATE events "
+                    "SET is_amaro_event = 0 "
+                    "WHERE is_amaro_event IS NULL"
                 )
             )
     if any(col.startswith("require_") for col in columns) or added_require_defaults:
@@ -929,6 +942,11 @@ def register_event(
     event = session.query(Event).filter_by(slug=slug).first()
     if not event:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Evento non trovato")
+    if not event.is_amaro_event:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Iscrizione non disponibile per questo evento.",
+        )
 
     normalized = {
         "first_name": _normalize(first_name) or "",
