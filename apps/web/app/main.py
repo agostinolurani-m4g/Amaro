@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import calendar
 import logging
+import re
 import shutil
 import hashlib
 import secrets
@@ -16,6 +17,7 @@ from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, Upload
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from markupsafe import Markup, escape
 import requests
 from sqlalchemy import inspect, text
 from sqlalchemy.orm import Session
@@ -326,6 +328,21 @@ def _parse_gallery_urls(value: str | None) -> list[dict[str, str]]:
         else:
             items.append({"url": line, "caption": ""})
     return [item for item in items if item["url"]]
+
+
+_BR_RE = re.compile(r"(?i)<br\\s*/?>")
+
+
+def format_text(value: str | None) -> Markup:
+    if not value:
+        return Markup("")
+    text = value.replace("\r\n", "\n").replace("\r", "\n")
+    text = _BR_RE.sub("\n", text)
+    escaped = escape(text)
+    return Markup(str(escaped).replace("\n", "<br>"))
+
+
+templates.env.filters["format_text"] = format_text
 
 
 def fetch_drive_images(folder_id: str | None, api_key: str | None, limit: int = 18) -> list[dict[str, str]]:

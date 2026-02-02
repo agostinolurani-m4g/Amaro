@@ -21,12 +21,7 @@
         <a href="/">Home</a>
         <a href="/associazione">Associazione</a>
         <a href="/calendario">Calendario</a>
-        {% set member_logged = request.session.get("member_id") %}
-        <a
-          class="nav-icon"
-          href="{{ '/area-tesserati' if member_logged else '/tesseramento' }}"
-          aria-label="Area personale"
-        >
+        <a class="nav-icon" href="/area-tesserati" aria-label="Area personale">
           <img
             src="{{ url_for('static', path='img/logo_ap.png') }}"
             alt="Area personale"

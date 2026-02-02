@@ -26,10 +26,10 @@
         <p class="hero-quote">{{ event.hero_quote }}</p>
       {% endif %}
       {% if event.description %}
-        <p>{{ event.description | e | replace("\n", "<br>") | safe }}</p>
+        <p>{{ event.description | format_text }}</p>
       {% endif %}
       {% if event.summary %}
-        <p>{{ event.summary | e | replace("\n", "<br>") | safe }}</p>
+        <p>{{ event.summary | format_text }}</p>
       {% endif %}
       <div class="card__actions">
         <a class="btn btn-primary" href="/merch">Sostienici con il merch</a>
