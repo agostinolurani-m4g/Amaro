@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <section class="section">
+    <article class="card card--spacious">
+      <h1>Pagamento iscrizione evento</h1>
+      <p>
+        Evento: <strong>{{ event.title }}</strong>
+        {% if event_date %}
+          ({{ event_date }})
+        {% endif %}
+      </p>
+      <p>
+        Importo totale: {{ total }} &euro;.
+      </p>
+      <p class="muted">
+        Se hai scelto pranzo o maglia evento, sono inclusi nell'importo.
+      </p>
+      <div class="hero__actions">
+        <form method="post" action="{{ payment.redirect_url }}">
+          {% for name, value in payment.payload.items() %}
+            <input type="hidden" name="{{ name }}" value="{{ value }}">
+          {% endfor %}
+          <button class="btn btn-primary" type="submit">
+            Vai al pagamento sicuro
+          </button>
+        </form>
+        <a class="btn btn-secondary" href="/eventi/{{ event.slug }}">Torna alla pagina evento</a>
+      </div>
+      <p class="muted">
+        Verrai reindirizzato su Nexi/XPay per completare il pagamento.
+      </p>
+    </article>
+  </section>
+{% endblock %}
+

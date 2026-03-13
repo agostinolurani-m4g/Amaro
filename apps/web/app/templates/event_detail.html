@@ -41,12 +41,13 @@
       {% if event.summary %}
         <p>{{ event.summary | format_text }}</p>
       {% endif %}
-      <div class="card__actions">
-        {% if event.is_amaro_event %}
-          <a class="btn btn-primary" href="#iscrizione-evento">Iscriviti all'evento</a>
-          <a class="btn btn-secondary" href="/tesseramento">Tesserati</a>
-        {% endif %}
-      </div>
+      {% if event.instagram_url %}
+        <p class="muted">
+          Altre info su
+          <a class="link" href="{{ event.instagram_url }}" target="_blank" rel="noopener">Instagram</a>.
+        </p>
+      {% endif %}
+      {# Azioni in alto rimosse: iscrizione gestita nella sezione sottostante #}
     </article>
   </section>
 
@@ -55,21 +56,8 @@
     <article class="card card--spacious">
       <h2>Iscriviti all'evento</h2>
       <p class="muted">Compila i dati richiesti. I campi con * sono obbligatori.</p>
-      {% if settings.privacy_policy_url or settings.privacy_photo_url or settings.privacy_other_url %}
-        <p class="muted">
-          Documenti privacy:
-          {% if settings.privacy_policy_url %}
-            <a class="link" href="{{ settings.privacy_policy_url }}" target="_blank" rel="noopener">Informativa privacy</a>
-          {% endif %}
-          {% if settings.privacy_photo_url %}
-            {% if settings.privacy_policy_url %} · {% endif %}
-            <a class="link" href="{{ settings.privacy_photo_url }}" target="_blank" rel="noopener">Liberatoria foto/video</a>
-          {% endif %}
-          {% if settings.privacy_other_url %}
-            {% if settings.privacy_policy_url or settings.privacy_photo_url %} · {% endif %}
-            <a class="link" href="{{ settings.privacy_other_url }}" target="_blank" rel="noopener">Altro</a>
-          {% endif %}
-        </p>
+      {% if event.registration_notes %}
+        <p>{{ event.registration_notes | format_text }}</p>
       {% endif %}
       <form
         method="post"
@@ -127,16 +115,6 @@
           </div>
         </div>
 
-        <label for="reg_residence">Residenza{% if event.require_residence %} *{% endif %}</label>
-        <input
-          id="reg_residence"
-          name="residence"
-          type="text"
-          placeholder="Udine, Italia"
-          value="{{ form_values.residence }}"
-          {% if event.require_residence %}required{% endif %}
-        />
-
         <label for="reg_intolerances">Intolleranze/Allergie{% if event.require_intolerances %} *{% endif %}</label>
         <textarea
           id="reg_intolerances"
@@ -145,6 +123,60 @@
           placeholder="Indica eventuali intolleranze o allergie."
           {% if event.require_intolerances %}required{% endif %}
         >{{ form_values.intolerances }}</textarea>
+
+        {% if event.enable_lunch_option %}
+        <fieldset class="fieldset">
+          <legend>Pranzo</legend>
+          <p class="muted">Indica se parteciperai al pranzo sociale.</p>
+          {% if event.lunch_description %}
+            <p>{{ event.lunch_description | format_text }}</p>
+          {% endif %}
+          <label>
+            <input
+              type="radio"
+              name="lunch_option"
+              value="con_pranzo"
+              {% if form_values.lunch_option == "con_pranzo" %}checked{% endif %}
+            />
+            Con pranzo
+          </label>
+          <label>
+            <input
+              type="radio"
+              name="lunch_option"
+              value="senza_pranzo"
+              {% if form_values.lunch_option == "senza_pranzo" %}checked{% endif %}
+            />
+            Senza pranzo
+          </label>
+        </fieldset>
+        {% endif %}
+
+        {% if event.enable_discipline_option or event.enable_route_option %}
+        <fieldset class="fieldset">
+          <legend>Attività</legend>
+          {% if event.enable_discipline_option %}
+            <label for="discipline">Disciplina *</label>
+            <select id="discipline" name="discipline" required>
+              <option value="">Scegli...</option>
+              <option value="bici" {% if form_values.discipline == "bici" %}selected{% endif %}>Bici</option>
+              <option value="corsa" {% if form_values.discipline == "corsa" %}selected{% endif %}>Corsa</option>
+            </select>
+          {% endif %}
+          {% if event.enable_route_option %}
+            <label for="route_length">Percorso *</label>
+            <select id="route_length" name="route_length" required>
+              <option value="">Scegli...</option>
+              <option value="corto" {% if form_values.route_length == "corto" %}selected{% endif %}>Corto</option>
+              <option value="medio" {% if form_values.route_length == "medio" %}selected{% endif %}>Medio</option>
+              <option value="lungo" {% if form_values.route_length == "lungo" %}selected{% endif %}>Lungo</option>
+            </select>
+            <p class="muted">
+              Per il percorso lungo in bici sarà richiesto certificato medico agonistico; negli altri casi è sufficiente certificato non agonistico.
+            </p>
+          {% endif %}
+        </fieldset>
+        {% endif %}
 
         <div class="form-grid">
           <div>
@@ -169,6 +201,53 @@
           </div>
         </div>
 
+        {% if event.enable_jersey %}
+        <fieldset class="fieldset">
+          <legend>Maglia evento (opzionale)</legend>
+          {% if event.jersey_description %}
+            <p>{{ event.jersey_description | format_text }}</p>
+          {% endif %}
+          <div class="form-grid">
+            {% if event.jersey_image_url_male %}
+              <figure class="event-hero">
+                <img src="{{ event.jersey_image_url_male }}" alt="Maglia evento - modello uomo" />
+              </figure>
+            {% endif %}
+            {% if event.jersey_image_url_female %}
+              <figure class="event-hero">
+                <img src="{{ event.jersey_image_url_female }}" alt="Maglia evento - modello donna" />
+              </figure>
+            {% endif %}
+          </div>
+          <div class="form-grid">
+            <div>
+              <label for="jersey_gender">Genere</label>
+              <select id="jersey_gender" name="jersey_gender">
+                <option value="">Nessuna maglia</option>
+                <option value="uomo" {% if form_values.jersey_gender == "uomo" %}selected{% endif %}>Uomo</option>
+                <option value="donna" {% if form_values.jersey_gender == "donna" %}selected{% endif %}>Donna</option>
+              </select>
+            </div>
+            <div>
+              <label for="jersey_size">Taglia</label>
+              {% set sizes = (event.jersey_sizes or "").split(",") %}
+              <select id="jersey_size" name="jersey_size">
+                <option value="">Seleziona taglia</option>
+                {% for size in sizes %}
+                  {% set s = size.strip() %}
+                  {% if s %}
+                  <option value="{{ s }}" {% if form_values.jersey_size == s %}selected{% endif %}>{{ s }}</option>
+                  {% endif %}
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+          {% if event.jersey_price_cents %}
+            <p class="muted">Contributo maglia: {{ (event.jersey_price_cents / 100)|round(2) }} € (pagamento secondo indicazioni organizzazione).</p>
+          {% endif %}
+        </fieldset>
+        {% endif %}
+
         <div>
           <label>
             <input
@@ -191,6 +270,25 @@
             Accetto l'informativa privacy{% if event.require_privacy_other %} *{% endif %}
           </label>
         </div>
+        {% if settings.privacy_policy_url or settings.privacy_photo_url or settings.privacy_other_url %}
+          <p class="muted">
+            Documenti privacy:
+            {% if settings.privacy_policy_url %}
+              <a class="link" href="{{ settings.privacy_policy_url }}" target="_blank" rel="noopener">Informativa privacy</a>
+            {% endif %}
+            {% if settings.privacy_photo_url %}
+              {% if settings.privacy_policy_url %} · {% endif %}
+              <a class="link" href="{{ settings.privacy_photo_url }}" target="_blank" rel="noopener">Liberatoria foto/video</a>
+            {% endif %}
+            {% if settings.privacy_other_url %}
+              {% if settings.privacy_policy_url or settings.privacy_photo_url %} · {% endif %}
+              <a class="link" href="{{ settings.privacy_other_url }}" target="_blank" rel="noopener">Altro</a>
+            {% endif %}
+          </p>
+        {% endif %}
+        <p class="muted">
+          Cliccando sui link dei documenti (evento e privacy) dichiaro di aver preso visione e di accettarne il contenuto.
+        </p>
 
         <button class="btn btn-primary" type="submit">Invia iscrizione</button>
       </form>

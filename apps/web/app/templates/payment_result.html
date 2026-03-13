@@ -4,13 +4,20 @@
   <section class="section">
     <article class="card card--spacious">
       {% if success %}
-        <h1>Pagamento confermato</h1>
-        <p>Grazie! Il pagamento e' stato registrato.</p>
-        {% if password_hint %}
-          <p class="alert alert--success">
-            Password area tesserati: <strong>{{ password_hint }}</strong>.
-            Salvala, ti servira' per accedere e scaricare i documenti caricati.
-          </p>
+        {% if label and 'Iscrizione evento' in label %}
+          {% set event_name = label|replace('Iscrizione evento ', '')|replace(' - Iscrizione completata', '') %}
+          <h1>Pagamento andato a buon fine!!</h1>
+          <p>Ora sei ufficialmente iscritto al {{ event_name }}!</p>
+          <p>Riceverai una mail di conferma con tutti i dettagli.</p>
+        {% else %}
+          <h1>Pagamento confermato</h1>
+          <p>Grazie! Il pagamento e' stato registrato.</p>
+          {% if password_hint %}
+            <p class="alert alert--success">
+              Password area tesserati: <strong>{{ password_hint }}</strong>.
+              Salvala, ti servira' per accedere e scaricare i documenti caricati.
+            </p>
+          {% endif %}
         {% endif %}
       {% else %}
         <h1>Pagamento non riuscito</h1>

@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     privacy_policy_url: str | None = Field(None, env='PRIVACY_POLICY_URL')
     privacy_photo_url: str | None = Field(None, env='PRIVACY_PHOTO_URL')
     privacy_other_url: str | None = Field(None, env='PRIVACY_OTHER_URL')
+    events_notify_email: str | None = Field(None, env='EVENTS_NOTIFY_EMAIL')
 
     class Config:
         env_file = '.env'

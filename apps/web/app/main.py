@@ -132,6 +132,7 @@ def on_startup() -> None:
     ensure_member_schema()
     ensure_member_document_schema()
     ensure_event_schema()
+    ensure_event_registration_schema()
     ensure_merch_schema()
     ensure_membership_payment_schema()
     session = SessionLocal()
@@ -239,6 +240,164 @@ def _send_password_reset_email(email: str, link: str) -> bool:
             except Exception:
                 pass
 
+
+def _send_event_payment_emails(
+    registration: EventRegistration, event: Event
+) -> None:
+    if not settings.smtp_host or not settings.smtp_from:
+        logger.warning("SMTP not configured; skipping event payment emails.")
+        return
+
+    # Email al partecipante
+    if registration.email:
+        participant_message = EmailMessage()
+        participant_message["Subject"] = (
+            f"{settings.app_name} - Pagamento evento {event.title}"
+        )
+        participant_message["From"] = settings.smtp_from
+        participant_message["To"] = registration.email
+        lines: list[str] = []
+        lines.append("Ciao,")
+        lines.append("")
+        lines.append("abbiamo ricevuto il tuo pagamento per l'evento:")
+        lines.append(f"- {event.title}")
+        if event.date:
+            lines.append(f"- Data: {event.date.strftime('%d/%m/%Y')}")
+        if registration.lunch_option == "con_pranzo":
+            lines.append("- Pranzo: incluso")
+        elif registration.lunch_option == "senza_pranzo":
+            lines.append("- Pranzo: non incluso")
+        if event.enable_jersey and registration.jersey_size and registration.jersey_gender:
+            lines.append(
+                f"- Maglia evento: {registration.jersey_gender} taglia {registration.jersey_size}"
+            )
+        if registration.route_length:
+            lines.append(f"- Percorso: {registration.route_length}")
+        if registration.total_amount_cents:
+            lines.append(
+                f"- Importo totale: {registration.total_amount_cents / 100:.2f} €"
+            )
+        lines.append("")
+        lines.append(
+            "Se non hai richiesto tu questo pagamento, contattaci rispondendo a questa email."
+        )
+        participant_message.set_content("\n".join(lines))
+
+        try:
+            server = None
+            if settings.smtp_use_ssl:
+                server = smtplib.SMTP_SSL(
+                    settings.smtp_host, settings.smtp_port, timeout=10
+                )
+            else:
+                server = smtplib.SMTP(
+                    settings.smtp_host, settings.smtp_port, timeout=10
+                )
+                if settings.smtp_use_tls:
+                    server.starttls()
+            if settings.smtp_user and settings.smtp_password:
+                server.login(settings.smtp_user, settings.smtp_password)
+            server.send_message(participant_message)
+        except Exception:
+            logger.exception("Failed to send event payment email to participant")
+        finally:
+            if server:
+                try:
+                    server.quit()
+                except Exception:
+                    pass
+
+    # Email interna con allegato certificato medico (se presente)
+    if not settings.events_notify_email:
+        return
+
+    internal_message = EmailMessage()
+    internal_message["Subject"] = (
+        f"{settings.app_name} - Nuovo pagamento evento {event.title}"
+    )
+    internal_message["From"] = settings.smtp_from
+    internal_message["To"] = settings.events_notify_email
+
+    lines: list[str] = []
+    lines.append("Nuovo pagamento evento ricevuto.")
+    lines.append("")
+    lines.append(f"Evento: {event.title}")
+    if event.date:
+        lines.append(f"Data: {event.date.strftime('%d/%m/%Y')}")
+    if registration.first_name or registration.last_name:
+        full_name = f"{registration.first_name or ''} {registration.last_name or ''}".strip()
+        lines.append(f"Partecipante: {full_name}")
+    if registration.email:
+        lines.append(f"Email: {registration.email}")
+    if registration.phone:
+        lines.append(f"Telefono: {registration.phone}")
+    if registration.lunch_option == "con_pranzo":
+        lines.append("Pranzo: incluso")
+    elif registration.lunch_option == "senza_pranzo":
+        lines.append("Pranzo: non incluso")
+    if registration.discipline:
+        lines.append(f"Disciplina: {registration.discipline}")
+    if registration.route_length:
+        lines.append(f"Percorso: {registration.route_length}")
+        if registration.route_length == "lungo":
+            lines.append("NOTA: percorso lungo (richiede certificato agonistico).")
+    if event.enable_jersey and registration.jersey_size and registration.jersey_gender:
+        lines.append(
+            f"Maglia evento: {registration.jersey_gender} taglia {registration.jersey_size}"
+        )
+    if registration.total_amount_cents:
+        lines.append(
+            f"Importo totale: {registration.total_amount_cents / 100:.2f} €"
+        )
+    if registration.payment_reference:
+        lines.append(f"Riferimento pagamento: {registration.payment_reference}")
+    lines.append("")
+    lines.append("In allegato, se disponibile, il certificato medico caricato.")
+
+    internal_message.set_content("\n".join(lines))
+
+    # Allegato certificato medico, se presente
+    if registration.medical_stored_filename:
+        path = UPLOADS_DIR / registration.medical_stored_filename
+        if path.exists():
+            try:
+                data = path.read_bytes()
+                content_type = registration.medical_content_type or "application/octet-stream"
+                maintype, _, subtype = content_type.partition("/")
+                if not maintype or not subtype:
+                    maintype, subtype = "application", "octet-stream"
+                internal_message.add_attachment(
+                    data,
+                    maintype=maintype,
+                    subtype=subtype,
+                    filename=registration.medical_original_name or path.name,
+                )
+            except Exception:
+                logger.exception("Failed to attach medical certificate to internal email")
+
+    try:
+        server = None
+        if settings.smtp_use_ssl:
+            server = smtplib.SMTP_SSL(
+                settings.smtp_host, settings.smtp_port, timeout=10
+            )
+        else:
+            server = smtplib.SMTP(
+                settings.smtp_host, settings.smtp_port, timeout=10
+            )
+            if settings.smtp_use_tls:
+                server.starttls()
+        if settings.smtp_user and settings.smtp_password:
+            server.login(settings.smtp_user, settings.smtp_password)
+        server.send_message(internal_message)
+    except Exception:
+        logger.exception("Failed to send internal event payment email")
+    finally:
+        if server:
+            try:
+                server.quit()
+            except Exception:
+                pass
 
 def _require_nexi_client() -> NexiXpayClient:
     if not nexi_client:
@@ -476,6 +635,24 @@ def ensure_event_schema() -> None:
         "require_medical_certificate": "INTEGER",
         "require_privacy_photo": "INTEGER",
         "require_privacy_other": "INTEGER",
+        "registration_notes": "TEXT",
+        "documents_urls": "TEXT",
+        "instagram_url": "TEXT",
+        "enable_lunch_option": "INTEGER",
+        "lunch_description": "TEXT",
+        "enable_discipline_option": "INTEGER",
+        "enable_route_option": "INTEGER",
+        "waiver_url": "TEXT",
+        "require_waiver_upload": "INTEGER",
+        "require_waiver_acceptance": "INTEGER",
+        "enable_jersey": "INTEGER",
+        "jersey_description": "TEXT",
+        "jersey_sizes": "TEXT",
+        "jersey_price_cents": "INTEGER",
+        "jersey_image_url_male": "TEXT",
+        "jersey_image_url_female": "TEXT",
+        "event_price_cents": "INTEGER",
+        "event_lunch_price_cents": "INTEGER",
     }
     added_is_featured = False
     added_is_amaro_event = False
@@ -580,6 +757,33 @@ def ensure_event_schema() -> None:
                     "WHERE require_privacy_other IS NULL"
                 )
             )
+
+
+def ensure_event_registration_schema() -> None:
+    inspector = inspect(engine)
+    columns = {col["name"] for col in inspector.get_columns("event_registrations")}
+    required_columns: dict[str, str] = {
+        "lunch_option": "TEXT",
+        "discipline": "TEXT",
+        "route_length": "TEXT",
+        "waiver_original_name": "TEXT",
+        "waiver_stored_filename": "TEXT",
+        "waiver_content_type": "TEXT",
+        "waiver_accepted": "INTEGER",
+        "jersey_size": "TEXT",
+        "jersey_gender": "TEXT",
+        "payment_reference": "TEXT",
+        "payment_status": "TEXT",
+        "total_amount_cents": "INTEGER",
+    }
+    with engine.begin() as conn:
+        for column, ddl in required_columns.items():
+            if column not in columns:
+                conn.execute(
+                    text(
+                        f"ALTER TABLE event_registrations ADD COLUMN {column} {ddl}"
+                    )
+                )
 
 
 def ensure_merch_schema() -> None:
@@ -792,6 +996,36 @@ def _build_payment_result_context(
                         member.payment_reference = reference
                     session.commit()
 
+        if pending.get("kind") == "event":
+            registration_id = pending.get("registration_id")
+            if isinstance(registration_id, str) and registration_id.isdigit():
+                registration_id = int(registration_id)
+            if isinstance(registration_id, int):
+                registration = session.get(EventRegistration, registration_id)
+                if registration and registration.event:
+                    if success:
+                        registration.payment_status = "paid"
+                        try:
+                            _send_event_payment_emails(registration, registration.event)
+                        except Exception:
+                            logger.exception("Failed to send event payment emails")
+                    elif registration.payment_status != "paid":
+                        registration.payment_status = "failed"
+                    reference = pending.get("reference")
+                    if isinstance(reference, str) and reference:
+                        registration.payment_reference = reference
+                    session.commit()
+                    return_url = f"/eventi/{registration.event.slug}?registered=1"
+                    return {
+                        "return_url": return_url,
+                        "retry_url": None if success else f"/eventi/{registration.event.slug}",
+                        "label": (
+                            f"Iscrizione evento {registration.event.title} - Iscrizione completata"
+                            if success
+                            else f"Iscrizione evento {registration.event.title}"
+                        ),
+                    }
+
     return {
         "return_url": return_url,
         "retry_url": retry_url,
@@ -852,7 +1086,28 @@ def _apply_reference_payment(
 
     member = session.query(Member).filter_by(payment_reference=ref).first()
     if not member:
-        return {}
+        registration = (
+            session.query(EventRegistration)
+            .filter(EventRegistration.payment_reference == ref)
+            .first()
+        )
+        if not registration or not registration.event:
+            return {}
+
+        if success:
+            registration.payment_status = "paid"
+            try:
+                _send_event_payment_emails(registration, registration.event)
+            except Exception:
+                logger.exception("Failed to send event payment emails (by ref)")
+        elif registration.payment_status != "paid":
+            registration.payment_status = "failed"
+        session.commit()
+        return {
+            "return_url": f"/eventi/{registration.event.slug}?registered=1",
+            "retry_url": f"/eventi/{registration.event.slug}",
+            "label": f"Iscrizione evento {registration.event.title}",
+        }
 
     if success:
         member.payment_status = "paid"
@@ -897,6 +1152,7 @@ def read_event(
     if not event:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Evento non trovato")
     event_gallery = _parse_gallery_urls(event.gallery_urls)
+    documents_links = _parse_gallery_urls(event.documents_urls)
     registration_notice = None
     if request.query_params.get("registered") == "1":
         registration_notice = "Iscrizione ricevuta. Ti contatteremo via email."
@@ -906,6 +1162,7 @@ def read_event(
             "request": request,
             "event": event,
             "event_gallery": event_gallery,
+            "documents_links": documents_links,
             "registration_notice": registration_notice,
             "registration_errors": [],
             "form_values": {
@@ -917,6 +1174,11 @@ def read_event(
                 "intolerances": "",
                 "privacy_photo": False,
                 "privacy_other": False,
+                "lunch_option": "",
+                "discipline": "",
+                "route_length": "",
+                "jersey_size": "",
+                "jersey_gender": "",
             },
             "settings": settings,
         },
@@ -933,6 +1195,11 @@ def register_event(
     phone: str = Form(""),
     residence: str = Form(""),
     intolerances: str = Form(""),
+    lunch_option: str = Form(""),
+    discipline: str = Form(""),
+    route_length: str = Form(""),
+    jersey_size: str = Form(""),
+    jersey_gender: str = Form(""),
     privacy_photo: str | None = Form(None),
     privacy_other: str | None = Form(None),
     acsi_fci_document: UploadFile | None = File(None),
@@ -955,6 +1222,11 @@ def register_event(
         "phone": _normalize(phone) or "",
         "residence": _normalize(residence) or "",
         "intolerances": _normalize(intolerances) or "",
+        "lunch_option": _normalize(lunch_option) or "",
+        "discipline": _normalize(discipline) or "",
+        "route_length": _normalize(route_length) or "",
+        "jersey_size": _normalize(jersey_size) or "",
+        "jersey_gender": _normalize(jersey_gender) or "",
         "privacy_photo": bool(privacy_photo),
         "privacy_other": bool(privacy_other),
     }
@@ -968,13 +1240,24 @@ def register_event(
     require(event.require_last_name, normalized["last_name"], "Cognome")
     require(event.require_email, normalized["email"], "Email")
     require(event.require_phone, normalized["phone"], "Cellulare")
-    require(event.require_residence, normalized["residence"], "Residenza")
+    # Residenza non più richiesta per le iscrizioni evento
     require(event.require_intolerances, normalized["intolerances"], "Intolleranze/Allergie")
 
     if event.require_privacy_photo and not normalized["privacy_photo"]:
         errors.append("Consenso privacy foto obbligatorio.")
     if event.require_privacy_other and not normalized["privacy_other"]:
         errors.append("Consenso privacy obbligatorio.")
+
+    if event.enable_lunch_option and not normalized["lunch_option"]:
+        errors.append("Scelta pranzo obbligatoria.")
+    if event.enable_discipline_option and not normalized["discipline"]:
+        errors.append("Scelta disciplina obbligatoria.")
+    if event.enable_route_option and not normalized["route_length"]:
+        errors.append("Scelta percorso obbligatoria.")
+    if event.enable_jersey and (normalized["jersey_size"] or normalized["jersey_gender"]) and not (
+        normalized["jersey_size"] and normalized["jersey_gender"]
+    ):
+        errors.append("Per ordinare la maglia seleziona sia taglia che genere.")
 
     acsi_fci_upload = acsi_fci_document if acsi_fci_document and acsi_fci_document.filename else None
     medical_upload = medical_certificate if medical_certificate and medical_certificate.filename else None
@@ -991,6 +1274,7 @@ def register_event(
                 "request": request,
                 "event": event,
                 "event_gallery": event_gallery,
+                "documents_links": _parse_gallery_urls(event.documents_urls),
                 "registration_notice": None,
                 "registration_errors": errors,
                 "form_values": normalized,
@@ -1009,9 +1293,25 @@ def register_event(
         intolerances=normalized["intolerances"],
         privacy_photo=normalized["privacy_photo"],
         privacy_other=normalized["privacy_other"],
+        lunch_option=normalized["lunch_option"] or None,
+        discipline=normalized["discipline"] or None,
+        route_length=normalized["route_length"] or None,
+        jersey_size=normalized["jersey_size"] or None,
+        jersey_gender=normalized["jersey_gender"] or None,
     )
     session.add(registration)
     session.flush()
+
+    base_price = event.event_price_cents or 0
+    lunch_price = 0
+    if event.enable_lunch_option and normalized["lunch_option"] == "con_pranzo":
+        lunch_price = event.event_lunch_price_cents or 0
+    jersey_price = 0
+    if event.enable_jersey and registration.jersey_size and registration.jersey_gender:
+        jersey_price = event.jersey_price_cents or 0
+    total_cents = base_price + lunch_price + jersey_price
+
+    registration.total_amount_cents = total_cents or None
 
     if acsi_fci_upload:
         stored_filename, original_name, content_type = _save_event_document(
@@ -1030,9 +1330,50 @@ def register_event(
         registration.medical_content_type = content_type
 
     session.commit()
-    return RedirectResponse(
-        url=f"/eventi/{slug}?registered=1",
-        status_code=status.HTTP_303_SEE_OTHER,
+
+    if total_cents <= 0:
+        return RedirectResponse(
+            url=f"/eventi/{slug}?registered=1",
+            status_code=status.HTTP_303_SEE_OTHER,
+        )
+
+    payment_reference = build_payment_reference("EVT")
+    registration.payment_reference = payment_reference
+    registration.payment_status = "pending"
+    session.commit()
+
+    _set_pending_payment(
+        request,
+        {
+            "kind": "event",
+            "registration_id": registration.id,
+            "reference": payment_reference,
+            "return_url": f"/eventi/{slug}?registered=1",
+            "retry_url": f"/eventi/{slug}",
+            "label": f"Iscrizione evento {event.title}",
+        },
+    )
+    success_url = f"{settings.nexipay_success_url}?ref={payment_reference}"
+    failure_url = f"{settings.nexipay_failure_url}?ref={payment_reference}"
+    payment_context: NexiPaymentContext = _require_nexi_client().prepare_payment(
+        amount_cents=total_cents,
+        order_id=payment_reference,
+        description=f"Iscrizione evento {event.title}",
+        email=normalized["email"] or None,
+        success_url=success_url,
+        failure_url=failure_url,
+    )
+
+    return templates.TemplateResponse(
+        "event_payment.html",
+        {
+            "request": request,
+            "event": event,
+            "event_date": event.date.strftime("%d/%m/%Y") if event.date else None,
+            "total": format_price(total_cents),
+            "payment": payment_context,
+            "settings": settings,
+        },
     )
 
 
