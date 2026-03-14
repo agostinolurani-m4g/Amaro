@@ -23,7 +23,7 @@
         <h1>Pagamento non riuscito</h1>
         <p>Il pagamento non e' stato completato o e' stato annullato.</p>
       {% endif %}
-      {% if label %}
+      {% if label and not (success and 'Iscrizione evento' in label) %}
         <p class="muted">{{ label }}</p>
       {% endif %}
       {% if email_notice %}
@@ -35,7 +35,7 @@
       {% endif %}
       <div class="hero__actions">
         <a class="btn btn-primary" href="{{ return_url }}">{{ return_label }}</a>
-        {% if retry_url %}
+        {% if not success and retry_url %}
           <a class="btn btn-secondary" href="{{ retry_url }}">Riprova pagamento</a>
         {% endif %}
       </div>
