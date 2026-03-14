@@ -115,6 +115,17 @@
           </div>
         </div>
 
+        <div>
+          <label for="team_name">Nome squadra / team (opzionale)</label>
+          <input
+            id="team_name"
+            name="team_name"
+            type="text"
+            placeholder="es. Team Amaro, ASD Runners..."
+            value="{{ form_values.team_name }}"
+          />
+        </div>
+
         <label for="reg_intolerances">Intolleranze/Allergie{% if event.require_intolerances %} *{% endif %}</label>
         <textarea
           id="reg_intolerances"
@@ -137,6 +148,7 @@
               name="lunch_option"
               value="con_pranzo"
               {% if form_values.lunch_option == "con_pranzo" %}checked{% endif %}
+              onchange="document.getElementById('lunch_guests_row').style.display='block'"
             />
             Con pranzo
           </label>
@@ -146,9 +158,23 @@
               name="lunch_option"
               value="senza_pranzo"
               {% if form_values.lunch_option == "senza_pranzo" %}checked{% endif %}
+              onchange="document.getElementById('lunch_guests_row').style.display='none'"
             />
             Senza pranzo
           </label>
+          <div id="lunch_guests_row" style="margin-top:0.75rem;" {% if form_values.lunch_option != 'con_pranzo' %}hidden{% endif %}>
+            <label for="lunch_guests">Accompagnatorə (solo pranzo, non gareggiano)</label>
+            <input
+              id="lunch_guests"
+              name="lunch_guests"
+              type="number"
+              min="0"
+              max="2"
+              value="{{ form_values.lunch_guests or 0 }}"
+              style="width:6rem"
+            />
+            <p class="muted">Inserisci il numero di persone che vengono solo a pranzo senza partecipare alla gara (max 2).</p>
+          </div>
         </fieldset>
         {% endif %}
 
@@ -165,7 +191,9 @@
           {% endif %}
           {% if event.enable_route_option %}
             <label for="route_length">Percorso *</label>
-            <select id="route_length" name="route_length" required>
+            <select id="route_length" name="route_length" required
+              data-medical-required="{{ 'true' if event.require_medical_certificate else 'false' }}"
+              onchange="_onRouteChange(this)">
               <option value="">Scegli...</option>
               <option value="corto" {% if form_values.route_length == "corto" %}selected{% endif %}>Corto</option>
               <option value="medio" {% if form_values.route_length == "medio" %}selected{% endif %}>Medio</option>
@@ -178,19 +206,25 @@
         </fieldset>
         {% endif %}
 
+        {% if event.require_acsi_fci or event.require_medical_certificate or event.enable_route_option %}
         <div class="form-grid">
+          {% if event.require_acsi_fci %}
           <div>
-            <label for="acsi_fci_document">Tessera ACSI/FCI{% if event.require_acsi_fci %} *{% endif %}</label>
+            <label for="acsi_fci_document">Tessera ACSI/FCI *</label>
             <input
               id="acsi_fci_document"
               name="acsi_fci_document"
               type="file"
               accept=".pdf,image/*"
-              {% if event.require_acsi_fci %}required{% endif %}
+              required
             />
           </div>
-          <div>
-            <label for="medical_certificate">Certificato medico{% if event.require_medical_certificate %} *{% endif %}</label>
+          {% endif %}
+          <div id="medical_cert_row" {% if not event.require_medical_certificate and form_values.route_length != "lungo" %}hidden{% endif %}>
+            <label for="medical_certificate">
+              Certificato medico{% if event.require_medical_certificate %} *{% endif %}
+              <span id="medical_cert_label_lungo" {% if form_values.route_length != "lungo" %}hidden{% endif %} style="color:#c0392b;font-weight:600"> — AGONISTICO obbligatorio per percorso lungo *</span>
+            </label>
             <input
               id="medical_certificate"
               name="medical_certificate"
@@ -200,6 +234,31 @@
             />
           </div>
         </div>
+        {% endif %}
+
+        {% if event.enable_route_option %}
+        <script>
+          function _onRouteChange(sel) {
+            var val = sel.value;
+            var medRequired = sel.dataset.medicalRequired === 'true';
+            var row = document.getElementById('medical_cert_row');
+            var lbl = document.getElementById('medical_cert_label_lungo');
+            var inp = document.getElementById('medical_certificate');
+            if (!row) return;
+            if (val === 'lungo') {
+              row.removeAttribute('hidden');
+              if (lbl) lbl.removeAttribute('hidden');
+              if (inp) inp.required = true;
+            } else {
+              if (lbl) lbl.setAttribute('hidden', '');
+              if (!medRequired) {
+                row.setAttribute('hidden', '');
+                if (inp) inp.required = false;
+              }
+            }
+          }
+        </script>
+        {% endif %}
 
         {% if event.enable_jersey %}
         <fieldset class="fieldset">
@@ -207,18 +266,48 @@
           {% if event.jersey_description %}
             <p>{{ event.jersey_description | format_text }}</p>
           {% endif %}
-          <div class="form-grid">
-            {% if event.jersey_image_url_male %}
-              <figure class="event-hero">
-                <img src="{{ event.jersey_image_url_male }}" alt="Maglia evento - modello uomo" />
-              </figure>
-            {% endif %}
-            {% if event.jersey_image_url_female %}
-              <figure class="event-hero">
-                <img src="{{ event.jersey_image_url_female }}" alt="Maglia evento - modello donna" />
-              </figure>
+          {% set _jersey_imgs = [] %}
+          {% if event.jersey_gallery_urls %}
+            {% for _line in event.jersey_gallery_urls.strip().splitlines() %}
+              {% set _u = _line.strip() %}
+              {% if _u %}{% set _ = _jersey_imgs.append(_u) %}{% endif %}
+            {% endfor %}
+          {% endif %}
+          {% if not _jersey_imgs %}
+            {% if event.jersey_image_url_male %}{% set _ = _jersey_imgs.append(event.jersey_image_url_male) %}{% endif %}
+            {% if event.jersey_image_url_female %}{% set _ = _jersey_imgs.append(event.jersey_image_url_female) %}{% endif %}
+          {% endif %}
+          {% if _jersey_imgs %}
+          <div class="jersey-carousel" id="jerseyCarousel" style="position:relative;text-align:center;margin-bottom:1rem;">
+            {% for _img in _jersey_imgs %}
+            <figure class="event-hero jersey-slide" {% if not loop.first %}hidden{% endif %} style="margin:0 auto;">
+              <img src="{{ _img }}" alt="Foto maglia {{ loop.index }}" style="max-height:320px;width:auto;" />
+            </figure>
+            {% endfor %}
+            {% if _jersey_imgs | length > 1 %}
+            <div style="margin-top:0.5rem;display:flex;justify-content:center;align-items:center;gap:1rem;">
+              <button type="button" onclick="_jerseyPrev()" style="background:none;border:1px solid currentColor;border-radius:50%;width:2rem;height:2rem;cursor:pointer;font-size:1rem;">&#8249;</button>
+              <span id="jerseyCounter" style="font-size:0.85rem;opacity:0.6">1 / {{ _jersey_imgs | length }}</span>
+              <button type="button" onclick="_jerseyNext()" style="background:none;border:1px solid currentColor;border-radius:50%;width:2rem;height:2rem;cursor:pointer;font-size:1rem;">&#8250;</button>
+            </div>
+            <script>
+              (function(){
+                var slides = document.querySelectorAll('#jerseyCarousel .jersey-slide');
+                var counter = document.getElementById('jerseyCounter');
+                var idx = 0;
+                function show(n) {
+                  slides[idx].setAttribute('hidden', '');
+                  idx = (n + slides.length) % slides.length;
+                  slides[idx].removeAttribute('hidden');
+                  if (counter) counter.textContent = (idx+1) + ' / ' + slides.length;
+                }
+                window._jerseyPrev = function(){ show(idx - 1); };
+                window._jerseyNext = function(){ show(idx + 1); };
+              })();
+            </script>
             {% endif %}
           </div>
+          {% endif %}
           <div class="form-grid">
             <div>
               <label for="jersey_gender">Genere</label>
@@ -242,8 +331,13 @@
               </select>
             </div>
           </div>
+          {% if event.jersey_gallery_link %}
+            <p>
+              <a class="link" href="{{ event.jersey_gallery_link }}" target="_blank" rel="noopener">Vedi tutte le foto della maglia →</a>
+            </p>
+          {% endif %}
           {% if event.jersey_price_cents %}
-            <p class="muted">Contributo maglia: {{ (event.jersey_price_cents / 100)|round(2) }} € (pagamento secondo indicazioni organizzazione).</p>
+            <p class="muted">Contributo maglia: {{ (event.jersey_price_cents / 100)|round(2) }} €.</p>
           {% endif %}
         </fieldset>
         {% endif %}
@@ -270,25 +364,42 @@
             Accetto l'informativa privacy{% if event.require_privacy_other %} *{% endif %}
           </label>
         </div>
-        {% if settings.privacy_policy_url or settings.privacy_photo_url or settings.privacy_other_url %}
+        <p class="muted">
+          Cliccando sui link dei documenti dichiaro di aver preso visione e di accettarne il contenuto.
+        </p>
+        {% set _has_docs = event.documents_urls or settings.privacy_policy_url or settings.privacy_photo_url or settings.privacy_other_url %}
+        {% if _has_docs %}
           <p class="muted">
-            Documenti privacy:
+            Documenti da leggere prima di iscriversi:
+            {% set _sep = namespace(needed=false) %}
+            {% if event.documents_urls %}
+              {% for line in event.documents_urls.strip().splitlines() %}
+                {% set parts = line.split('|', 1) %}
+                {% set url = parts[0].strip() %}
+                {% set label = parts[1].strip() if parts|length == 2 else 'Documento' %}
+                {% if url %}
+                  {% if _sep.needed %} · {% endif %}
+                  <a class="link" href="{{ url }}" target="_blank" rel="noopener">{{ label }}</a>
+                  {% set _sep.needed = true %}
+                {% endif %}
+              {% endfor %}
+            {% endif %}
             {% if settings.privacy_policy_url %}
+              {% if _sep.needed %} · {% endif %}
               <a class="link" href="{{ settings.privacy_policy_url }}" target="_blank" rel="noopener">Informativa privacy</a>
+              {% set _sep.needed = true %}
             {% endif %}
             {% if settings.privacy_photo_url %}
-              {% if settings.privacy_policy_url %} · {% endif %}
+              {% if _sep.needed %} · {% endif %}
               <a class="link" href="{{ settings.privacy_photo_url }}" target="_blank" rel="noopener">Liberatoria foto/video</a>
+              {% set _sep.needed = true %}
             {% endif %}
             {% if settings.privacy_other_url %}
-              {% if settings.privacy_policy_url or settings.privacy_photo_url %} · {% endif %}
+              {% if _sep.needed %} · {% endif %}
               <a class="link" href="{{ settings.privacy_other_url }}" target="_blank" rel="noopener">Altro</a>
             {% endif %}
           </p>
         {% endif %}
-        <p class="muted">
-          Cliccando sui link dei documenti (evento e privacy) dichiaro di aver preso visione e di accettarne il contenuto.
-        </p>
 
         <button class="btn btn-primary" type="submit">Invia iscrizione</button>
       </form>

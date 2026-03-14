@@ -18,8 +18,10 @@ from fastapi import FastAPI
 from sqlalchemy import or_
 from sqladmin import Admin, BaseView, ModelView, expose
 from sqladmin.authentication import AuthenticationBackend
+from markupsafe import Markup, escape
 from starlette.background import BackgroundTask
 from starlette.datastructures import UploadFile
+from starlette.exceptions import HTTPException
 from starlette.requests import Request
 from starlette.responses import FileResponse, RedirectResponse
 from sqlalchemy.orm import Session
@@ -39,6 +41,8 @@ from .models import (
     MerchItem,
     MEMBERSHIP_STATUS_COMPLETED,
 )
+
+_EVENT_FILE_TYPES = {"medical", "acsi_fci", "waiver"}
 
 logger = logging.getLogger(__name__)
 BASE_DIR = Path(__file__).resolve().parent
@@ -429,6 +433,8 @@ class EventAdmin(AmaroAdmin, model=Event):
         "jersey_price_cents": "Prezzo maglia (cent)",
         "jersey_image_url_male": "Foto maglia (uomo)",
         "jersey_image_url_female": "Foto maglia (donna)",
+        "jersey_gallery_urls": "Foto maglia galleria (una per riga)",
+        "jersey_gallery_link": "Link galleria esterna (opzionale)",
         "event_price_cents": "Quota evento (cent)",
         "event_lunch_price_cents": "Quota pranzo (cent)",
         "require_first_name": "Nome obbligatorio",
@@ -468,6 +474,8 @@ class EventAdmin(AmaroAdmin, model=Event):
         "jersey_price_cents",
         "jersey_image_url_male",
         "jersey_image_url_female",
+        "jersey_gallery_urls",
+        "jersey_gallery_link",
         "event_price_cents",
         "event_lunch_price_cents",
         "require_first_name",
@@ -515,6 +523,13 @@ class EventAdmin(AmaroAdmin, model=Event):
         "jersey_sizes": {
             "placeholder": "Esempio: XS,S,M,L,XL",
         },
+        "jersey_gallery_urls": {
+            "placeholder": "Una foto per riga. Sostituisce le foto uomo/donna se compilato.\nhttps://drive.google.com/uc?id=...\nhttps://drive.google.com/uc?id=...",
+            "rows": 4,
+        },
+        "jersey_gallery_link": {
+            "placeholder": "Link a galleria esterna (Google Drive, Instagram, ecc.) mostrato come pulsante nel form.",
+        },
     }
 
     async def on_model_change(
@@ -535,6 +550,9 @@ class EventRegistrationAdmin(AmaroAdmin, model=EventRegistration):
         "last_name",
         "email",
         "phone",
+        "medical_original_name",
+        "acsi_fci_original_name",
+        "waiver_original_name",
         "created_at",
         "lunch_option",
         "discipline",
@@ -555,6 +573,7 @@ class EventRegistrationAdmin(AmaroAdmin, model=EventRegistration):
         "privacy_other": "Privacy",
         "acsi_fci_original_name": "Tessera ACSI/FCI",
         "medical_original_name": "Certificato medico",
+        "waiver_original_name": "Liberatoria",
         "lunch_option": "Pranzo",
         "discipline": "Disciplina",
         "route_length": "Percorso",
@@ -562,6 +581,20 @@ class EventRegistrationAdmin(AmaroAdmin, model=EventRegistration):
         "jersey_gender": "Genere maglia",
         "payment_status": "Stato pagamento",
         "total_amount_cents": "Importo totale (cent)",
+    }
+    column_formatters = {
+        "medical_original_name": lambda m, a: Markup(
+            f'<a href="/dl/event-file/{m.id}/medical" target="_blank">'
+            f'⬇ {escape(m.medical_original_name)}</a>'
+        ) if m.medical_original_name else "",
+        "acsi_fci_original_name": lambda m, a: Markup(
+            f'<a href="/dl/event-file/{m.id}/acsi_fci" target="_blank">'
+            f'⬇ {escape(m.acsi_fci_original_name)}</a>'
+        ) if m.acsi_fci_original_name else "",
+        "waiver_original_name": lambda m, a: Markup(
+            f'<a href="/dl/event-file/{m.id}/waiver" target="_blank">'
+            f'⬇ {escape(m.waiver_original_name)}</a>'
+        ) if m.waiver_original_name else "",
     }
     form_excluded_columns = [
         "event",
@@ -760,6 +793,69 @@ class AdminToolsView(BaseView):
         )
 
 
+class AdminStatsView(BaseView):
+    name = "Statistiche eventi"
+    icon = "fa-solid fa-chart-bar"
+
+    @expose("/event-stats", methods=["GET"], identity="event_stats")
+    async def event_stats(self, request: Request) -> object:
+        event_id_raw = request.query_params.get("event_id")
+        with SessionLocal() as session:
+            events = (
+                session.query(Event)
+                .filter(Event.is_amaro_event == True)
+                .order_by(Event.date.desc())
+                .all()
+            )
+            selected_event = None
+            stats = None
+            if event_id_raw and event_id_raw.isdigit():
+                selected_event = session.get(Event, int(event_id_raw))
+            elif events:
+                selected_event = events[0]
+
+            if selected_event:
+                regs = (
+                    session.query(EventRegistration)
+                    .filter(EventRegistration.event_id == selected_event.id)
+                    .all()
+                )
+
+                def _count(items: list, key: str, val: object) -> int:
+                    return sum(1 for r in items if getattr(r, key) == val)
+
+                def _counter(items: list, key: str) -> dict:
+                    result: dict[str, int] = {}
+                    for r in items:
+                        v = getattr(r, key) or "—"
+                        result[v] = result.get(v, 0) + 1
+                    return dict(sorted(result.items()))
+
+                total = len(regs)
+                paid = _count(regs, "payment_status", "paid")
+                stats = {
+                    "total": total,
+                    "paid": paid,
+                    "unpaid": total - paid,
+                    "discipline": _counter(regs, "discipline"),
+                    "route": _counter(regs, "route_length"),
+                    "lunch": _counter(regs, "lunch_option"),
+                    "jersey_gender": _counter(regs, "jersey_gender"),
+                    "jersey_size": _counter(regs, "jersey_size"),
+                    "medical": sum(1 for r in regs if r.medical_stored_filename),
+                    "acsi_fci": sum(1 for r in regs if r.acsi_fci_stored_filename),
+                }
+
+        context = {
+            "request": request,
+            "events": events,
+            "selected_event": selected_event,
+            "stats": stats,
+            "title": "Statistiche eventi",
+        }
+        return await self.templates.TemplateResponse(request, "admin_stats.html", context)
+
+
 class MembershipPaymentAdmin(AmaroAdmin, model=MembershipPayment):
     column_list = [
         "id",
@@ -797,3 +893,4 @@ def setup_admin(app: FastAPI) -> None:
     admin.add_view(MemberDocumentAdmin)
     admin.add_view(MembershipPaymentAdmin)
     admin.add_view(AdminToolsView)
+    admin.add_view(AdminStatsView)

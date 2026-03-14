@@ -1,0 +1,185 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="col-12">
+  <div class="card mb-4">
+    <div class="card-body">
+      <form method="get" action="{{ request.url_for('admin:event_stats') }}" class="row g-2 align-items-end">
+        <div class="col-auto">
+          <label class="form-label mb-1">Evento</label>
+          <select class="form-select" name="event_id" onchange="this.form.submit()">
+            {% for ev in events %}
+            <option value="{{ ev.id }}" {% if selected_event and ev.id == selected_event.id %}selected{% endif %}>
+              {{ ev.title }}{% if ev.date %} — {{ ev.date.strftime('%d/%m/%Y') }}{% endif %}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+{% if not events %}
+<div class="col-12">
+  <div class="alert alert-warning">Nessun evento AMARO trovato.</div>
+</div>
+
+{% elif stats %}
+{# --- Riepilogo principale --- #}
+<div class="col-6 col-lg-3">
+  <div class="card text-center mb-4">
+    <div class="card-body">
+      <div style="font-size:2.4rem;font-weight:700;line-height:1">{{ stats.total }}</div>
+      <div class="text-muted mt-1">Iscritti totali</div>
+    </div>
+  </div>
+</div>
+<div class="col-6 col-lg-3">
+  <div class="card text-center mb-4">
+    <div class="card-body">
+      <div style="font-size:2.4rem;font-weight:700;line-height:1;color:#198754">{{ stats.paid }}</div>
+      <div class="text-muted mt-1">Pagamenti confermati</div>
+    </div>
+  </div>
+</div>
+<div class="col-6 col-lg-3">
+  <div class="card text-center mb-4">
+    <div class="card-body">
+      <div style="font-size:2.4rem;font-weight:700;line-height:1;color:#dc3545">{{ stats.unpaid }}</div>
+      <div class="text-muted mt-1">In attesa / non pagati</div>
+    </div>
+  </div>
+</div>
+<div class="col-6 col-lg-3">
+  <div class="card text-center mb-4">
+    <div class="card-body">
+      <div style="font-size:2.4rem;font-weight:700;line-height:1">{{ stats.medical }}</div>
+      <div class="text-muted mt-1">Certificati medici</div>
+    </div>
+  </div>
+</div>
+
+{# --- Disciplina --- #}
+{% if stats.discipline %}
+<div class="col-12 col-lg-4">
+  <div class="card mb-4">
+    <div class="card-body">
+      <h5 class="card-title">Disciplina</h5>
+      <table class="table table-sm mb-0">
+        {% for val, cnt in stats.discipline.items() %}
+        <tr>
+          <td>{{ val }}</td>
+          <td class="text-end fw-bold">{{ cnt }}</td>
+          <td class="text-end text-muted" style="width:4rem">
+            {% if stats.total %}{{ (cnt / stats.total * 100)|round|int }}%{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </table>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{# --- Percorso --- #}
+{% if stats.route %}
+<div class="col-12 col-lg-4">
+  <div class="card mb-4">
+    <div class="card-body">
+      <h5 class="card-title">Percorso</h5>
+      <table class="table table-sm mb-0">
+        {% for val, cnt in stats.route.items() %}
+        <tr>
+          <td>{{ val }}</td>
+          <td class="text-end fw-bold">{{ cnt }}</td>
+          <td class="text-end text-muted" style="width:4rem">
+            {% if stats.total %}{{ (cnt / stats.total * 100)|round|int }}%{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </table>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{# --- Pranzo --- #}
+{% if stats.lunch %}
+<div class="col-12 col-lg-4">
+  <div class="card mb-4">
+    <div class="card-body">
+      <h5 class="card-title">Pranzo</h5>
+      <table class="table table-sm mb-0">
+        {% for val, cnt in stats.lunch.items() %}
+        <tr>
+          <td>{{ val | replace("con_pranzo", "Con pranzo") | replace("senza_pranzo", "Senza pranzo") }}</td>
+          <td class="text-end fw-bold">{{ cnt }}</td>
+          <td class="text-end text-muted" style="width:4rem">
+            {% if stats.total %}{{ (cnt / stats.total * 100)|round|int }}%{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </table>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{# --- Magliette genere --- #}
+{% if stats.jersey_gender %}
+<div class="col-12 col-lg-4">
+  <div class="card mb-4">
+    <div class="card-body">
+      <h5 class="card-title">Magliette — genere</h5>
+      <table class="table table-sm mb-0">
+        {% for val, cnt in stats.jersey_gender.items() %}
+        <tr>
+          <td>{{ val | capitalize }}</td>
+          <td class="text-end fw-bold">{{ cnt }}</td>
+        </tr>
+        {% endfor %}
+      </table>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{# --- Magliette taglia --- #}
+{% if stats.jersey_size %}
+<div class="col-12 col-lg-4">
+  <div class="card mb-4">
+    <div class="card-body">
+      <h5 class="card-title">Magliette — taglia</h5>
+      <table class="table table-sm mb-0">
+        {% for val, cnt in stats.jersey_size.items() %}
+        <tr>
+          <td>{{ val }}</td>
+          <td class="text-end fw-bold">{{ cnt }}</td>
+        </tr>
+        {% endfor %}
+      </table>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{# --- Tessere ACSI/FCI --- #}
+{% if stats.acsi_fci %}
+<div class="col-12 col-lg-4">
+  <div class="card mb-4">
+    <div class="card-body">
+      <h5 class="card-title">Tessere ACSI/FCI caricate</h5>
+      <div style="font-size:2rem;font-weight:700">{{ stats.acsi_fci }}</div>
+      <div class="text-muted">su {{ stats.total }} iscritti</div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% elif selected_event %}
+<div class="col-12">
+  <div class="alert alert-info">Nessuna iscrizione per questo evento.</div>
+</div>
+{% endif %}
+{% endblock %}

@@ -250,37 +250,56 @@ def _send_event_payment_emails(
 
     # Email al partecipante
     if registration.email:
+        first_name = registration.first_name or "atleta"
         participant_message = EmailMessage()
         participant_message["Subject"] = (
-            f"{settings.app_name} - Pagamento evento {event.title}"
+            f"Sei iscritto/a a {event.title}!"
         )
         participant_message["From"] = settings.smtp_from
         participant_message["To"] = registration.email
         lines: list[str] = []
-        lines.append("Ciao,")
+        lines.append(f"Ciao {first_name},")
         lines.append("")
-        lines.append("abbiamo ricevuto il tuo pagamento per l'evento:")
-        lines.append(f"- {event.title}")
+        lines.append(f"la tua iscrizione a \"{event.title}\" e' confermata!")
+        lines.append("Non vediamo l'ora di vederti alla partenza.")
+        lines.append("")
+        lines.append("Riepilogo iscrizione:")
+        lines.append(f"  Evento: {event.title}")
         if event.date:
-            lines.append(f"- Data: {event.date.strftime('%d/%m/%Y')}")
+            lines.append(f"  Data: {event.date.strftime('%d/%m/%Y')}")
+        if event.location:
+            lines.append(f"  Luogo: {event.location}")
+        if registration.team_name:
+            lines.append(f"  Squadra: {registration.team_name}")
+        if registration.discipline:
+            lines.append(f"  Disciplina: {registration.discipline}")
+        if registration.route_length:
+            lines.append(f"  Percorso: {registration.route_length}")
         if registration.lunch_option == "con_pranzo":
-            lines.append("- Pranzo: incluso")
+            pranzo_line = "  Pranzo: incluso"
+            if registration.lunch_guests:
+                pranzo_line += f" + {registration.lunch_guests} accompagnatorə"
+            lines.append(pranzo_line)
         elif registration.lunch_option == "senza_pranzo":
-            lines.append("- Pranzo: non incluso")
+            lines.append("  Pranzo: non incluso")
         if event.enable_jersey and registration.jersey_size and registration.jersey_gender:
             lines.append(
-                f"- Maglia evento: {registration.jersey_gender} taglia {registration.jersey_size}"
-            )
-        if registration.route_length:
-            lines.append(f"- Percorso: {registration.route_length}")
-        if registration.total_amount_cents:
-            lines.append(
-                f"- Importo totale: {registration.total_amount_cents / 100:.2f} €"
+                f"  Maglia evento: {registration.jersey_gender}, taglia {registration.jersey_size}"
             )
         lines.append("")
-        lines.append(
-            "Se non hai richiesto tu questo pagamento, contattaci rispondendo a questa email."
-        )
+        lines.append("Nelle prossime settimane ti invieremo tutti i dettagli organizzativi, le tracce GPS e le informazioni logistiche.")
+        lines.append("")
+        lines.append("Per qualsiasi informazione rispondi pure a questa email.")
+        lines.append("")
+        lines.append("A presto,")
+        lines.append(f"Il team {settings.app_name}")
+        if registration.total_amount_cents:
+            lines.append("")
+            lines.append(
+                f"(Pagamento registrato: {registration.total_amount_cents / 100:.2f} €"
+                + (f" — rif. {registration.payment_reference}" if registration.payment_reference else "")
+                + ")"
+            )
         participant_message.set_content("\n".join(lines))
 
         try:
@@ -331,8 +350,13 @@ def _send_event_payment_emails(
         lines.append(f"Email: {registration.email}")
     if registration.phone:
         lines.append(f"Telefono: {registration.phone}")
+    if registration.team_name:
+        lines.append(f"Squadra: {registration.team_name}")
     if registration.lunch_option == "con_pranzo":
-        lines.append("Pranzo: incluso")
+        pranzo_line = "Pranzo: incluso"
+        if registration.lunch_guests:
+            pranzo_line += f" + {registration.lunch_guests} accompagnatorə"
+        lines.append(pranzo_line)
     elif registration.lunch_option == "senza_pranzo":
         lines.append("Pranzo: non incluso")
     if registration.discipline:
@@ -651,6 +675,8 @@ def ensure_event_schema() -> None:
         "jersey_price_cents": "INTEGER",
         "jersey_image_url_male": "TEXT",
         "jersey_image_url_female": "TEXT",
+        "jersey_gallery_urls": "TEXT",
+        "jersey_gallery_link": "TEXT",
         "event_price_cents": "INTEGER",
         "event_lunch_price_cents": "INTEGER",
     }
@@ -764,6 +790,8 @@ def ensure_event_registration_schema() -> None:
     columns = {col["name"] for col in inspector.get_columns("event_registrations")}
     required_columns: dict[str, str] = {
         "lunch_option": "TEXT",
+        "lunch_guests": "INTEGER",
+        "team_name": "TEXT",
         "discipline": "TEXT",
         "route_length": "TEXT",
         "waiver_original_name": "TEXT",
@@ -1175,6 +1203,8 @@ def read_event(
                 "privacy_photo": False,
                 "privacy_other": False,
                 "lunch_option": "",
+                "lunch_guests": 0,
+                "team_name": "",
                 "discipline": "",
                 "route_length": "",
                 "jersey_size": "",
@@ -1196,6 +1226,8 @@ def register_event(
     residence: str = Form(""),
     intolerances: str = Form(""),
     lunch_option: str = Form(""),
+    lunch_guests: str = Form("0"),
+    team_name: str = Form(""),
     discipline: str = Form(""),
     route_length: str = Form(""),
     jersey_size: str = Form(""),
@@ -1215,6 +1247,11 @@ def register_event(
             detail="Iscrizione non disponibile per questo evento.",
         )
 
+    try:
+        lunch_guests_int = min(2, max(0, int(lunch_guests or 0)))
+    except ValueError:
+        lunch_guests_int = 0
+
     normalized = {
         "first_name": _normalize(first_name) or "",
         "last_name": _normalize(last_name) or "",
@@ -1223,6 +1260,8 @@ def register_event(
         "residence": _normalize(residence) or "",
         "intolerances": _normalize(intolerances) or "",
         "lunch_option": _normalize(lunch_option) or "",
+        "lunch_guests": lunch_guests_int,
+        "team_name": _normalize(team_name) or "",
         "discipline": _normalize(discipline) or "",
         "route_length": _normalize(route_length) or "",
         "jersey_size": _normalize(jersey_size) or "",
@@ -1265,6 +1304,13 @@ def register_event(
         errors.append("Tessera ACSI/FCI obbligatoria.")
     if event.require_medical_certificate and not medical_upload:
         errors.append("Certificato medico obbligatorio.")
+    if (
+        event.enable_route_option
+        and normalized["route_length"] == "lungo"
+        and not medical_upload
+        and not event.require_medical_certificate
+    ):
+        errors.append("Per il percorso lungo è obbligatorio il certificato medico agonistico.")
 
     if errors:
         event_gallery = _parse_gallery_urls(event.gallery_urls)
@@ -1294,6 +1340,8 @@ def register_event(
         privacy_photo=normalized["privacy_photo"],
         privacy_other=normalized["privacy_other"],
         lunch_option=normalized["lunch_option"] or None,
+        lunch_guests=normalized["lunch_guests"] or None,
+        team_name=normalized["team_name"] or None,
         discipline=normalized["discipline"] or None,
         route_length=normalized["route_length"] or None,
         jersey_size=normalized["jersey_size"] or None,
@@ -2154,6 +2202,37 @@ def download_document(
         media_type=document.content_type or "application/octet-stream",
         filename=document.original_name,
     )
+
+
+_EVENT_FILE_TYPES = {"medical", "acsi_fci", "waiver"}
+
+
+@app.get("/dl/event-file/{registration_id}/{file_type}")
+def admin_event_file_download(
+    registration_id: int,
+    file_type: str,
+    request: Request,
+    session: Session = Depends(get_session),
+) -> FileResponse:
+    if not request.session.get("admin_authenticated"):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Non autorizzato")
+    if file_type not in _EVENT_FILE_TYPES:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Tipo file non valido")
+    reg = session.get(EventRegistration, registration_id)
+    if not reg:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Iscrizione non trovata")
+    if file_type == "medical":
+        stored, original, content_type = reg.medical_stored_filename, reg.medical_original_name, reg.medical_content_type
+    elif file_type == "acsi_fci":
+        stored, original, content_type = reg.acsi_fci_stored_filename, reg.acsi_fci_original_name, reg.acsi_fci_content_type
+    else:
+        stored, original, content_type = reg.waiver_stored_filename, reg.waiver_original_name, reg.waiver_content_type
+    if not stored:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File non presente per questa iscrizione")
+    path = UPLOADS_DIR / stored
+    if not path.exists():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File mancante sul disco")
+    return FileResponse(path, media_type=content_type or "application/octet-stream", filename=original or stored)
 
 
 def reqid() -> str:
