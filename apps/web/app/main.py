@@ -253,7 +253,7 @@ def _send_event_payment_emails(
         first_name = registration.first_name or "atleta"
         participant_message = EmailMessage()
         participant_message["Subject"] = (
-            f"Sei iscritto/a a {event.title}!"
+            f"Sei iscrittə a {event.title}!"
         )
         participant_message["From"] = settings.smtp_from
         participant_message["To"] = registration.email
@@ -678,6 +678,7 @@ def ensure_event_schema() -> None:
         "jersey_gallery_urls": "TEXT",
         "jersey_gallery_link": "TEXT",
         "event_price_cents": "INTEGER",
+        "sponsors_urls": "TEXT",
         "event_lunch_price_cents": "INTEGER",
     }
     added_is_featured = False

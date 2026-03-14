@@ -58,6 +58,7 @@ class Event(Base):
     jersey_gallery_link: Mapped[str | None] = Column(String(255))
     event_price_cents: Mapped[int | None] = Column(Integer)
     event_lunch_price_cents: Mapped[int | None] = Column(Integer)
+    sponsors_urls: Mapped[str | None] = Column(Text)
 
     registrations: Mapped[list["EventRegistration"]] = relationship(
         "EventRegistration", back_populates="event", cascade="all, delete-orphan"

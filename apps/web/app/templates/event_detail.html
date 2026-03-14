@@ -48,6 +48,31 @@
         </p>
       {% endif %}
       {# Azioni in alto rimosse: iscrizione gestita nella sezione sottostante #}
+      {% if event.sponsors_urls %}
+        {% set _sponsors = [] %}
+        {% for _line in event.sponsors_urls.strip().splitlines() %}
+          {% set _parts = _line.split('|', 1) %}
+          {% if _parts | length == 2 %}
+            {% set _ = _sponsors.append({'logo': _parts[0].strip(), 'name': _parts[1].strip()}) %}
+          {% elif _line.strip() %}
+            {% set _ = _sponsors.append({'logo': '', 'name': _line.strip()}) %}
+          {% endif %}
+        {% endfor %}
+        {% if _sponsors %}
+        <div style="margin-top:1.5rem;">
+          <p class="muted" style="margin-bottom:0.5rem;">Con il supporto di</p>
+          <div style="display:flex;flex-wrap:wrap;gap:1rem;align-items:center;">
+            {% for _s in _sponsors %}
+              {% if _s.logo %}
+                <img src="{{ _s.logo }}" alt="{{ _s.name }}" title="{{ _s.name }}" style="height:48px;width:auto;object-fit:contain;" />
+              {% else %}
+                <span style="font-weight:600;">{{ _s.name }}</span>
+              {% endif %}
+            {% endfor %}
+          </div>
+        </div>
+        {% endif %}
+      {% endif %}
     </article>
   </section>
 
@@ -278,34 +303,10 @@
             {% if event.jersey_image_url_female %}{% set _ = _jersey_imgs.append(event.jersey_image_url_female) %}{% endif %}
           {% endif %}
           {% if _jersey_imgs %}
-          <div class="jersey-carousel" id="jerseyCarousel" style="position:relative;text-align:center;margin-bottom:1rem;">
+          <div style="display:flex;flex-wrap:wrap;gap:0.75rem;justify-content:center;margin-bottom:1rem;">
             {% for _img in _jersey_imgs %}
-            <figure class="event-hero jersey-slide" {% if not loop.first %}hidden{% endif %} style="margin:0 auto;">
-              <img src="{{ _img }}" alt="Foto maglia {{ loop.index }}" style="max-height:320px;width:auto;" />
-            </figure>
+            <img src="{{ _img }}" alt="Foto maglia {{ loop.index }}" style="height:220px;width:auto;border-radius:4px;object-fit:cover;" />
             {% endfor %}
-            {% if _jersey_imgs | length > 1 %}
-            <div style="margin-top:0.5rem;display:flex;justify-content:center;align-items:center;gap:1rem;">
-              <button type="button" onclick="_jerseyPrev()" style="background:none;border:1px solid currentColor;border-radius:50%;width:2rem;height:2rem;cursor:pointer;font-size:1rem;">&#8249;</button>
-              <span id="jerseyCounter" style="font-size:0.85rem;opacity:0.6">1 / {{ _jersey_imgs | length }}</span>
-              <button type="button" onclick="_jerseyNext()" style="background:none;border:1px solid currentColor;border-radius:50%;width:2rem;height:2rem;cursor:pointer;font-size:1rem;">&#8250;</button>
-            </div>
-            <script>
-              (function(){
-                var slides = document.querySelectorAll('#jerseyCarousel .jersey-slide');
-                var counter = document.getElementById('jerseyCounter');
-                var idx = 0;
-                function show(n) {
-                  slides[idx].setAttribute('hidden', '');
-                  idx = (n + slides.length) % slides.length;
-                  slides[idx].removeAttribute('hidden');
-                  if (counter) counter.textContent = (idx+1) + ' / ' + slides.length;
-                }
-                window._jerseyPrev = function(){ show(idx - 1); };
-                window._jerseyNext = function(){ show(idx + 1); };
-              })();
-            </script>
-            {% endif %}
           </div>
           {% endif %}
           <div class="form-grid">

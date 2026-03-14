@@ -436,6 +436,7 @@ class EventAdmin(AmaroAdmin, model=Event):
         "jersey_gallery_urls": "Foto maglia galleria (una per riga)",
         "jersey_gallery_link": "Link galleria esterna (opzionale)",
         "event_price_cents": "Quota evento (cent)",
+        "sponsors_urls": "Sponsor (una riga per sponsor)",
         "event_lunch_price_cents": "Quota pranzo (cent)",
         "require_first_name": "Nome obbligatorio",
         "require_last_name": "Cognome obbligatorio",
@@ -476,6 +477,7 @@ class EventAdmin(AmaroAdmin, model=Event):
         "jersey_image_url_female",
         "jersey_gallery_urls",
         "jersey_gallery_link",
+        "sponsors_urls",
         "event_price_cents",
         "event_lunch_price_cents",
         "require_first_name",
@@ -529,6 +531,10 @@ class EventAdmin(AmaroAdmin, model=Event):
         },
         "jersey_gallery_link": {
             "placeholder": "Link a galleria esterna (Google Drive, Instagram, ecc.) mostrato come pulsante nel form.",
+        },
+        "sponsors_urls": {
+            "placeholder": "Una riga per sponsor.\nCon logo: URL_LOGO|Nome Sponsor\nSolo testo: Nome Sponsor",
+            "rows": 5,
         },
     }
 
