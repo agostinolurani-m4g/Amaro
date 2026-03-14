@@ -20,7 +20,12 @@
       <div class="event-meta">
         <div>
           <span class="event-meta__label">Luogo</span>
-          <span>{{ event.location or "In aggiornamento" }}</span>
+          <span>
+            {{ event.location or "In aggiornamento" }}
+            {% if event.location_map_url %}
+              <a class="link" href="{{ event.location_map_url }}" target="_blank" rel="noopener" style="font-size:0.85em;margin-left:0.4em;">↗ Maps</a>
+            {% endif %}
+          </span>
         </div>
         <div>
           <span class="event-meta__label">Attivita</span>

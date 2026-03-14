@@ -645,6 +645,7 @@ def ensure_event_schema() -> None:
     columns = {col["name"] for col in inspector.get_columns("events")}
     required_columns: dict[str, str] = {
         "activity": "TEXT",
+        "location_map_url": "TEXT",
         "cover_image_url": "TEXT",
         "gallery_urls": "TEXT",
         "is_featured": "INTEGER",

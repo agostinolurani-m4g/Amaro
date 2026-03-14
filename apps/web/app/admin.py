@@ -419,6 +419,7 @@ class EventAdmin(AmaroAdmin, model=Event):
         "gallery_urls": "Foto evento",
         "registration_notes": "Note per modulo iscrizione",
         "documents_urls": "Documenti evento (uno per riga, URL|etichetta)",
+        "location_map_url": "Link Google Maps",
         "instagram_url": "Link Instagram evento",
         "enable_lunch_option": "Mostra scelta pranzo",
         "lunch_description": "Descrizione pranzo",
@@ -454,6 +455,7 @@ class EventAdmin(AmaroAdmin, model=Event):
         "description",
         "date",
         "location",
+        "location_map_url",
         "activity",
         "is_featured",
         "is_amaro_event",
@@ -500,6 +502,7 @@ class EventAdmin(AmaroAdmin, model=Event):
     }
     form_widget_args = {
         "activity": {"placeholder": "Ciclismo, Atletica, Trail, ..."},
+        "location_map_url": {"placeholder": "https://maps.app.goo.gl/..."},
         "cover_image_url": {"placeholder": "https://..."},
         "description": {"rows": 6},
         "gallery_urls": {

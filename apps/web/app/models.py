@@ -20,6 +20,7 @@ class Event(Base):
     description: Mapped[str | None] = Column(Text)
     activity: Mapped[str | None] = Column(String(120))
     location: Mapped[str | None] = Column(String(120))
+    location_map_url: Mapped[str | None] = Column(String(255))
     summary: Mapped[str | None] = Column(Text)
     date: Mapped[Date | None] = Column(Date)
     hero_quote: Mapped[str | None] = Column(String(240))
