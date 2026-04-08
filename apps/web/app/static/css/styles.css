@@ -51,7 +51,7 @@ a {
   border-bottom: 1px solid var(--border-on-accent);
   position: sticky;
   top: 0;
-  z-index: 10;
+  z-index: 5000;
 }
 
 .brand__logo {
@@ -488,6 +488,108 @@ a {
   display: flex;
   flex-wrap: wrap;
   gap: 0.75rem;
+}
+
+.route-explorer__intro {
+  margin-bottom: 1rem;
+}
+
+.route-explorer__loading {
+  padding: 1.25rem;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.route-explorer__cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.route-explorer__card {
+  flex: 1 1 200px;
+  min-width: 180px;
+  max-width: 340px;
+  border: 1px solid var(--border-muted);
+  background: var(--bg-base);
+  padding: 1rem 1rem 0.75rem;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.route-explorer__card:hover,
+.route-explorer__card:focus-visible {
+  border-color: var(--accent-light);
+  outline: none;
+}
+
+.route-explorer__card--active {
+  border-color: #ff0a54;
+  box-shadow: 0 0 0 1px rgba(255, 10, 84, 0.55);
+}
+
+.route-explorer__swatch {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  margin-right: 0.45rem;
+  vertical-align: middle;
+}
+
+.route-explorer__card-title {
+  font-weight: 700;
+  display: block;
+  margin-bottom: 0.35rem;
+}
+
+.route-explorer__card-meta {
+  display: block;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin-bottom: 0.5rem;
+  line-height: 1.45;
+}
+
+.route-explorer__dl {
+  font-size: 0.9rem;
+  display: inline-block;
+  margin-top: 0.15rem;
+  text-decoration: underline;
+}
+
+.route-explorer__map-wrap {
+  border: 1px solid var(--border-muted);
+  margin-bottom: 1rem;
+  overflow: hidden;
+}
+
+.route-explorer__map {
+  height: min(52vh, 520px);
+  min-height: 300px;
+  width: 100%;
+  background: #1a1520;
+}
+
+.route-explorer__chart-wrap {
+  border: 1px solid var(--border-muted);
+  padding: 1rem;
+  background: var(--bg-base);
+}
+
+.route-explorer__chart-title {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.route-explorer__chart-wrap #route-explorer-chart {
+  max-height: 260px;
+}
+
+.leaflet-container {
+  font-family: inherit;
 }
 
 .site-footer {

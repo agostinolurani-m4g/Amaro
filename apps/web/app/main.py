@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import calendar
+import json
 import logging
 import re
 import shutil
@@ -11,6 +12,7 @@ from datetime import date, datetime, timedelta
 from email.message import EmailMessage
 from pathlib import Path
 from typing import Sequence
+from urllib.parse import parse_qs, urlparse
 from uuid import uuid4
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile, status
@@ -101,6 +103,220 @@ ITALIAN_MONTHS = [
 
 SHOW_MERCH_PREVIEW = False
 
+
+def _event_medical_policy(event: Event) -> str:
+    policy = (getattr(event, "medical_certificate_policy", None) or "").strip().lower()
+    if policy in ("none", "optional", "required"):
+        return policy
+    return "required" if event.require_medical_certificate else "optional"
+
+
+def _event_route_mode(event: Event) -> str:
+    mode = (getattr(event, "route_option_mode", None) or "").strip().lower()
+    if mode in ("distances", "trail", "corsa"):
+        return mode
+    return "distances"
+
+
+def _event_route_is_lungo(event: Event, route_length: str) -> bool:
+    return (
+        event.enable_route_option
+        and _event_route_mode(event) == "distances"
+        and route_length == "lungo"
+    )
+
+
+_SLUG_KEY_RE = re.compile(r"^[a-z0-9_-]{1,40}$")
+ALLOWED_ROUTE_GPX_KEYS = frozenset({"corto", "medio", "lungo", "trail", "corsa"})
+_DEFAULT_GPX_LABELS = {
+    "corto": "Corto",
+    "medio": "Medio",
+    "lungo": "Lungo",
+    "trail": "Trail",
+    "corsa": "Corsa",
+}
+_ROUTE_GPX_MAX_BYTES = 12 * 1024 * 1024
+
+
+def parse_event_activities_config(event: Event) -> list[dict[str, object]] | None:
+    """JSON: {\"sports\": [{\"key\",\"label\",\"routes\": [{\"key\",\"label\",\"medical_agonistic\"?}]}]}."""
+    raw = getattr(event, "event_activities_config", None)
+    if not raw or not str(raw).strip():
+        return None
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        logger.warning(
+            "event_activities_config JSON non valido (evento id=%s)",
+            getattr(event, "id", None),
+        )
+        return None
+    sports_raw = data.get("sports") if isinstance(data, dict) else data
+    if not isinstance(sports_raw, list) or not sports_raw:
+        return None
+    out: list[dict[str, object]] = []
+    for item in sports_raw:
+        if not isinstance(item, dict):
+            continue
+        sk = (item.get("key") or "").strip().lower()
+        slabel = (item.get("label") or "").strip()
+        routes_raw = item.get("routes") or []
+        if not sk or not slabel or not _SLUG_KEY_RE.match(sk):
+            continue
+        if not isinstance(routes_raw, list):
+            continue
+        routes: list[dict[str, object]] = []
+        for r in routes_raw:
+            if not isinstance(r, dict):
+                continue
+            rk = (r.get("key") or "").strip().lower()
+            rlab = (r.get("label") or "").strip()
+            if not rk or not rlab or not _SLUG_KEY_RE.match(rk):
+                continue
+            routes.append(
+                {
+                    "key": rk,
+                    "label": rlab,
+                    "medical_agonistic": bool(r.get("medical_agonistic", False)),
+                }
+            )
+        if routes:
+            out.append({"key": sk, "label": slabel, "routes": routes})
+    return out or None
+
+
+def event_uses_activities_config(event: Event) -> bool:
+    return parse_event_activities_config(event) is not None
+
+
+def _event_route_requires_agonistic_medical(
+    event: Event, discipline: str, route_length: str
+) -> bool:
+    act = parse_event_activities_config(event)
+    if act:
+        d = (discipline or "").strip().lower()
+        rl = (route_length or "").strip().lower()
+        for s in act:
+            if s["key"] != d:
+                continue
+            for r in s["routes"]:
+                if r["key"] == rl:
+                    return bool(r.get("medical_agonistic"))
+        return False
+    return _event_route_is_lungo(event, route_length)
+
+
+def _allowed_gpx_route_keys(event: Event) -> frozenset[str]:
+    act = parse_event_activities_config(event)
+    if act:
+        keys: set[str] = set()
+        for s in act:
+            for r in s["routes"]:
+                keys.add(str(r["key"]))
+        return frozenset(keys)
+    return ALLOWED_ROUTE_GPX_KEYS
+
+
+def parse_event_route_gpx(event: Event) -> list[dict[str, str]]:
+    """Righe: chiave|URL|etichetta opzionale. Chiavi = percorsi configurati per l'evento."""
+    allowed = _allowed_gpx_route_keys(event)
+    raw = getattr(event, "route_gpx_urls", None) or ""
+    out: list[dict[str, str]] = []
+    for line in raw.splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        parts = [p.strip() for p in line.split("|", 2)]
+        if len(parts) < 2:
+            continue
+        key = parts[0].lower()
+        url = parts[1]
+        label = parts[2] if len(parts) > 2 else ""
+        if key not in allowed or not url:
+            continue
+        if not label:
+            label = _DEFAULT_GPX_LABELS.get(key, key.replace("_", " ").title())
+        out.append({"key": key, "url": url, "label": label})
+    return out
+
+
+def event_route_gpx_bootstrap(
+    request: Request, event: Event
+) -> list[dict[str, str]]:
+    rows = parse_event_route_gpx(event)
+    out: list[dict[str, str]] = []
+    for r in rows:
+        fetch = str(
+            request.url_for("event_route_gpx_proxy", slug=event.slug, route_key=r["key"])
+        )
+        out.append(
+            {
+                "key": r["key"],
+                "label": r["label"],
+                "fetch_url": fetch,
+                "download_url": f"{fetch}?dl=1",
+            }
+        )
+    return out
+
+
+def _event_registration_template_extras(
+    request: Request, event: Event
+) -> dict[str, object]:
+    activities_config = parse_event_activities_config(event) or []
+    use_activities = len(activities_config) > 0
+    route_medical: dict[str, bool] = {}
+    if use_activities:
+        for s in activities_config:
+            for r in s["routes"]:
+                k = str(r["key"])
+                route_medical[k] = route_medical.get(k, False) or bool(
+                    r.get("medical_agonistic")
+                )
+    return {
+        "activities_config": activities_config,
+        "use_activities_config": use_activities,
+        "route_medical_by_key": route_medical,
+        "event_route_gpx": event_route_gpx_bootstrap(request, event),
+    }
+
+
+def _event_discipline_human_label(event: Event, discipline_key: str) -> str:
+    d = (discipline_key or "").strip().lower()
+    act = parse_event_activities_config(event)
+    if act:
+        for s in act:
+            if s["key"] == d:
+                return str(s["label"])
+    if d == "bici":
+        return "Bici"
+    if d == "corsa":
+        return "Corsa"
+    return discipline_key or ""
+
+
+def _event_route_human_label(
+    event: Event, discipline_key: str, route_key: str
+) -> str:
+    rk = (route_key or "").strip().lower()
+    act = parse_event_activities_config(event)
+    d = (discipline_key or "").strip().lower()
+    if act:
+        for s in act:
+            if s["key"] != d:
+                continue
+            for r in s["routes"]:
+                if r["key"] == rk:
+                    return str(r["label"])
+            break
+        return route_key or ""
+    if rk == "trail":
+        return "Trail (unico)"
+    if rk == "corsa":
+        return "Corsa (unico)"
+    return route_key or ""
+
+
 BASE_DIR = Path(__file__).resolve().parent
 static_dir = Path(settings.static_path)
 if not static_dir.is_absolute():
@@ -158,23 +374,15 @@ def build_payment_reference(prefix: str) -> str:
     return f"{safe_prefix}{uuid4().hex[:12].upper()}"
 
 
-def _membership_form_link(request: Request, ref: str) -> str:
-    base_url = str(request.url_for("membership_form"))
-    return f"{base_url}?ref={ref}"
-
-
-def _send_membership_completion_email(email: str, link: str) -> bool:
+def _smtp_send_transactional(to_addr: str, subject: str, body: str) -> bool:
     if not settings.smtp_host or not settings.smtp_from:
-        logger.warning("SMTP not configured; skipping membership email.")
+        logger.warning("SMTP not configured; skipping email to %s.", to_addr)
         return False
     message = EmailMessage()
-    message["Subject"] = f"{settings.app_name} - Completa tesseramento"
+    message["Subject"] = subject
     message["From"] = settings.smtp_from
-    message["To"] = email
-    message.set_content(
-        "Ciao,\n\nAbbiamo ricevuto il pagamento. Per completare il tesseramento apri questo link:\n"
-        f"{link}\n\nSe non hai richiesto tu, ignora questa email.\n"
-    )
+    message["To"] = to_addr
+    message.set_content(body)
     server = None
     try:
         if settings.smtp_use_ssl:
@@ -192,7 +400,7 @@ def _send_membership_completion_email(email: str, link: str) -> bool:
         server.send_message(message)
         return True
     except Exception:
-        logger.exception("Failed to send membership completion email")
+        logger.exception("Failed to send transactional email to %s", to_addr)
         return False
     finally:
         if server:
@@ -200,6 +408,27 @@ def _send_membership_completion_email(email: str, link: str) -> bool:
                 server.quit()
             except Exception:
                 pass
+
+
+def _membership_form_link(request: Request, ref: str) -> str:
+    base_url = str(request.url_for("membership_form"))
+    return f"{base_url}?ref={ref}"
+
+
+def _send_membership_completion_email(email: str, link: str) -> bool:
+    body = (
+        "Ciao,\n\n"
+        "Abbiamo preso in carico la tua richiesta di tesseramento e ricevuto correttamente "
+        "il pagamento.\n\n"
+        "Per completare la pratica e inviare i documenti, apri questo link:\n"
+        f"{link}\n\n"
+        "Se non hai richiesto tu il tesseramento, ignora questa email.\n"
+    )
+    return _smtp_send_transactional(
+        email,
+        f"{settings.app_name} - Completa tesseramento",
+        body,
+    )
 
 
 def _send_password_reset_email(email: str, link: str) -> bool:
@@ -241,6 +470,57 @@ def _send_password_reset_email(email: str, link: str) -> bool:
                 pass
 
 
+def _send_membership_staff_email(subject: str, body: str) -> bool:
+    """Notifica interna (es. segreteria) su pagamenti e tesseramento area tesserati."""
+    if not settings.membership_notify_email:
+        return False
+    return _smtp_send_transactional(settings.membership_notify_email, subject, body)
+
+
+def _send_membership_applicant_payment_ack_email(member: Member) -> bool:
+    """Conferma all'iscritto: pagamento ricevuto e richiesta presa in carico (socio gia' anagrafato)."""
+    if not member.email:
+        return False
+    first = (member.first_name or "").strip() or "socio/a"
+    body = (
+        f"Ciao {first},\n\n"
+        "Abbiamo preso in carico la tua richiesta: abbiamo ricevuto il pagamento per "
+        "l'accesso all'area tesserati. Ora puoi utilizzare l'area riservata.\n\n"
+        f"— {settings.app_name}\n"
+    )
+    return _smtp_send_transactional(
+        member.email,
+        f"{settings.app_name} - Richiesta presa in carico",
+        body,
+    )
+
+
+def _send_membership_applicant_form_ack_email(member: Member) -> bool:
+    """Conferma all'iscritto: modulo e documenti ricevuti e presi in carico."""
+    if not member.email:
+        return False
+    first = (member.first_name or "").strip() or "socio/a"
+    body = (
+        f"Ciao {first},\n\n"
+        "Abbiamo ricevuto il tuo modulo e i documenti caricati e abbiamo preso in carico "
+        "la richiesta. La segreteria verificherà la documentazione e ti contatterà se necessario.\n\n"
+        "L'accesso all'area tesserati è attivo; la password provvisoria ti è stata mostrata "
+        "al termine dell'invio: conservala per i prossimi accessi.\n\n"
+        f"— {settings.app_name}\n"
+    )
+    return _smtp_send_transactional(
+        member.email,
+        f"{settings.app_name} - Modulo ricevuto",
+        body,
+    )
+
+
+def _admin_base_url(request: Request | None) -> str | None:
+    if not request:
+        return None
+    return str(request.base_url).rstrip("/")
+
+
 def _send_event_payment_emails(
     registration: EventRegistration, event: Event
 ) -> None:
@@ -272,9 +552,18 @@ def _send_event_payment_emails(
         if registration.team_name:
             lines.append(f"  Squadra: {registration.team_name}")
         if registration.discipline:
-            lines.append(f"  Disciplina: {registration.discipline}")
+            lines.append(
+                f"  Disciplina: {_event_discipline_human_label(event, registration.discipline)}"
+            )
         if registration.route_length:
-            lines.append(f"  Percorso: {registration.route_length}")
+            lines.append(
+                "  Percorso: "
+                + _event_route_human_label(
+                    event,
+                    registration.discipline or "",
+                    registration.route_length,
+                )
+            )
         if registration.lunch_option == "con_pranzo":
             pranzo_line = "  Pranzo: incluso"
             if registration.lunch_guests:
@@ -360,11 +649,23 @@ def _send_event_payment_emails(
     elif registration.lunch_option == "senza_pranzo":
         lines.append("Pranzo: non incluso")
     if registration.discipline:
-        lines.append(f"Disciplina: {registration.discipline}")
+        lines.append(
+            f"Disciplina: {_event_discipline_human_label(event, registration.discipline)}"
+        )
     if registration.route_length:
-        lines.append(f"Percorso: {registration.route_length}")
-        if registration.route_length == "lungo":
-            lines.append("NOTA: percorso lungo (richiede certificato agonistico).")
+        rl = registration.route_length
+        lines.append(
+            "Percorso: "
+            + _event_route_human_label(
+                event, registration.discipline or "", rl
+            )
+        )
+        if _event_route_requires_agonistic_medical(
+            event, registration.discipline or "", rl
+        ):
+            lines.append(
+                "NOTA: percorso con certificato medico agonistico obbligatorio."
+            )
     if event.enable_jersey and registration.jersey_size and registration.jersey_gender:
         lines.append(
             f"Maglia evento: {registration.jersey_gender} taglia {registration.jersey_size}"
@@ -681,6 +982,10 @@ def ensure_event_schema() -> None:
         "event_price_cents": "INTEGER",
         "sponsors_urls": "TEXT",
         "event_lunch_price_cents": "INTEGER",
+        "medical_certificate_policy": "TEXT",
+        "route_option_mode": "TEXT",
+        "route_gpx_urls": "TEXT",
+        "event_activities_config": "TEXT",
     }
     added_is_featured = False
     added_is_amaro_event = False
@@ -783,6 +1088,34 @@ def ensure_event_schema() -> None:
                     "UPDATE events "
                     "SET require_privacy_other = 1 "
                     "WHERE require_privacy_other IS NULL"
+                )
+            )
+
+    cols = {c["name"] for c in inspect(engine).get_columns("events")}
+    if "medical_certificate_policy" in cols:
+        with engine.begin() as conn:
+            conn.execute(
+                text(
+                    "UPDATE events SET medical_certificate_policy = 'required' "
+                    "WHERE (medical_certificate_policy IS NULL "
+                    "OR TRIM(medical_certificate_policy) = '') "
+                    "AND require_medical_certificate = 1"
+                )
+            )
+            conn.execute(
+                text(
+                    "UPDATE events SET medical_certificate_policy = 'optional' "
+                    "WHERE medical_certificate_policy IS NULL "
+                    "OR TRIM(medical_certificate_policy) = ''"
+                )
+            )
+    if "route_option_mode" in cols:
+        with engine.begin() as conn:
+            conn.execute(
+                text(
+                    "UPDATE events SET route_option_mode = 'distances' "
+                    "WHERE route_option_mode IS NULL "
+                    "OR TRIM(route_option_mode) = ''"
                 )
             )
 
@@ -1097,6 +1430,25 @@ def _apply_reference_payment(
             if payment.email and was_pending and request:
                 if _send_membership_completion_email(payment.email, completion_url):
                     email_notice = f"Ti abbiamo inviato il link a {payment.email}."
+            if was_pending and request:
+                staff_lines = [
+                    "Ricevuto un pagamento per nuovo tesseramento (area tesserati).",
+                    "",
+                    f"Email iscritto: {payment.email}",
+                    f"Disciplina: {payment.sport_type}",
+                    f"Riferimento pagamento: {payment.reference}",
+                    f"Importo: {format_price(payment.amount_cents)} €",
+                    "",
+                    "L'iscritto deve ancora completare il modulo con i documenti.",
+                    f"Link al modulo: {completion_url}",
+                ]
+                admin_base = _admin_base_url(request)
+                if admin_base:
+                    staff_lines.extend(["", f"Pannello gestione: {admin_base}/admin"])
+                _send_membership_staff_email(
+                    f"{settings.app_name} - Pagamento tesseramento ricevuto",
+                    "\n".join(staff_lines),
+                )
             context = {
                 "return_url": completion_url,
                 "retry_url": None,
@@ -1139,11 +1491,31 @@ def _apply_reference_payment(
             "label": f"Iscrizione evento {registration.event.title}",
         }
 
+    was_unpaid = member.payment_status != "paid"
     if success:
         member.payment_status = "paid"
     elif member.payment_status != "paid":
         member.payment_status = "failed"
     session.commit()
+    if success and was_unpaid:
+        name_line = f"{(member.first_name or '').strip()} {(member.last_name or '').strip()}".strip()
+        staff_lines = [
+            "Pagamento ricevuto per accesso all'area tesserati.",
+            "",
+            f"Nome: {name_line or (member.name or '').strip()}",
+            f"Email: {member.email or ''}",
+            f"ID socio: {member.id}",
+        ]
+        if member.payment_reference:
+            staff_lines.append(f"Riferimento pagamento: {member.payment_reference}")
+        admin_base = _admin_base_url(request)
+        if admin_base:
+            staff_lines.extend(["", f"Pannello gestione: {admin_base}/admin"])
+        _send_membership_staff_email(
+            f"{settings.app_name} - Pagamento area tesserati",
+            "\n".join(staff_lines),
+        )
+        _send_membership_applicant_payment_ack_email(member)
     return {
         "return_url": "/area-tesserati",
         "label": f"Tesseramento {member.first_name} {member.last_name}",
@@ -1174,6 +1546,146 @@ def home(request: Request, session: Session = Depends(get_session)) -> HTMLRespo
     )
 
 
+def _normalize_gpx_source_url(url: str) -> str:
+    """Trasforma link «condivisione» (Google Drive /view) in URL che scarica il file."""
+    u = (url or "").strip()
+    if not u:
+        return u
+    m = re.search(r"drive\.google\.com/file/d/([a-zA-Z0-9_-]+)", u)
+    if m:
+        return f"https://drive.google.com/uc?export=download&id={m.group(1)}"
+    parsed = urlparse(u)
+    host = (parsed.netloc or "").lower()
+    if "drive.google.com" in host and parsed.path.rstrip("/") == "/open":
+        q = parse_qs(parsed.query)
+        ids = q.get("id", [])
+        if ids:
+            return f"https://drive.google.com/uc?export=download&id={ids[0]}"
+    return u
+
+
+def _bytes_look_like_gpx(data: bytes) -> bool:
+    if not data or len(data) < 20:
+        return False
+    head = data[:800].lstrip().lower()
+    if head.startswith(b"<!doctype") or head.startswith(b"<html"):
+        return False
+    if head.startswith(b"<?xml"):
+        return b"<gpx" in data[: min(len(data), 50000)].lower()
+    if head.startswith(b"<gpx"):
+        return True
+    return b"<gpx" in data[:8000].lower()
+
+
+def _fetch_gpx_binary(url: str) -> bytes:
+    """Scarica GPX; gestisce Google Drive (HTML anteprima / avviso virus scan)."""
+    fetch_url = _normalize_gpx_source_url(url)
+    parsed = urlparse(fetch_url)
+    if parsed.scheme not in ("http", "https"):
+        raise ValueError("URL non http(s)")
+    sess = requests.Session()
+    sess.headers.update(
+        {
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+            )
+        }
+    )
+    r = sess.get(fetch_url, timeout=60, allow_redirects=True)
+    r.raise_for_status()
+    content = r.content
+    if _bytes_look_like_gpx(content):
+        return content
+    is_drive = "drive.google.com" in fetch_url
+    if is_drive and b"export=download" in fetch_url.encode():
+        join = "&" if "?" in fetch_url else "?"
+        if "confirm=" not in fetch_url:
+            r2 = sess.get(fetch_url + join + "confirm=t", timeout=60, allow_redirects=True)
+            r2.raise_for_status()
+            content = r2.content
+            if _bytes_look_like_gpx(content):
+                return content
+        text = content.decode("utf-8", errors="ignore")
+        for pattern in (
+            r'href="(https://drive\.usercontent\.google\.com/download[^"]+)"',
+            r'href="(/uc\?export=download[^"]+)"',
+            r'href="(https://drive\.google\.com/uc\?[^"]+)"',
+        ):
+            m = re.search(pattern, text)
+            if not m:
+                continue
+            nxt = m.group(1).replace("&amp;", "&")
+            if nxt.startswith("/"):
+                nxt = "https://drive.google.com" + nxt
+            r3 = sess.get(nxt, timeout=60, allow_redirects=True)
+            r3.raise_for_status()
+            content = r3.content
+            if _bytes_look_like_gpx(content):
+                return content
+    if not _bytes_look_like_gpx(content):
+        logger.warning(
+            "Risposta GPX non sembra un file GPX (host=%s): prime 120 char: %r",
+            urlparse(fetch_url).netloc,
+            content[:120],
+        )
+    return content
+
+
+@app.get("/eventi/{slug}/route-gpx/{route_key}", name="event_route_gpx_proxy")
+def event_route_gpx_proxy(
+    request: Request,
+    slug: str,
+    route_key: str,
+    session: Session = Depends(get_session),
+) -> Response:
+    event = session.query(Event).filter_by(slug=slug).first()
+    if not event:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Evento non trovato.")
+    route_key = route_key.strip().lower()
+    if route_key not in _allowed_gpx_route_keys(event):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Percorso non valido.")
+    target_url: str | None = None
+    for r in parse_event_route_gpx(event):
+        if r["key"] == route_key:
+            target_url = r["url"]
+            break
+    if not target_url:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="GPX non configurato.")
+    parsed = urlparse((target_url or "").strip())
+    if parsed.scheme not in ("http", "https"):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="URL GPX non valido.")
+    try:
+        content = _fetch_gpx_binary(target_url)
+    except requests.RequestException:
+        logger.exception("GPX fetch failed for event %s route %s", slug, route_key)
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Impossibile scaricare il file GPX.",
+        )
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="URL GPX non valido.")
+    if not _bytes_look_like_gpx(content):
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=(
+                "Il file non risulta un GPX valido (link Drive «anteprima» invece del download). "
+                "Prova: tasto destro sul file in Drive → Ottieni link → link diretto, "
+                "oppure carica il .gpx su hosting che lo serva come file."
+            ),
+        )
+    if len(content) > _ROUTE_GPX_MAX_BYTES:
+        raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE)
+    headers: dict[str, str] = {"Cache-Control": "public, max-age=300"}
+    if request.query_params.get("dl") == "1":
+        headers["Content-Disposition"] = f'attachment; filename="{route_key}.gpx"'
+    return Response(
+        content=content,
+        media_type="application/gpx+xml",
+        headers=headers,
+    )
+
+
 @app.get("/eventi/{slug}", response_class=HTMLResponse)
 def read_event(
     request: Request, slug: str, session: Session = Depends(get_session)
@@ -1186,6 +1698,7 @@ def read_event(
     registration_notice = None
     if request.query_params.get("registered") == "1":
         registration_notice = "Iscrizione ricevuta. Ti contatteremo via email."
+    ctx = _event_registration_template_extras(request, event)
     return templates.TemplateResponse(
         "event_detail.html",
         {
@@ -1213,6 +1726,7 @@ def read_event(
                 "jersey_gender": "",
             },
             "settings": settings,
+            **ctx,
         },
     )
 
@@ -1291,10 +1805,39 @@ def register_event(
 
     if event.enable_lunch_option and not normalized["lunch_option"]:
         errors.append("Scelta pranzo obbligatoria.")
-    if event.enable_discipline_option and not normalized["discipline"]:
-        errors.append("Scelta disciplina obbligatoria.")
-    if event.enable_route_option and not normalized["route_length"]:
-        errors.append("Scelta percorso obbligatoria.")
+    act_cfg = parse_event_activities_config(event)
+    if act_cfg:
+        if not normalized["discipline"]:
+            errors.append("Scelta disciplina obbligatoria.")
+        if not normalized["route_length"]:
+            errors.append("Scelta percorso obbligatoria.")
+        sport_ok = False
+        route_ok = False
+        for s in act_cfg:
+            if s["key"] != normalized["discipline"]:
+                continue
+            sport_ok = True
+            for r in s["routes"]:
+                if r["key"] == normalized["route_length"]:
+                    route_ok = True
+                    break
+            break
+        if normalized["discipline"] and not sport_ok:
+            errors.append("Disciplina non valida.")
+        if sport_ok and normalized["route_length"] and not route_ok:
+            errors.append("Percorso non valido per la disciplina scelta.")
+    else:
+        if event.enable_discipline_option and not normalized["discipline"]:
+            errors.append("Scelta disciplina obbligatoria.")
+        route_mode = _event_route_mode(event)
+        if event.enable_route_option:
+            if route_mode == "distances":
+                if not normalized["route_length"]:
+                    errors.append("Scelta percorso obbligatoria.")
+            else:
+                normalized["route_length"] = (
+                    "trail" if route_mode == "trail" else "corsa"
+                )
     if event.enable_jersey and (normalized["jersey_size"] or normalized["jersey_gender"]) and not (
         normalized["jersey_size"] and normalized["jersey_gender"]
     ):
@@ -1304,18 +1847,21 @@ def register_event(
     medical_upload = medical_certificate if medical_certificate and medical_certificate.filename else None
     if event.require_acsi_fci and not acsi_fci_upload:
         errors.append("Tessera ACSI/FCI obbligatoria.")
-    if event.require_medical_certificate and not medical_upload:
-        errors.append("Certificato medico obbligatorio.")
-    if (
-        event.enable_route_option
-        and normalized["route_length"] == "lungo"
-        and not medical_upload
-        and not event.require_medical_certificate
-    ):
-        errors.append("Per il percorso lungo è obbligatorio il certificato medico agonistico.")
+    med_policy = _event_medical_policy(event)
+    needs_agonistic = _event_route_requires_agonistic_medical(
+        event, normalized["discipline"], normalized["route_length"]
+    )
+    if not medical_upload:
+        if med_policy == "required":
+            errors.append("Certificato medico obbligatorio.")
+        elif needs_agonistic:
+            errors.append(
+                "Per il percorso scelto è obbligatorio il certificato medico agonistico."
+            )
 
     if errors:
         event_gallery = _parse_gallery_urls(event.gallery_urls)
+        ctx = _event_registration_template_extras(request, event)
         return templates.TemplateResponse(
             "event_detail.html",
             {
@@ -1327,6 +1873,7 @@ def register_event(
                 "registration_errors": errors,
                 "form_values": normalized,
                 "settings": settings,
+                **ctx,
             },
             status_code=status.HTTP_400_BAD_REQUEST,
         )
@@ -1786,6 +2333,25 @@ def membership_submit(
     session.commit()
     request.session["member_id"] = member.id
     request.session["member_password_hint"] = password_plain
+    admin_base = _admin_base_url(request)
+    staff_lines = [
+        "Nuovo tesseramento: modulo e documenti inviati (area tesserati).",
+        "",
+        f"Nome: {member.first_name} {member.last_name}",
+        f"Email: {member.email}",
+        f"Telefono: {member.phone or ''}",
+        f"Disciplina: {member.sport_type}",
+        f"ID socio: {member.id}",
+        "",
+        "Verifica i documenti e completa l'approvazione socio dal pannello.",
+    ]
+    if admin_base:
+        staff_lines.append(f"Pannello: {admin_base}/admin")
+    _send_membership_staff_email(
+        f"{settings.app_name} - Modulo tesseramento completato",
+        "\n".join(staff_lines),
+    )
+    _send_membership_applicant_form_ack_email(member)
     return RedirectResponse(
         url="/area-tesserati", status_code=status.HTTP_303_SEE_OTHER
     )

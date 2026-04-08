@@ -37,6 +37,12 @@ class Event(Base):
     require_intolerances: Mapped[bool] = Column(Boolean, default=False)
     require_acsi_fci: Mapped[bool] = Column(Boolean, default=False)
     require_medical_certificate: Mapped[bool] = Column(Boolean, default=False)
+    medical_certificate_policy: Mapped[str] = Column(
+        String(20), default="optional"
+    )  # none | optional | required (lungo resta sempre obbligo agonistico)
+    route_option_mode: Mapped[str] = Column(
+        String(20), default="distances"
+    )  # distances | trail | corsa
     require_privacy_photo: Mapped[bool] = Column(Boolean, default=True)
     require_privacy_other: Mapped[bool] = Column(Boolean, default=True)
     registration_notes: Mapped[str | None] = Column(Text)
@@ -60,6 +66,8 @@ class Event(Base):
     event_price_cents: Mapped[int | None] = Column(Integer)
     event_lunch_price_cents: Mapped[int | None] = Column(Integer)
     sponsors_urls: Mapped[str | None] = Column(Text)
+    route_gpx_urls: Mapped[str | None] = Column(Text)
+    event_activities_config: Mapped[str | None] = Column(Text)
 
     registrations: Mapped[list["EventRegistration"]] = relationship(
         "EventRegistration", back_populates="event", cascade="all, delete-orphan"

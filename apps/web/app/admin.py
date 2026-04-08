@@ -25,6 +25,7 @@ from starlette.exceptions import HTTPException
 from starlette.requests import Request
 from starlette.responses import FileResponse, RedirectResponse
 from sqlalchemy.orm import Session
+from wtforms import SelectField
 from wtforms.validators import DataRequired
 
 from .config import settings
@@ -403,6 +404,10 @@ class AmaroAdmin(ModelView):
 
 
 class EventAdmin(AmaroAdmin, model=Event):
+    form_overrides = {
+        "medical_certificate_policy": SelectField,
+        "route_option_mode": SelectField,
+    }
     column_list = ["id", "title", "date", "location", "activity", "is_featured", "slug"]
     column_searchable_list = ["title", "location", "activity"]
     column_sortable_list = ["id", "date", "title", "location", "is_featured"]
@@ -424,7 +429,11 @@ class EventAdmin(AmaroAdmin, model=Event):
         "enable_lunch_option": "Mostra scelta pranzo",
         "lunch_description": "Descrizione pranzo",
         "enable_discipline_option": "Mostra scelta disciplina (bici/corsa)",
-        "enable_route_option": "Mostra scelta percorso",
+        "enable_route_option": "Mostra percorso (vedi anche modalità sotto)",
+        "route_option_mode": "Modalità percorso",
+        "route_gpx_urls": "Link GPX per mappa pubblica (opzionale)",
+        "event_activities_config": "Sport e percorsi (JSON modulo iscrizioni)",
+        "medical_certificate_policy": "Certificato medico (Corto/Medio/Trail/Corsa)",
         "waiver_url": "Liberatoria (PDF) da scaricare",
         "require_waiver_upload": "Richiedi caricamento liberatoria firmata",
         "require_waiver_acceptance": "Richiedi spunta \"accetto liberatoria\"",
@@ -446,7 +455,7 @@ class EventAdmin(AmaroAdmin, model=Event):
         "require_residence": "Residenza obbligatoria",
         "require_intolerances": "Intolleranze/Allergie obbligatorie",
         "require_acsi_fci": "Tessera ACSI/FCI obbligatoria",
-        "require_medical_certificate": "Certificato medico obbligatorio",
+        "require_medical_certificate": "(Legacy) Flag obbligo cert. — usa politica sotto",
         "require_privacy_photo": "Privacy foto obbligatoria",
         "require_privacy_other": "Privacy obbligatoria",
     }
@@ -468,6 +477,9 @@ class EventAdmin(AmaroAdmin, model=Event):
         "lunch_description",
         "enable_discipline_option",
         "enable_route_option",
+        "route_option_mode",
+        "route_gpx_urls",
+        "event_activities_config",
         "waiver_url",
         "require_waiver_upload",
         "require_waiver_acceptance",
@@ -489,6 +501,7 @@ class EventAdmin(AmaroAdmin, model=Event):
         "require_residence",
         "require_intolerances",
         "require_acsi_fci",
+        "medical_certificate_policy",
         "require_medical_certificate",
         "require_privacy_photo",
         "require_privacy_other",
@@ -499,6 +512,26 @@ class EventAdmin(AmaroAdmin, model=Event):
         "date": {"validators": [DataRequired()]},
         "location": {"validators": [DataRequired()]},
         "activity": {"validators": [DataRequired()]},
+        "medical_certificate_policy": {
+            "choices": [
+                (
+                    "none",
+                    "No — campo nascosto (obbligo agonistico solo se Lungo con 3 distanze)",
+                ),
+                (
+                    "optional",
+                    "Facoltativo — obbligo agonistico solo per Lungo",
+                ),
+                ("required", "Obbligatorio — tutti i percorsi / trail / corsa"),
+            ],
+        },
+        "route_option_mode": {
+            "choices": [
+                ("distances", "Corto / Medio / Lungo"),
+                ("trail", "Trail — percorso unico"),
+                ("corsa", "Corsa — percorso unico"),
+            ],
+        },
     }
     form_widget_args = {
         "activity": {"placeholder": "Ciclismo, Atletica, Trail, ..."},
@@ -539,11 +572,26 @@ class EventAdmin(AmaroAdmin, model=Event):
             "placeholder": "Una riga per sponsor.\nCon logo: URL_LOGO|Nome Sponsor\nSolo testo: Nome Sponsor",
             "rows": 5,
         },
+        "route_gpx_urls": {
+            "placeholder": "Una riga per percorso. Formato: chiave|URL_GPX|etichetta_opzionale\n"
+            "Le chiavi devono coincidere con quelle nei percorsi del JSON sotto.\n"
+            "Google Drive: va bene il link «Condividi» (file/d/.../view); il server converte in download.\n"
+            "Esempio:\ncorto|https://.../corto.gpx|Corto 40 km",
+            "rows": 6,
+        },
+        "event_activities_config": {
+            "placeholder": 'JSON, es.:\n{\n  "sports": [\n    {\n      "key": "mtb",\n      "label": "Mountain bike",\n      "routes": [\n        {"key": "corto", "label": "Corto 35 km"},\n        {"key": "lungo", "label": "Marathon 80 km", "medical_agonistic": true}\n      ]\n    },\n    {\n      "key": "trail",\n      "label": "Trail running",\n      "routes": [\n        {"key": "trail_12", "label": "Trail 12 km"}\n      ]\n    }\n  ]\n}\n'
+            "Se compilato, il form usa solo questo (ignora Bici/Corsa e modalità percorso sotto). "
+            "Chiavi: solo lettere minuscole, numeri, trattini (max 40).",
+            "rows": 14,
+        },
     }
 
     async def on_model_change(
         self, data: dict, model: Event, is_created: bool, request: Request
     ) -> None:
+        policy = (getattr(model, "medical_certificate_policy", None) or "").strip()
+        model.require_medical_certificate = policy == "required"
         if not model.slug:
             title = data.get("title") or model.title or ""
             if title:

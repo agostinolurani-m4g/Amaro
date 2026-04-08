@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 
 {% block content %}
+  {% set event_route_gpx = event_route_gpx|default([]) %}
   <section class="section">
     <article class="card card--spacious">
       <p class="card__date">
@@ -80,6 +81,405 @@
       {% endif %}
     </article>
   </section>
+
+  {% if event_route_gpx and event_route_gpx | length > 0 %}
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+  <section class="section route-explorer-wrap" aria-labelledby="route-explorer-title">
+    <article class="card card--spacious route-explorer">
+      <h2 id="route-explorer-title">Percorsi</h2>
+      <p class="muted route-explorer__intro">Seleziona un percorso per vederlo sulla mappa, il profilo altimetrico e scaricare il GPX.</p>
+      <div id="route-explorer-loading" class="route-explorer__loading">Caricamento tracce…</div>
+      <div id="route-explorer-root" class="route-explorer__root" hidden>
+        <div class="route-explorer__cards" id="route-explorer-cards" role="list"></div>
+        <div class="route-explorer__map-wrap">
+          <div id="route-explorer-map" class="route-explorer__map" role="img" aria-label="Mappa percorsi"></div>
+        </div>
+        <div class="route-explorer__chart-wrap">
+          <h3 class="route-explorer__chart-title">Altimetria</h3>
+          <p id="route-explorer-chart-empty" class="muted" hidden>Questo GPX non contiene quote; sono mostrate solo distanza e dislivello stimato se calcolabile.</p>
+          <canvas id="route-explorer-chart" height="220" aria-hidden="true"></canvas>
+        </div>
+      </div>
+      <p id="route-explorer-error" class="alert" hidden>Impossibile caricare una o più tracce. Riprova più tardi.</p>
+    </article>
+  </section>
+  <script type="application/json" id="route-gpx-json">{{ event_route_gpx | tojson }}</script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script>
+  (function () {
+    var jsonEl = document.getElementById("route-gpx-json");
+    var boot = jsonEl ? JSON.parse(jsonEl.textContent || "[]") : [];
+    if (!boot.length) return;
+
+    var TRACK_COLOR = "#FF0A54";
+    var TRACK_FILL = "rgba(255, 10, 84, 0.22)";
+
+    function parseGpx(xmlText) {
+      var doc = new DOMParser().parseFromString(xmlText, "text/xml");
+      if (doc.querySelector("parsererror")) return [];
+      var pts = [];
+      var trkpts = doc.getElementsByTagName("trkpt");
+      var i, t, lat, lon, eleEl, e;
+      for (i = 0; i < trkpts.length; i++) {
+        t = trkpts[i];
+        lat = parseFloat(t.getAttribute("lat"));
+        lon = parseFloat(t.getAttribute("lon"));
+        if (isNaN(lat) || isNaN(lon)) continue;
+        eleEl = t.getElementsByTagName("ele")[0];
+        e = eleEl ? parseFloat(eleEl.textContent) : NaN;
+        pts.push({ lat: lat, lon: lon, ele: isNaN(e) ? null : e });
+      }
+      if (!pts.length) {
+        var rtepts = doc.getElementsByTagName("rtept");
+        for (i = 0; i < rtepts.length; i++) {
+          t = rtepts[i];
+          lat = parseFloat(t.getAttribute("lat"));
+          lon = parseFloat(t.getAttribute("lon"));
+          if (isNaN(lat) || isNaN(lon)) continue;
+          eleEl = t.getElementsByTagName("ele")[0];
+          e = eleEl ? parseFloat(eleEl.textContent) : NaN;
+          pts.push({ lat: lat, lon: lon, ele: isNaN(e) ? null : e });
+        }
+      }
+      return pts;
+    }
+
+    function haversineM(a, b) {
+      var R = 6371000;
+      var p1 = (a.lat * Math.PI) / 180;
+      var p2 = (b.lat * Math.PI) / 180;
+      var dp = ((b.lat - a.lat) * Math.PI) / 180;
+      var dl = ((b.lon - a.lon) * Math.PI) / 180;
+      var x = Math.sin(dp / 2) * Math.sin(dp / 2) + Math.cos(p1) * Math.cos(p2) * Math.sin(dl / 2) * Math.sin(dl / 2);
+      return 2 * R * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
+    }
+
+    function statsFor(pts) {
+      var dist = 0;
+      var gain = 0;
+      var emin = null;
+      var emax = null;
+      var withEle = 0;
+      var i, e0, e1, d;
+      for (i = 0; i < pts.length; i++) {
+        if (pts[i].ele != null) {
+          withEle++;
+          if (emin == null || pts[i].ele < emin) emin = pts[i].ele;
+          if (emax == null || pts[i].ele > emax) emax = pts[i].ele;
+        }
+      }
+      for (i = 1; i < pts.length; i++) {
+        dist += haversineM(pts[i - 1], pts[i]);
+        e0 = pts[i - 1].ele;
+        e1 = pts[i].ele;
+        if (e0 != null && e1 != null && e1 > e0) gain += e1 - e0;
+      }
+      return {
+        distanceM: dist,
+        elevGain: gain,
+        elevMin: emin,
+        elevMax: emax,
+        hasEle: withEle > pts.length * 0.5,
+      };
+    }
+
+    var mapEl = document.getElementById("route-explorer-map");
+    var cardsEl = document.getElementById("route-explorer-cards");
+    var rootEl = document.getElementById("route-explorer-root");
+    var loadEl = document.getElementById("route-explorer-loading");
+    var errEl = document.getElementById("route-explorer-error");
+    var chartCanvas = document.getElementById("route-explorer-chart");
+    var chartEmpty = document.getElementById("route-explorer-chart-empty");
+    var map = L.map(mapEl, { scrollWheelZoom: true });
+    L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; CARTO',
+      subdomains: "abcd",
+      maxZoom: 19,
+    }).addTo(map);
+
+    var layers = {};
+    var routeData = {};
+    var chartInst = null;
+    var selectedKey = null;
+    var mapHoverRaf = null;
+    var pendingHoverKm = null;
+
+    Chart.register({
+      id: "routeElevationCrosshair",
+      afterDatasetsDraw: function (chart) {
+        var xKm = chart.$crosshairXKm;
+        if (xKm == null || isNaN(xKm)) return;
+        var scX = chart.scales.x;
+        var scY = chart.scales.y;
+        if (!scX || !scY || !scX.width) return;
+        var px = scX.getPixelForValue(xKm);
+        if (px < scX.left - 2 || px > scX.right + 2) return;
+        var ctx = chart.ctx;
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(px, scY.top);
+        ctx.lineTo(px, scY.bottom);
+        ctx.strokeStyle = "rgba(255, 245, 100, 0.95)";
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([5, 4]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.restore();
+      },
+    });
+
+    function closestKmAlongTrack(mouseLat, mouseLng, pts) {
+      if (!pts || pts.length < 2) return 0;
+      var bestCum = 0;
+      var minDist = Infinity;
+      var cum = 0;
+      var i, a, b, segLen, t, lat, lon, d, k;
+      for (i = 1; i < pts.length; i++) {
+        a = pts[i - 1];
+        b = pts[i];
+        segLen = haversineM(a, b);
+        for (k = 0; k <= 10; k++) {
+          t = k / 10;
+          lat = a.lat + t * (b.lat - a.lat);
+          lon = a.lon + t * (b.lon - a.lon);
+          d = haversineM({ lat: lat, lon: lon, ele: null }, { lat: mouseLat, lon: mouseLng, ele: null });
+          if (d < minDist) {
+            minDist = d;
+            bestCum = cum + t * segLen;
+          }
+        }
+        cum += segLen;
+      }
+      return bestCum / 1000;
+    }
+
+    function setChartCrosshair(km) {
+      if (!chartInst) return;
+      var prev = chartInst.$crosshairXKm;
+      if (prev != null && Math.abs(prev - km) < 0.003) return;
+      chartInst.$crosshairXKm = km;
+      chartInst.update("none");
+    }
+
+    function clearChartCrosshair() {
+      if (!chartInst || chartInst.$crosshairXKm == null) return;
+      chartInst.$crosshairXKm = null;
+      chartInst.update("none");
+    }
+
+    function fmtKm(m) {
+      return (m / 1000).toFixed(2) + " km";
+    }
+    function fmtM(n) {
+      if (n == null || isNaN(n)) return "—";
+      return Math.round(n) + " m";
+    }
+
+    function syncFormRoute(key) {
+      var sel = document.getElementById("route_length");
+      if (!sel) return;
+      var opt = sel.querySelector('option[value="' + key + '"]');
+      if (opt) {
+        sel.value = key;
+        sel.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+    }
+
+    function selectRoute(key) {
+      selectedKey = key;
+      Object.keys(layers).forEach(function (k) {
+        var pl = layers[k];
+        if (k === key) {
+          if (!map.hasLayer(pl)) pl.addTo(map);
+          try {
+            map.fitBounds(pl.getBounds(), { padding: [44, 44], maxZoom: 15, animate: true });
+          } catch (e) {}
+        } else if (map.hasLayer(pl)) {
+          map.removeLayer(pl);
+        }
+      });
+      cardsEl.querySelectorAll(".route-explorer__card").forEach(function (c) {
+        c.classList.toggle("route-explorer__card--active", c.dataset.routeKey === key);
+      });
+      syncFormRoute(key);
+      updateChart(key);
+      clearChartCrosshair();
+    }
+
+    function updateChart(key) {
+      var r = routeData[key];
+      if (!r || !chartCanvas) return;
+      var pts = r.pts;
+      var i;
+      var cum = 0;
+      var dataPoints = [];
+      for (i = 1; i < pts.length; i++) {
+        cum += haversineM(pts[i - 1], pts[i]);
+        if (pts[i].ele != null) {
+          dataPoints.push({ x: cum / 1000, y: pts[i].ele });
+        }
+      }
+      if (chartInst) {
+        chartInst.destroy();
+        chartInst = null;
+      }
+      if (!dataPoints.length) {
+        chartEmpty.hidden = false;
+        chartCanvas.style.display = "none";
+        return;
+      }
+      chartEmpty.hidden = true;
+      chartCanvas.style.display = "block";
+      chartInst = new Chart(chartCanvas, {
+        type: "line",
+        data: {
+          datasets: [
+            {
+              label: "Quota (m)",
+              data: dataPoints,
+              borderColor: TRACK_COLOR,
+              backgroundColor: TRACK_FILL,
+              fill: true,
+              tension: 0.3,
+              pointRadius: 0,
+              parsing: false,
+              borderWidth: 2,
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                title: function (items) {
+                  return items.length ? "≈ " + items[0].parsed.x.toFixed(2) + " km" : "";
+                },
+              },
+            },
+          },
+          scales: {
+            x: {
+              type: "linear",
+              title: { display: true, text: "Distanza (km)", color: "#fdcaca" },
+              ticks: { color: "#fdcaca" },
+              grid: { color: "rgba(255,255,255,0.08)" },
+            },
+            y: {
+              title: { display: true, text: "m s.l.m.", color: "#fdcaca" },
+              ticks: { color: "#fdcaca" },
+              grid: { color: "rgba(255,255,255,0.08)" },
+            },
+          },
+        },
+      });
+      chartInst.$crosshairXKm = null;
+    }
+
+    Promise.all(
+      boot.map(function (spec) {
+        return fetch(spec.fetch_url)
+          .then(function (r) {
+            if (!r.ok) throw new Error("fetch");
+            return r.text();
+          })
+          .then(function (xml) {
+            var pts = parseGpx(xml);
+            if (!pts.length) throw new Error("parse");
+            var st = statsFor(pts);
+            return { spec: spec, pts: pts, stats: st };
+          })
+          .catch(function () {
+            return { spec: spec, pts: null, stats: null, error: true };
+          });
+      })
+    ).then(function (results) {
+      if (loadEl) loadEl.hidden = true;
+      var anyOk = results.some(function (x) { return x.pts && x.pts.length; });
+      if (!anyOk) {
+        if (errEl) errEl.hidden = false;
+        return;
+      }
+      if (rootEl) rootEl.hidden = false;
+      results.forEach(function (item) {
+        if (!item.pts || !item.pts.length) return;
+        var key = item.spec.key;
+        var latlngs = item.pts.map(function (p) {
+          return [p.lat, p.lon];
+        });
+        var pl = L.polyline(latlngs, { color: TRACK_COLOR, weight: 5, opacity: 1 });
+        layers[key] = pl;
+        routeData[key] = item;
+        var st = item.stats;
+        var card = document.createElement("div");
+        card.className = "route-explorer__card";
+        card.tabIndex = 0;
+        card.dataset.routeKey = key;
+        card.setAttribute("role", "listitem");
+        card.innerHTML =
+          '<span class="route-explorer__swatch" style="background:' +
+          TRACK_COLOR +
+          '"></span>' +
+          '<span class="route-explorer__card-title">' +
+          item.spec.label +
+          "</span>" +
+          '<span class="route-explorer__card-meta">' +
+          fmtKm(st.distanceM) +
+          " · D+ " +
+          fmtM(st.elevGain) +
+          (st.elevMin != null && st.elevMax != null
+            ? " · " + fmtM(st.elevMin) + "–" + fmtM(st.elevMax)
+            : "") +
+          "</span>" +
+          '<a class="route-explorer__dl link" href="' +
+          item.spec.download_url +
+          '" download>Scarica GPX</a>';
+        card.addEventListener("click", function (e) {
+          if (e.target instanceof HTMLAnchorElement) return;
+          selectRoute(key);
+        });
+        card.addEventListener("keydown", function (ev) {
+          if (ev.key === "Enter" || ev.key === " ") {
+            ev.preventDefault();
+            selectRoute(key);
+          }
+        });
+        var dl = card.querySelector(".route-explorer__dl");
+        if (dl) {
+          dl.addEventListener("click", function (ev) {
+            ev.stopPropagation();
+          });
+        }
+        cardsEl.appendChild(card);
+      });
+      map.on("mousemove", function (ev) {
+        if (!selectedKey || !routeData[selectedKey] || !routeData[selectedKey].pts) return;
+        pendingHoverKm = closestKmAlongTrack(
+          ev.latlng.lat,
+          ev.latlng.lng,
+          routeData[selectedKey].pts
+        );
+        if (mapHoverRaf) return;
+        mapHoverRaf = requestAnimationFrame(function () {
+          mapHoverRaf = null;
+          if (pendingHoverKm != null && chartInst && chartInst.data.datasets[0].data.length) {
+            setChartCrosshair(pendingHoverKm);
+          }
+        });
+      });
+      map.on("mouseout", function () {
+        pendingHoverKm = null;
+        clearChartCrosshair();
+      });
+      var firstKey = results.filter(function (r) { return r.pts && r.pts.length; })[0].spec.key;
+      selectRoute(firstKey);
+    });
+  })();
+  </script>
+  {% endif %}
 
   {% if event.is_amaro_event %}
   <section class="section" id="iscrizione-evento">
@@ -208,7 +608,47 @@
         </fieldset>
         {% endif %}
 
-        {% if event.enable_discipline_option or event.enable_route_option %}
+        {% set mpol = (event.medical_certificate_policy or 'optional')|lower %}
+        {% set rmode = (event.route_option_mode or 'distances')|lower %}
+        {% set _rl = form_values.route_length or '' %}
+        {% set use_activities_config = use_activities_config|default(false) %}
+        {% set activities_config = activities_config|default([]) %}
+        {% set route_medical_by_key = route_medical_by_key|default({}) %}
+        {% if use_activities_config %}
+        <fieldset class="fieldset">
+          <legend>Attività</legend>
+          <script type="application/json" id="activities-config-json">{{ activities_config | tojson }}</script>
+          {% if activities_config | length > 1 %}
+            <label for="discipline">Disciplina *</label>
+            <select id="discipline" name="discipline" required>
+              <option value="">Scegli...</option>
+              {% for s in activities_config %}
+              <option value="{{ s.key }}" {% if form_values.discipline == s.key %}selected{% endif %}>{{ s.label }}</option>
+              {% endfor %}
+            </select>
+          {% else %}
+            <input type="hidden" name="discipline" id="discipline" value="{{ activities_config[0].key }}" />
+            <p class="muted">Disciplina: <strong>{{ activities_config[0].label }}</strong></p>
+          {% endif %}
+          <label for="route_length">Percorso *</label>
+          <select id="route_length" name="route_length" required {% if activities_config | length > 1 and not form_values.discipline %}disabled{% endif %}>
+            <option value="">Scegli...</option>
+            {% if activities_config | length == 1 %}
+              {% for r in activities_config[0].routes %}
+              <option value="{{ r.key }}" {% if _rl == r.key %}selected{% endif %}>{{ r.label }}</option>
+              {% endfor %}
+            {% else %}
+              {% for s in activities_config %}
+                {% if form_values.discipline == s.key %}
+                  {% for r in s.routes %}
+                  <option value="{{ r.key }}" {% if _rl == r.key %}selected{% endif %}>{{ r.label }}</option>
+                  {% endfor %}
+                {% endif %}
+              {% endfor %}
+            {% endif %}
+          </select>
+        </fieldset>
+        {% elif event.enable_discipline_option or event.enable_route_option %}
         <fieldset class="fieldset">
           <legend>Attività</legend>
           {% if event.enable_discipline_option %}
@@ -220,23 +660,29 @@
             </select>
           {% endif %}
           {% if event.enable_route_option %}
+            {% if rmode == 'distances' %}
             <label for="route_length">Percorso *</label>
-            <select id="route_length" name="route_length" required
-              data-medical-required="{{ 'true' if event.require_medical_certificate else 'false' }}"
-              onchange="_onRouteChange(this)">
+            <select id="route_length" name="route_length" required>
               <option value="">Scegli...</option>
-              <option value="corto" {% if form_values.route_length == "corto" %}selected{% endif %}>Corto</option>
-              <option value="medio" {% if form_values.route_length == "medio" %}selected{% endif %}>Medio</option>
-              <option value="lungo" {% if form_values.route_length == "lungo" %}selected{% endif %}>Lungo</option>
+              <option value="corto" {% if _rl == "corto" %}selected{% endif %}>Corto</option>
+              <option value="medio" {% if _rl == "medio" %}selected{% endif %}>Medio</option>
+              <option value="lungo" {% if _rl == "lungo" %}selected{% endif %}>Lungo</option>
             </select>
-            <p class="muted">
-              Per il percorso lungo in bici sarà richiesto certificato medico agonistico; negli altri casi è sufficiente certificato non agonistico.
-            </p>
+            {% elif rmode == 'trail' %}
+            <input type="hidden" name="route_length" value="trail" />
+            <p class="muted"><strong>Percorso:</strong> Trail (percorso unico).</p>
+            {% else %}
+            <input type="hidden" name="route_length" value="corsa" />
+            <p class="muted"><strong>Percorso:</strong> Corsa (percorso unico).</p>
+            {% endif %}
           {% endif %}
         </fieldset>
         {% endif %}
 
-        {% if event.require_acsi_fci or event.require_medical_certificate or event.enable_route_option %}
+        {% if event.require_acsi_fci or mpol != 'none' or (event.enable_route_option and rmode == 'distances') or use_activities_config %}
+        {% if use_activities_config %}
+        <script type="application/json" id="route-medical-json">{{ route_medical_by_key | tojson }}</script>
+        {% endif %}
         <div class="form-grid">
           {% if event.require_acsi_fci %}
           <div>
@@ -250,44 +696,148 @@
             />
           </div>
           {% endif %}
-          <div id="medical_cert_row" {% if not event.require_medical_certificate and form_values.route_length != "lungo" %}hidden{% endif %}>
+          <div id="medical_cert_row"
+            data-medical-policy="{{ mpol }}"
+            data-route-mode="{% if use_activities_config %}activities{% else %}{{ rmode }}{% endif %}"
+            {% if not use_activities_config and mpol == 'none' and (rmode != 'distances' or _rl != 'lungo') %}hidden{% endif %}
+            {% if use_activities_config and mpol == 'none' %}hidden{% endif %}>
             <label for="medical_certificate">
-              Certificato medico{% if event.require_medical_certificate %} *{% endif %}
-              <span id="medical_cert_label_lungo" {% if form_values.route_length != "lungo" %}hidden{% endif %} style="color:#c0392b;font-weight:600"> — AGONISTICO obbligatorio per percorso lungo *</span>
+              Certificato medico{% if mpol == 'required' %} *{% endif %}
+              <span id="medical_cert_label_lungo" style="color:#c0392b;font-weight:600" {% if use_activities_config %}hidden{% elif _rl != 'lungo' or rmode != 'distances' %}hidden{% endif %}> — Certificato medico agonistico obbligatorio *</span>
             </label>
             <input
               id="medical_certificate"
               name="medical_certificate"
               type="file"
               accept=".pdf,image/*"
-              {% if event.require_medical_certificate %}required{% endif %}
+              {% if mpol == 'required' %}required{% endif %}
             />
           </div>
         </div>
-        {% endif %}
-
-        {% if event.enable_route_option %}
         <script>
-          function _onRouteChange(sel) {
-            var val = sel.value;
-            var medRequired = sel.dataset.medicalRequired === 'true';
+          (function () {
             var row = document.getElementById('medical_cert_row');
+            var sel = document.getElementById('route_length');
             var lbl = document.getElementById('medical_cert_label_lungo');
             var inp = document.getElementById('medical_certificate');
-            if (!row) return;
-            if (val === 'lungo') {
-              row.removeAttribute('hidden');
-              if (lbl) lbl.removeAttribute('hidden');
-              if (inp) inp.required = true;
-            } else {
+            if (!row || !inp) return;
+            var policy = (row.dataset.medicalPolicy || 'optional').toLowerCase();
+            var routeMode = (row.dataset.routeMode || 'distances').toLowerCase();
+            var routeMedical = {};
+            var rmEl = document.getElementById('route-medical-json');
+            if (rmEl) {
+              try { routeMedical = JSON.parse(rmEl.textContent || '{}'); } catch (e) {}
+            }
+            function apply() {
+              if (routeMode === 'activities') {
+                var val = sel ? sel.value : '';
+                var agon = !!(val && routeMedical[val]);
+                if (policy === 'required') {
+                  row.removeAttribute('hidden');
+                  inp.required = true;
+                  if (lbl) { if (agon) lbl.removeAttribute('hidden'); else lbl.setAttribute('hidden', ''); }
+                  return;
+                }
+                if (policy === 'optional') {
+                  row.removeAttribute('hidden');
+                  inp.required = agon;
+                  if (lbl) { if (agon) lbl.removeAttribute('hidden'); else lbl.setAttribute('hidden', ''); }
+                  return;
+                }
+                if (agon) {
+                  row.removeAttribute('hidden');
+                  inp.required = true;
+                  if (lbl) lbl.removeAttribute('hidden');
+                } else {
+                  row.setAttribute('hidden', '');
+                  inp.required = false;
+                  if (lbl) lbl.setAttribute('hidden', '');
+                }
+                return;
+              }
+              if (routeMode !== 'distances') {
+                if (policy === 'none') {
+                  row.setAttribute('hidden', '');
+                  inp.required = false;
+                  return;
+                }
+                row.removeAttribute('hidden');
+                if (lbl) lbl.setAttribute('hidden', '');
+                inp.required = policy === 'required';
+                return;
+              }
+              var val = sel ? sel.value : '';
+                var isLungo = val === 'lungo';
+              if (isLungo) {
+                row.removeAttribute('hidden');
+                if (lbl) lbl.removeAttribute('hidden');
+                inp.required = true;
+                return;
+              }
               if (lbl) lbl.setAttribute('hidden', '');
-              if (!medRequired) {
+              if (policy === 'required') {
+                row.removeAttribute('hidden');
+                inp.required = true;
+              } else if (policy === 'optional') {
+                row.removeAttribute('hidden');
+                inp.required = false;
+              } else {
                 row.setAttribute('hidden', '');
-                if (inp) inp.required = false;
+                inp.required = false;
               }
             }
-          }
+            window.__applyMedicalCertReg = apply;
+            if (sel) sel.addEventListener('change', apply);
+            var disc = document.getElementById('discipline');
+            if (disc) disc.addEventListener('change', function () { setTimeout(apply, 0); });
+            apply();
+          })();
         </script>
+        {% if use_activities_config %}
+        <script>
+          (function () {
+            var cfgEl = document.getElementById("activities-config-json");
+            if (!cfgEl) return;
+            var cfg = JSON.parse(cfgEl.textContent || "[]");
+            var discSel = document.getElementById("discipline");
+            var routeSel = document.getElementById("route_length");
+            if (!routeSel || !cfg.length) return;
+            var keepRoute = {{ _rl | tojson }};
+            function refillRoutes() {
+              var d = cfg.length === 1 ? cfg[0].key : (discSel ? discSel.value : "");
+              routeSel.innerHTML = '<option value="">Scegli...</option>';
+              if (!d) {
+                if (discSel) routeSel.disabled = true;
+                if (window.__applyMedicalCertReg) window.__applyMedicalCertReg();
+                return;
+              }
+              routeSel.disabled = false;
+              var sp = cfg.find(function (s) { return s.key === d; });
+              if (!sp) {
+                if (window.__applyMedicalCertReg) window.__applyMedicalCertReg();
+                return;
+              }
+              sp.routes.forEach(function (r) {
+                var o = document.createElement("option");
+                o.value = r.key;
+                o.textContent = r.label;
+                if (r.key === keepRoute) o.selected = true;
+                routeSel.appendChild(o);
+              });
+              if (window.__applyMedicalCertReg) window.__applyMedicalCertReg();
+            }
+            if (discSel) {
+              discSel.addEventListener("change", function () {
+                keepRoute = "";
+                refillRoutes();
+              });
+            }
+            if (cfg.length > 1 && discSel && discSel.value) refillRoutes();
+            else if (cfg.length === 1) refillRoutes();
+            else if (window.__applyMedicalCertReg) window.__applyMedicalCertReg();
+          })();
+        </script>
+        {% endif %}
         {% endif %}
 
         {% if event.enable_jersey %}
