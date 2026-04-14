@@ -898,34 +898,34 @@
         </fieldset>
         {% endif %}
 
-        <div>
-          <label>
-            <input
-              type="checkbox"
-              name="privacy_photo"
-              {% if form_values.privacy_photo %}checked{% endif %}
-              {% if event.require_privacy_photo %}required{% endif %}
-            />
-            Accetto la privacy foto/video{% if event.require_privacy_photo %} *{% endif %}
-          </label>
-        </div>
-        <div>
-          <label>
-            <input
-              type="checkbox"
-              name="privacy_other"
-              {% if form_values.privacy_other %}checked{% endif %}
-              {% if event.require_privacy_other %}required{% endif %}
-            />
-            Accetto l'informativa privacy{% if event.require_privacy_other %} *{% endif %}
-          </label>
-        </div>
-        <p class="muted">
-          Cliccando sui link dei documenti dichiaro di aver preso visione e di accettarne il contenuto.
-        </p>
-        {% set _has_docs = event.documents_urls or settings.privacy_policy_url or settings.privacy_photo_url or settings.privacy_other_url %}
-        {% if _has_docs %}
-          <p class="muted">
+        {% if event.waiver_url or event.require_waiver_upload %}
+        <fieldset class="fieldset">
+          <legend>Liberatoria</legend>
+          {% if event.waiver_url %}
+            <p>
+              <a class="link" href="{{ event.waiver_url }}" target="_blank" rel="noopener">Scarica la liberatoria (PDF) →</a>
+            </p>
+          {% endif %}
+          {% if event.require_waiver_upload %}
+            <div>
+              <label for="waiver_document">Carica la liberatoria firmata *</label>
+              <input
+                id="waiver_document"
+                name="waiver_document"
+                type="file"
+                accept=".pdf,image/*"
+                {% if event.require_waiver_upload %}required{% endif %}
+              />
+            </div>
+          {% endif %}
+        </fieldset>
+        {% endif %}
+
+        {% set _has_docs = event.documents_urls or settings.privacy_policy_url or settings.privacy_photo_url or settings.privacy_other_url or event.waiver_url %}
+        <fieldset class="fieldset">
+          <legend>Dichiarazioni e consensi</legend>
+          {% if _has_docs %}
+          <p class="muted" style="margin-top:0">
             Documenti da leggere prima di iscriversi:
             {% set _sep = namespace(needed=false) %}
             {% if event.documents_urls %}
@@ -953,9 +953,65 @@
             {% if settings.privacy_other_url %}
               {% if _sep.needed %} · {% endif %}
               <a class="link" href="{{ settings.privacy_other_url }}" target="_blank" rel="noopener">Altro</a>
+              {% set _sep.needed = true %}
+            {% endif %}
+            {% if event.waiver_url %}
+              {% if _sep.needed %} · {% endif %}
+              <a class="link" href="{{ event.waiver_url }}" target="_blank" rel="noopener">Liberatoria evento (PDF)</a>
             {% endif %}
           </p>
-        {% endif %}
+          {% endif %}
+          <div>
+            <label>
+              <input
+                type="checkbox"
+                name="privacy_photo"
+                {% if form_values.privacy_photo %}checked{% endif %}
+                {% if event.require_privacy_photo %}required{% endif %}
+              />
+              Accetto la privacy foto/video{% if event.require_privacy_photo %} *{% endif %}
+            </label>
+          </div>
+          <div>
+            <label>
+              <input
+                type="checkbox"
+                name="privacy_other"
+                {% if form_values.privacy_other %}checked{% endif %}
+                {% if event.require_privacy_other %}required{% endif %}
+              />
+              Accetto l'informativa privacy{% if event.require_privacy_other %} *{% endif %}
+            </label>
+          </div>
+          {% if event.require_waiver_acceptance %}
+          <div>
+            <label>
+              <input
+                type="checkbox"
+                name="waiver_accepted"
+                value="on"
+                {% if form_values.waiver_accepted %}checked{% endif %}
+                required
+              />
+              <strong>Liberatoria.</strong>
+              {% if event.waiver_url %}
+                Dichiaro di aver letto e di accettare integralmente la
+                <a class="link" href="{{ event.waiver_url }}" target="_blank" rel="noopener">liberatoria dell'evento</a>
+              {% else %}
+                Dichiaro di accettare la liberatoria dell'evento.
+              {% endif %}
+              *
+            </label>
+          </div>
+          {% endif %}
+          <p class="muted" style="margin-bottom:0">
+            {% if _has_docs %}
+            Spuntando le caselle, dichiaro di aver preso visione dei documenti disponibili ai link qui sopra e di accettarne il contenuto ove richiesto.
+            {% else %}
+            Spuntando le caselle, dichiaro di accettare quanto richiesto per ciascuna voce.
+            {% endif %}
+          </p>
+        </fieldset>
 
         <button class="btn btn-primary" type="submit">Invia iscrizione</button>
       </form>

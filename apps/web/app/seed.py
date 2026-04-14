@@ -14,8 +14,6 @@ SAMPLE_EVENTS = [
         "description": "Giro lungo, giro corto e anche medio. Oltrepò Piacentino.",
         "location": "Piozzano (PC)",
         "date": date(2026, 5, 13),
-        "hero_quote": "A tutta.",
-        "summary": "Giornata di festa dell'Amaro.",
     },
 ]
 

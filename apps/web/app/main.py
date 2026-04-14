@@ -1717,6 +1717,7 @@ def read_event(
                 "intolerances": "",
                 "privacy_photo": False,
                 "privacy_other": False,
+                "waiver_accepted": False,
                 "lunch_option": "",
                 "lunch_guests": 0,
                 "team_name": "",
@@ -1750,8 +1751,10 @@ def register_event(
     jersey_gender: str = Form(""),
     privacy_photo: str | None = Form(None),
     privacy_other: str | None = Form(None),
+    waiver_accepted: str | None = Form(None),
     acsi_fci_document: UploadFile | None = File(None),
     medical_certificate: UploadFile | None = File(None),
+    waiver_document: UploadFile | None = File(None),
     session: Session = Depends(get_session),
 ) -> HTMLResponse:
     event = session.query(Event).filter_by(slug=slug).first()
@@ -1784,6 +1787,7 @@ def register_event(
         "jersey_gender": _normalize(jersey_gender) or "",
         "privacy_photo": bool(privacy_photo),
         "privacy_other": bool(privacy_other),
+        "waiver_accepted": bool(waiver_accepted),
     }
     errors: list[str] = []
 
@@ -1802,6 +1806,8 @@ def register_event(
         errors.append("Consenso privacy foto obbligatorio.")
     if event.require_privacy_other and not normalized["privacy_other"]:
         errors.append("Consenso privacy obbligatorio.")
+    if event.require_waiver_acceptance and not normalized["waiver_accepted"]:
+        errors.append("Accettazione della liberatoria obbligatoria.")
 
     if event.enable_lunch_option and not normalized["lunch_option"]:
         errors.append("Scelta pranzo obbligatoria.")
@@ -1845,6 +1851,7 @@ def register_event(
 
     acsi_fci_upload = acsi_fci_document if acsi_fci_document and acsi_fci_document.filename else None
     medical_upload = medical_certificate if medical_certificate and medical_certificate.filename else None
+    waiver_upload = waiver_document if waiver_document and waiver_document.filename else None
     if event.require_acsi_fci and not acsi_fci_upload:
         errors.append("Tessera ACSI/FCI obbligatoria.")
     med_policy = _event_medical_policy(event)
@@ -1858,6 +1865,8 @@ def register_event(
             errors.append(
                 "Per il percorso scelto è obbligatorio il certificato medico agonistico."
             )
+    if event.require_waiver_upload and not waiver_upload:
+        errors.append("Caricamento della liberatoria firmata obbligatorio.")
 
     if errors:
         event_gallery = _parse_gallery_urls(event.gallery_urls)
@@ -1888,6 +1897,7 @@ def register_event(
         intolerances=normalized["intolerances"],
         privacy_photo=normalized["privacy_photo"],
         privacy_other=normalized["privacy_other"],
+        waiver_accepted=normalized["waiver_accepted"],
         lunch_option=normalized["lunch_option"] or None,
         lunch_guests=normalized["lunch_guests"] or None,
         team_name=normalized["team_name"] or None,
@@ -1925,6 +1935,14 @@ def register_event(
         registration.medical_stored_filename = stored_filename
         registration.medical_original_name = original_name
         registration.medical_content_type = content_type
+
+    if waiver_upload:
+        stored_filename, original_name, content_type = _save_event_document(
+            registration.id, waiver_upload
+        )
+        registration.waiver_stored_filename = stored_filename
+        registration.waiver_original_name = original_name
+        registration.waiver_content_type = content_type
 
     session.commit()
 

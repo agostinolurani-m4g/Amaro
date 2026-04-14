@@ -414,6 +414,8 @@ class EventAdmin(AmaroAdmin, model=Event):
     column_labels = {
         "title": "Nome evento",
         "description": "Descrizione",
+        "hero_quote": "Citazione in evidenza (pagina evento)",
+        "summary": "Riassunto breve (pagina evento, sotto la citazione)",
         "date": "Data",
         "location": "Luogo",
         "activity": "Attivita",
@@ -462,6 +464,8 @@ class EventAdmin(AmaroAdmin, model=Event):
     form_columns = [
         "title",
         "description",
+        "hero_quote",
+        "summary",
         "date",
         "location",
         "location_map_url",
@@ -538,6 +542,14 @@ class EventAdmin(AmaroAdmin, model=Event):
         "location_map_url": {"placeholder": "https://maps.app.goo.gl/..."},
         "cover_image_url": {"placeholder": "https://..."},
         "description": {"rows": 6},
+        "hero_quote": {
+            "placeholder": "Frase breve sopra al riassunto (opzionale, max 240 caratteri).",
+            "rows": 2,
+        },
+        "summary": {
+            "placeholder": "Testo introduttivo sulla pagina pubblica (opzionale).",
+            "rows": 4,
+        },
         "gallery_urls": {
             "placeholder": "Una foto per riga. Opzionale: URL|didascalia",
             "rows": 5,
