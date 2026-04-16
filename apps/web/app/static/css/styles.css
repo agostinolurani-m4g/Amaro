@@ -251,6 +251,11 @@ a {
   color: var(--text-main);
 }
 
+.btn-lg {
+  padding: 1rem 2rem;
+  font-size: 1.125rem;
+}
+
 .btn:hover,
 .btn:focus-visible {
   background: var(--accent);
