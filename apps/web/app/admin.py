@@ -36,6 +36,7 @@ from .models import (
     DOCUMENT_CATEGORY_MEDICAL,
     Event,
     EventRegistration,
+    EventWaitlistEntry,
     Member,
     MemberDocument,
     MembershipPayment,
@@ -421,6 +422,7 @@ class EventAdmin(AmaroAdmin, model=Event):
         "activity": "Attivita",
         "is_featured": "In evidenza",
         "is_amaro_event": "Evento AMARO (iscrizioni)",
+        "registration_capacity": "Posti massimi (vuoto = illimitato)",
         "slug": "Slug",
         "cover_image_url": "Foto copertina (URL)",
         "gallery_urls": "Foto evento",
@@ -472,6 +474,7 @@ class EventAdmin(AmaroAdmin, model=Event):
         "activity",
         "is_featured",
         "is_amaro_event",
+        "registration_capacity",
         "cover_image_url",
         "gallery_urls",
         "registration_notes",
@@ -558,6 +561,9 @@ class EventAdmin(AmaroAdmin, model=Event):
             "placeholder": "Testo aggiuntivo sopra al form di iscrizione (facoltativo).",
             "rows": 4,
         },
+        "registration_capacity": {
+            "placeholder": "Es. 200 — lasciare vuoto per nessun limite",
+        },
         "documents_urls": {
             "placeholder": "Un documento per riga. Formato: URL|Titolo mostrato.",
             "rows": 4,
@@ -609,6 +615,20 @@ class EventAdmin(AmaroAdmin, model=Event):
             if title:
                 base_slug = _slugify(title)
                 model.slug = _unique_event_slug(base_slug, model.id)
+
+
+class EventWaitlistEntryAdmin(AmaroAdmin, model=EventWaitlistEntry):
+    column_list = ["id", "event", "first_name", "last_name", "phone", "email", "created_at"]
+    column_searchable_list = ["first_name", "last_name", "email", "phone"]
+    column_sortable_list = ["id", "created_at"]
+    column_labels = {
+        "event": "Evento",
+        "first_name": "Nome",
+        "last_name": "Cognome",
+        "phone": "Cellulare",
+        "email": "Email",
+        "created_at": "Richiesta il",
+    }
 
 
 class EventRegistrationAdmin(AmaroAdmin, model=EventRegistration):
@@ -957,6 +977,7 @@ def setup_admin(app: FastAPI) -> None:
     )
     admin.add_view(EventAdmin)
     admin.add_view(EventRegistrationAdmin)
+    admin.add_view(EventWaitlistEntryAdmin)
     admin.add_view(MerchItemAdmin)
     admin.add_view(MemberAdmin)
     admin.add_view(MemberDocumentAdmin)

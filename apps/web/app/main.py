@@ -21,7 +21,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from markupsafe import Markup, escape
 import requests
-from sqlalchemy import inspect, text
+from sqlalchemy import inspect, or_, text
 from sqlalchemy.orm import Session
 from starlette.middleware.sessions import SessionMiddleware
 
@@ -34,6 +34,7 @@ from .models import (
     DOCUMENT_CATEGORY_MEDICAL,
     Event,
     EventRegistration,
+    EventWaitlistEntry,
     Member,
     MemberDocument,
     MembershipPayment,
@@ -260,8 +261,32 @@ def event_route_gpx_bootstrap(
     return out
 
 
+def _event_occupied_registration_count(session: Session, event_id: int) -> int:
+    """Iscrizioni che occupano un posto: pagate, in attesa di pagamento, o gratuite."""
+    return (
+        session.query(EventRegistration)
+        .filter(EventRegistration.event_id == event_id)
+        .filter(
+            or_(
+                EventRegistration.payment_status == "paid",
+                EventRegistration.payment_status == "pending",
+                EventRegistration.total_amount_cents.is_(None),
+                EventRegistration.total_amount_cents == 0,
+            )
+        )
+        .count()
+    )
+
+
+def _event_registration_is_full(session: Session, event: Event) -> bool:
+    cap = event.registration_capacity
+    if cap is None or cap <= 0:
+        return False
+    return _event_occupied_registration_count(session, event.id) >= cap
+
+
 def _event_registration_template_extras(
-    request: Request, event: Event
+    request: Request, event: Event, session: Session
 ) -> dict[str, object]:
     activities_config = parse_event_activities_config(event) or []
     use_activities = len(activities_config) > 0
@@ -273,11 +298,17 @@ def _event_registration_template_extras(
                 route_medical[k] = route_medical.get(k, False) or bool(
                     r.get("medical_agonistic")
                 )
+    cap = event.registration_capacity
+    occupied = _event_occupied_registration_count(session, event.id)
+    is_full = bool(cap and cap > 0 and occupied >= cap)
     return {
         "activities_config": activities_config,
         "use_activities_config": use_activities,
         "route_medical_by_key": route_medical,
         "event_route_gpx": event_route_gpx_bootstrap(request, event),
+        "registration_capacity": cap,
+        "registration_occupied_count": occupied,
+        "registration_is_full": is_full,
     }
 
 
@@ -986,6 +1017,7 @@ def ensure_event_schema() -> None:
         "route_option_mode": "TEXT",
         "route_gpx_urls": "TEXT",
         "event_activities_config": "TEXT",
+        "registration_capacity": "INTEGER",
     }
     added_is_featured = False
     added_is_amaro_event = False
@@ -1698,7 +1730,12 @@ def read_event(
     registration_notice = None
     if request.query_params.get("registered") == "1":
         registration_notice = "Iscrizione ricevuta. Ti contatteremo via email."
-    ctx = _event_registration_template_extras(request, event)
+    waitlist_notice = None
+    if request.query_params.get("waitlist") == "1":
+        waitlist_notice = (
+            "Richiesta in lista d'attesa registrata. Ti contatteremo se si libera un posto."
+        )
+    ctx = _event_registration_template_extras(request, event, session)
     return templates.TemplateResponse(
         "event_detail.html",
         {
@@ -1707,7 +1744,10 @@ def read_event(
             "event_gallery": event_gallery,
             "documents_links": documents_links,
             "registration_notice": registration_notice,
+            "waitlist_notice": waitlist_notice,
             "registration_errors": [],
+            "registration_block_notice": None,
+            "waitlist_errors": [],
             "form_values": {
                 "first_name": "",
                 "last_name": "",
@@ -1725,6 +1765,12 @@ def read_event(
                 "route_length": "",
                 "jersey_size": "",
                 "jersey_gender": "",
+            },
+            "waitlist_form_values": {
+                "first_name": "",
+                "last_name": "",
+                "phone": "",
+                "email": "",
             },
             "settings": settings,
             **ctx,
@@ -1764,6 +1810,53 @@ def register_event(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Iscrizione non disponibile per questo evento.",
+        )
+
+    if _event_registration_is_full(session, event):
+        event_gallery = _parse_gallery_urls(event.gallery_urls)
+        ctx = _event_registration_template_extras(request, event, session)
+        return templates.TemplateResponse(
+            "event_detail.html",
+            {
+                "request": request,
+                "event": event,
+                "event_gallery": event_gallery,
+                "documents_links": _parse_gallery_urls(event.documents_urls),
+                "registration_notice": None,
+                "waitlist_notice": None,
+                "registration_errors": [],
+                "registration_block_notice": (
+                    "Iscrizioni chiuse: raggiunto il numero massimo di partecipanti. "
+                    "Puoi iscriverti alla lista d'attesa qui sotto."
+                ),
+                "waitlist_errors": [],
+                "form_values": {
+                    "first_name": "",
+                    "last_name": "",
+                    "email": "",
+                    "phone": "",
+                    "residence": "",
+                    "intolerances": "",
+                    "privacy_photo": False,
+                    "privacy_other": False,
+                    "waiver_accepted": False,
+                    "lunch_option": "",
+                    "lunch_guests": 0,
+                    "team_name": "",
+                    "discipline": "",
+                    "route_length": "",
+                    "jersey_size": "",
+                    "jersey_gender": "",
+                },
+                "waitlist_form_values": {
+                    "first_name": "",
+                    "last_name": "",
+                    "phone": "",
+                    "email": "",
+                },
+                "settings": settings,
+                **ctx,
+            },
         )
 
     try:
@@ -1870,7 +1963,7 @@ def register_event(
 
     if errors:
         event_gallery = _parse_gallery_urls(event.gallery_urls)
-        ctx = _event_registration_template_extras(request, event)
+        ctx = _event_registration_template_extras(request, event, session)
         return templates.TemplateResponse(
             "event_detail.html",
             {
@@ -1879,8 +1972,17 @@ def register_event(
                 "event_gallery": event_gallery,
                 "documents_links": _parse_gallery_urls(event.documents_urls),
                 "registration_notice": None,
+                "waitlist_notice": None,
                 "registration_errors": errors,
+                "registration_block_notice": None,
+                "waitlist_errors": [],
                 "form_values": normalized,
+                "waitlist_form_values": {
+                    "first_name": "",
+                    "last_name": "",
+                    "phone": "",
+                    "email": "",
+                },
                 "settings": settings,
                 **ctx,
             },
@@ -1989,6 +2091,103 @@ def register_event(
             "payment": payment_context,
             "settings": settings,
         },
+    )
+
+
+@app.post("/eventi/{slug}/lista-attesa", response_class=HTMLResponse)
+def register_event_waitlist(
+    request: Request,
+    slug: str,
+    first_name: str = Form(""),
+    last_name: str = Form(""),
+    phone: str = Form(""),
+    email: str = Form(""),
+    session: Session = Depends(get_session),
+) -> HTMLResponse:
+    event = session.query(Event).filter_by(slug=slug).first()
+    if not event:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Evento non trovato")
+    if not event.is_amaro_event:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Lista d'attesa non disponibile per questo evento.",
+        )
+    if not _event_registration_is_full(session, event):
+        return RedirectResponse(
+            url=f"/eventi/{slug}",
+            status_code=status.HTTP_303_SEE_OTHER,
+        )
+
+    normalized = {
+        "first_name": _normalize(first_name) or "",
+        "last_name": _normalize(last_name) or "",
+        "phone": _normalize(phone) or "",
+        "email": _normalize(email) or "",
+    }
+    waitlist_errors: list[str] = []
+    if not normalized["first_name"]:
+        waitlist_errors.append("Nome obbligatorio.")
+    if not normalized["last_name"]:
+        waitlist_errors.append("Cognome obbligatorio.")
+    if not normalized["phone"]:
+        waitlist_errors.append("Cellulare obbligatorio.")
+    if not normalized["email"]:
+        waitlist_errors.append("Email obbligatoria.")
+
+    if waitlist_errors:
+        event_gallery = _parse_gallery_urls(event.gallery_urls)
+        ctx = _event_registration_template_extras(request, event, session)
+        return templates.TemplateResponse(
+            "event_detail.html",
+            {
+                "request": request,
+                "event": event,
+                "event_gallery": event_gallery,
+                "documents_links": _parse_gallery_urls(event.documents_urls),
+                "registration_notice": None,
+                "waitlist_notice": None,
+                "registration_errors": [],
+                "registration_block_notice": (
+                    "Iscrizioni chiuse: raggiunto il numero massimo di partecipanti."
+                ),
+                "waitlist_errors": waitlist_errors,
+                "form_values": {
+                    "first_name": "",
+                    "last_name": "",
+                    "email": "",
+                    "phone": "",
+                    "residence": "",
+                    "intolerances": "",
+                    "privacy_photo": False,
+                    "privacy_other": False,
+                    "waiver_accepted": False,
+                    "lunch_option": "",
+                    "lunch_guests": 0,
+                    "team_name": "",
+                    "discipline": "",
+                    "route_length": "",
+                    "jersey_size": "",
+                    "jersey_gender": "",
+                },
+                "waitlist_form_values": normalized,
+                "settings": settings,
+                **ctx,
+            },
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+
+    entry = EventWaitlistEntry(
+        event_id=event.id,
+        first_name=normalized["first_name"],
+        last_name=normalized["last_name"],
+        phone=normalized["phone"],
+        email=normalized["email"],
+    )
+    session.add(entry)
+    session.commit()
+    return RedirectResponse(
+        url=f"/eventi/{slug}?waitlist=1",
+        status_code=status.HTTP_303_SEE_OTHER,
     )
 
 

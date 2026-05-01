@@ -11,6 +11,9 @@
       {% if registration_notice %}
         <p class="alert alert--success">{{ registration_notice }}</p>
       {% endif %}
+      {% if waitlist_notice %}
+        <p class="alert alert--success">{{ waitlist_notice }}</p>
+      {% endif %}
       {% if registration_errors %}
         <p class="alert">
           {% for message in registration_errors %}
@@ -484,8 +487,90 @@
   {% if event.is_amaro_event %}
   <section class="section" id="iscrizione-evento">
     <article class="card card--spacious">
+      {% if registration_is_full %}
+      <h2>Iscrizioni chiuse</h2>
+      {% if registration_block_notice %}
+        <p class="alert">{{ registration_block_notice }}</p>
+      {% else %}
+        <p class="muted">
+          Raggiunto il numero massimo di partecipanti
+          {% if registration_capacity %}
+            ({{ registration_occupied_count }} / {{ registration_capacity }}).
+          {% endif %}
+        </p>
+      {% endif %}
+      {% if waitlist_errors %}
+        <p class="alert">
+          {% for message in waitlist_errors %}
+            {{ message }}{% if not loop.last %}<br>{% endif %}
+          {% endfor %}
+        </p>
+      {% endif %}
+      <h3>Lista d'attesa</h3>
+      <p class="muted">Lascia nome, cognome, cellulare e email: ti contatteremo se si libera un posto.</p>
+      <form
+        method="post"
+        action="/eventi/{{ event.slug }}/lista-attesa"
+        class="form stacked"
+      >
+        <div class="form-grid">
+          <div>
+            <label for="wl_first_name">Nome *</label>
+            <input
+              id="wl_first_name"
+              name="first_name"
+              type="text"
+              autocomplete="given-name"
+              required
+              value="{{ waitlist_form_values.first_name }}"
+            />
+          </div>
+          <div>
+            <label for="wl_last_name">Cognome *</label>
+            <input
+              id="wl_last_name"
+              name="last_name"
+              type="text"
+              autocomplete="family-name"
+              required
+              value="{{ waitlist_form_values.last_name }}"
+            />
+          </div>
+        </div>
+        <div class="form-grid">
+          <div>
+            <label for="wl_phone">Cellulare *</label>
+            <input
+              id="wl_phone"
+              name="phone"
+              type="tel"
+              autocomplete="tel"
+              required
+              value="{{ waitlist_form_values.phone }}"
+            />
+          </div>
+          <div>
+            <label for="wl_email">Email *</label>
+            <input
+              id="wl_email"
+              name="email"
+              type="email"
+              autocomplete="email"
+              required
+              value="{{ waitlist_form_values.email }}"
+            />
+          </div>
+        </div>
+        <button class="btn btn-primary" type="submit">Iscriviti alla lista d'attesa</button>
+      </form>
+      {% else %}
       <h2>Iscriviti all'evento</h2>
       <p class="muted">Compila i dati richiesti. I campi con * sono obbligatori.</p>
+      {% if registration_capacity and registration_capacity > 0 %}
+        <p class="muted">
+          Posti disponibili: {{ [registration_capacity - registration_occupied_count, 0] | max }} su {{ registration_capacity }}.
+        </p>
+      {% endif %}
       {% if event.registration_notes %}
         <p>{{ event.registration_notes | format_text }}</p>
       {% endif %}
@@ -1015,6 +1100,7 @@
 
         <button class="btn btn-primary" type="submit">Invia iscrizione</button>
       </form>
+      {% endif %}
     </article>
   </section>
   {% endif %}

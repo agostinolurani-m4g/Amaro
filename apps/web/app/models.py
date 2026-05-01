@@ -68,9 +68,13 @@ class Event(Base):
     sponsors_urls: Mapped[str | None] = Column(Text)
     route_gpx_urls: Mapped[str | None] = Column(Text)
     event_activities_config: Mapped[str | None] = Column(Text)
+    registration_capacity: Mapped[int | None] = Column(Integer)
 
     registrations: Mapped[list["EventRegistration"]] = relationship(
         "EventRegistration", back_populates="event", cascade="all, delete-orphan"
+    )
+    waitlist_entries: Mapped[list["EventWaitlistEntry"]] = relationship(
+        "EventWaitlistEntry", back_populates="event", cascade="all, delete-orphan"
     )
 
 
@@ -194,3 +198,19 @@ class EventRegistration(Base):
     )
 
     event: Mapped["Event"] = relationship("Event", back_populates="registrations")
+
+
+class EventWaitlistEntry(Base):
+    __tablename__ = "event_waitlist_entries"
+
+    id: Mapped[int] = Column(Integer, primary_key=True)
+    event_id: Mapped[int] = Column(ForeignKey("events.id"), nullable=False)
+    first_name: Mapped[str] = Column(String(80), nullable=False)
+    last_name: Mapped[str] = Column(String(80), nullable=False)
+    phone: Mapped[str] = Column(String(40), nullable=False)
+    email: Mapped[str] = Column(String(140), nullable=False)
+    created_at: Mapped[DateTime] = Column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+    event: Mapped["Event"] = relationship("Event", back_populates="waitlist_entries")
