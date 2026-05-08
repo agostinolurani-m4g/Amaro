@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import io
 import logging
 import os
 import re
@@ -8,6 +9,7 @@ import secrets
 import shutil
 import tempfile
 import zipfile
+import csv
 from copy import deepcopy
 from datetime import date as dt_date, datetime as dt_datetime
 from pathlib import Path
@@ -23,7 +25,7 @@ from starlette.background import BackgroundTask
 from starlette.datastructures import UploadFile
 from starlette.exceptions import HTTPException
 from starlette.requests import Request
-from starlette.responses import FileResponse, RedirectResponse
+from starlette.responses import FileResponse, RedirectResponse, Response
 from sqlalchemy.orm import Session
 from wtforms import SelectField
 from wtforms.validators import DataRequired
@@ -920,8 +922,16 @@ class AdminStatsView(BaseView):
                         result[v] = result.get(v, 0) + 1
                     return dict(sorted(result.items()))
 
+                def _normalize_text(value: object) -> str:
+                    if value is None:
+                        return ""
+                    return str(value).strip()
+
                 total = len(regs)
                 paid = _count(regs, "payment_status", "paid")
+                registrations_with_intolerances = [
+                    r for r in regs if _normalize_text(r.intolerances)
+                ]
                 stats = {
                     "total": total,
                     "paid": paid,
@@ -933,6 +943,10 @@ class AdminStatsView(BaseView):
                     "jersey_size": _counter(regs, "jersey_size"),
                     "medical": sum(1 for r in regs if r.medical_stored_filename),
                     "acsi_fci": sum(1 for r in regs if r.acsi_fci_stored_filename),
+                    "intolerances_count": len(registrations_with_intolerances),
+                    "intolerances": _counter(
+                        registrations_with_intolerances, "intolerances"
+                    ),
                 }
 
         context = {
@@ -943,6 +957,76 @@ class AdminStatsView(BaseView):
             "title": "Statistiche eventi",
         }
         return await self.templates.TemplateResponse(request, "admin_stats.html", context)
+
+    @expose("/event-stats/export", methods=["GET"], identity="event_stats_export")
+    async def event_stats_export(self, request: Request) -> object:
+        event_id_raw = request.query_params.get("event_id")
+        with SessionLocal() as session:
+            selected_event = None
+            if event_id_raw and event_id_raw.isdigit():
+                selected_event = session.get(Event, int(event_id_raw))
+            if not selected_event:
+                events = (
+                    session.query(Event)
+                    .filter(Event.is_amaro_event == True)
+                    .order_by(Event.date.desc())
+                    .all()
+                )
+                if events:
+                    selected_event = events[0]
+            if not selected_event:
+                return RedirectResponse(
+                    request.url_for("admin:event_stats"), status_code=303
+                )
+
+            registrations = (
+                session.query(EventRegistration)
+                .filter(EventRegistration.event_id == selected_event.id)
+                .order_by(EventRegistration.created_at.desc(), EventRegistration.id.desc())
+                .all()
+            )
+
+            output = io.StringIO()
+            writer = csv.writer(output)
+            writer.writerow(
+                [
+                    "evento",
+                    "nome",
+                    "cognome",
+                    "email",
+                    "telefono",
+                    "riferimento_pagamento",
+                    "stato_pagamento",
+                    "intolleranze",
+                    "data_iscrizione",
+                ]
+            )
+            for reg in registrations:
+                writer.writerow(
+                    [
+                        selected_event.title,
+                        reg.first_name or "",
+                        reg.last_name or "",
+                        reg.email or "",
+                        reg.phone or "",
+                        reg.payment_reference or "",
+                        reg.payment_status or "pending",
+                        (reg.intolerances or "").strip(),
+                        (
+                            reg.created_at.strftime("%Y-%m-%d %H:%M:%S")
+                            if reg.created_at
+                            else ""
+                        ),
+                    ]
+                )
+
+        slug = _slugify(selected_event.title or "evento")
+        filename = f"iscrizioni_evento_{slug}_{dt_date.today():%Y%m%d}.csv"
+        return Response(
+            content=output.getvalue(),
+            media_type="text/csv; charset=utf-8",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
 
 
 class MembershipPaymentAdmin(AmaroAdmin, model=MembershipPayment):

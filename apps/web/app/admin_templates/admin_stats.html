@@ -15,6 +15,13 @@
             {% endfor %}
           </select>
         </div>
+        {% if selected_event %}
+        <div class="col-auto">
+          <a class="btn btn-outline-primary" href="{{ request.url_for('admin:event_stats_export') }}?event_id={{ selected_event.id }}">
+            Esporta iscrizioni CSV
+          </a>
+        </div>
+        {% endif %}
       </form>
     </div>
   </div>
@@ -56,6 +63,14 @@
     <div class="card-body">
       <div style="font-size:2.4rem;font-weight:700;line-height:1">{{ stats.medical }}</div>
       <div class="text-muted mt-1">Certificati medici</div>
+    </div>
+  </div>
+</div>
+<div class="col-6 col-lg-3">
+  <div class="card text-center mb-4">
+    <div class="card-body">
+      <div style="font-size:2.4rem;font-weight:700;line-height:1">{{ stats.intolerances_count }}</div>
+      <div class="text-muted mt-1">Con intolleranze/allergie</div>
     </div>
   </div>
 </div>
@@ -172,6 +187,37 @@
       <h5 class="card-title">Tessere ACSI/FCI caricate</h5>
       <div style="font-size:2rem;font-weight:700">{{ stats.acsi_fci }}</div>
       <div class="text-muted">su {{ stats.total }} iscritti</div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{# --- Intolleranze/Allergie --- #}
+{% if stats.intolerances %}
+<div class="col-12">
+  <div class="card mb-4">
+    <div class="card-body">
+      <h5 class="card-title">Intolleranze / Allergie (dettaglio)</h5>
+      <table class="table table-sm mb-0">
+        <thead>
+          <tr>
+            <th>Dettaglio</th>
+            <th class="text-end">N.</th>
+            <th class="text-end">%</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for val, cnt in stats.intolerances.items() %}
+          <tr>
+            <td>{{ val }}</td>
+            <td class="text-end fw-bold">{{ cnt }}</td>
+            <td class="text-end text-muted" style="width:4rem">
+              {% if stats.total %}{{ (cnt / stats.total * 100)|round|int }}%{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
     </div>
   </div>
 </div>
