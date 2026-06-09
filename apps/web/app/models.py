@@ -138,6 +138,10 @@ class MemberDocument(Base):
     original_name: Mapped[str] = Column(String(255), nullable=False)
     stored_filename: Mapped[str] = Column(String(255), nullable=False)
     content_type: Mapped[str | None] = Column(String(120))
+    ocr_status: Mapped[str | None] = Column(String(20), default="pending")
+    ocr_valid: Mapped[bool | None] = Column(Boolean)
+    ocr_notes: Mapped[str | None] = Column(Text)
+    ocr_text: Mapped[str | None] = Column(Text)
     uploaded_at: Mapped[DateTime] = Column(
         DateTime(timezone=True), server_default=func.now()
     )

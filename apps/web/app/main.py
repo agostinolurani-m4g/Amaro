@@ -15,7 +15,17 @@ from typing import Sequence
 from urllib.parse import parse_qs, urlparse
 from uuid import uuid4
 
-from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile, status
+from fastapi import (
+    BackgroundTasks,
+    Depends,
+    FastAPI,
+    File,
+    Form,
+    HTTPException,
+    Request,
+    UploadFile,
+    status,
+)
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -42,6 +52,7 @@ from .models import (
     MEMBERSHIP_STATUS_PENDING,
 )
 from .nexi import NexiPaymentContext, NexiXpayClient
+from .ocr import schedule_documents_ocr
 from .seed import seed_sample_data
 
 GALLERY_IMAGES: list[dict[str, str]] = [
@@ -963,6 +974,10 @@ def ensure_member_document_schema() -> None:
     columns = {col["name"] for col in inspector.get_columns("member_documents")}
     required_columns: dict[str, str] = {
         "document_category": "TEXT",
+        "ocr_status": "TEXT",
+        "ocr_valid": "INTEGER",
+        "ocr_notes": "TEXT",
+        "ocr_text": "TEXT",
     }
     with engine.begin() as conn:
         for column, ddl in required_columns.items():
@@ -2455,6 +2470,7 @@ def membership_form(request: Request, ref: str, session: Session = Depends(get_s
 @app.post("/tesseramento/dati")
 def membership_submit(
     request: Request,
+    background_tasks: BackgroundTasks,
     payment_reference: str = Form(...),
     first_name: str = Form(...),
     last_name: str = Form(...),
@@ -2543,11 +2559,16 @@ def membership_submit(
             DOCUMENT_CATEGORY_MEDICAL: medical_documents,
         },
     )
+    saved_doc_ids: list[int] = []
     if saved_docs:
         session.add_all(saved_docs)
+        session.flush()
+        saved_doc_ids = [doc.id for doc in saved_docs]
     payment.member_id = member.id
     payment.status = "completed"
     session.commit()
+    if saved_doc_ids:
+        schedule_documents_ocr(saved_doc_ids, member.id, background_tasks)
     request.session["member_id"] = member.id
     request.session["member_password_hint"] = password_plain
     admin_base = _admin_base_url(request)
@@ -2710,6 +2731,7 @@ def member_area(request: Request, session: Session = Depends(get_session)) -> HT
 @app.post("/area-tesserati/documenti")
 def member_upload_documents(
     request: Request,
+    background_tasks: BackgroundTasks,
     identity_documents: list[UploadFile] | None = File(None),
     health_documents: list[UploadFile] | None = File(None),
     medical_documents: list[UploadFile] | None = File(None),
@@ -2734,9 +2756,13 @@ def member_upload_documents(
             DOCUMENT_CATEGORY_MEDICAL: medical_documents,
         },
     )
+    saved_doc_ids: list[int] = []
     if saved_docs:
         session.add_all(saved_docs)
+        session.flush()
+        saved_doc_ids = [doc.id for doc in saved_docs]
         session.commit()
+        schedule_documents_ocr(saved_doc_ids, member.id, background_tasks)
         notice = f"Caricati {len(saved_docs)} documenti."
     else:
         notice = "Nessun documento caricato."

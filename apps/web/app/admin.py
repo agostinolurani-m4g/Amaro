@@ -32,6 +32,7 @@ from wtforms.validators import DataRequired
 
 from .config import settings
 from .database import SessionLocal, engine
+from .ocr import schedule_documents_ocr
 from .models import (
     DOCUMENT_CATEGORY_HEALTH,
     DOCUMENT_CATEGORY_IDENTITY,
@@ -727,6 +728,8 @@ class MemberDocumentAdmin(AmaroAdmin, model=MemberDocument):
         "member",
         "document_category",
         "original_name",
+        "ocr_valid",
+        "ocr_notes",
         "content_type",
         "uploaded_at",
     ]
@@ -735,20 +738,29 @@ class MemberDocumentAdmin(AmaroAdmin, model=MemberDocument):
         "member.first_name": "Nome",
         "member.last_name": "Cognome",
         "document_category": "Categoria",
+        "ocr_valid": "OCR valido",
+        "ocr_notes": "Note OCR",
     }
     column_searchable_list = [
         "original_name",
         "member.first_name",
         "member.last_name",
     ]
-    column_sortable_list = ["id", "uploaded_at"]
+    column_sortable_list = ["id", "uploaded_at", "ocr_valid"]
     form_excluded_columns = ["member"]
     column_formatters = {
         "member": lambda m, a: (
             f"{m.member.first_name} {m.member.last_name}".strip()
             if getattr(m, "member", None)
             else ""
-        )
+        ),
+        "ocr_valid": lambda m, a: (
+            "Si"
+            if m.ocr_valid is True
+            else "No"
+            if m.ocr_valid is False
+            else "N/D"
+        ),
     }
 
 
@@ -787,7 +799,10 @@ class AdminToolsView(BaseView):
                         )
                         if saved_docs:
                             session.add_all(saved_docs)
+                            session.flush()
+                            saved_doc_ids = [doc.id for doc in saved_docs]
                             session.commit()
+                            schedule_documents_ocr(saved_doc_ids, member.id)
                             notice = (
                                 f"Caricati {len(saved_docs)} documenti per "
                                 f"{member.first_name} {member.last_name}."
@@ -814,8 +829,11 @@ class AdminToolsView(BaseView):
                         saved_docs = _save_uploaded_documents(member.id, uploads)
                         if saved_docs:
                             session.add_all(saved_docs)
+                            session.flush()
+                            saved_doc_ids = [doc.id for doc in saved_docs]
                             member.membership_status = MEMBERSHIP_STATUS_COMPLETED
                             session.commit()
+                            schedule_documents_ocr(saved_doc_ids, member.id)
                             notice = (
                                 f"Tessera caricata per {member.first_name} "
                                 f"{member.last_name}. Stato: "
