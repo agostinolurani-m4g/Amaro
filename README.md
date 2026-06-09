@@ -72,12 +72,55 @@ ADMIN_PASSWORD=cambia-questa-password
 
 2. Avvia l'app e visita `http://127.0.0.1:8000/admin` per accedere al pannello.
 
-## Deploy
+## Deploy su Render (Docker)
 
-Servono un backend Python attivo e le variabili ambiente configurate. Opzioni economiche compatibili con FastAPI:
+L'app gira su **Render** con **Docker** (necessario per Tesseract OCR: il runtime Python nativo di Render non permette `apt-get`).
 
-1. Railway – piano gratuito con HTTPS, SQLite o PostgreSQL.
-2. Render – deploy da GitHub, storage persistente per SQLite.
-3. Fly.io – leggero e scalabile, adatto a FastAPI.
+### File nel repo
 
-Ricorda di esportare anche le variabili Drive e Nexi oltre a `DATABASE_URL`.
+- [`apps/web/Dockerfile`](apps/web/Dockerfile) – immagine con Python, Tesseract (ita) e Poppler
+- [`render.yaml`](render.yaml) – blueprint Render con disco persistente su `/data`
+
+### Prima configurazione su Render
+
+1. Nel servizio web, imposta **Environment: Docker** (non Python).
+2. **Root Directory:** `apps/web`
+3. **Dockerfile Path:** `./Dockerfile`
+4. Lascia vuoti **Build Command** e **Start Command** (usa Dockerfile + entrypoint).
+5. Aggiungi un **Persistent Disk** montato su `/data` (1 GB basta).
+6. Imposta le variabili d'ambiente nel pannello Render:
+
+```
+DATABASE_URL=sqlite:////data/amaro.db
+UPLOAD_PATH=/data/uploads
+SESSION_SECRET=<stringa-lunga-random>
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD=<password-sicura>
+NEXI_MERCHANT_ID=...
+NEXI_API_KEY=...
+NEXI_ENDPOINT=https://ecommerce.nexi.it/ecomm/ecomm/DispatcherServlet
+NEXI_SUCCESS_URL=https://<tuo-dominio-render>/tesseramento?success=1
+NEXI_FAILURE_URL=https://<tuo-dominio-render>/tesseramento?failed=1
+```
+
+7. Fai **Manual Deploy** dopo il push su GitHub.
+
+### Aggiornamenti
+
+Ogni push su `main` (se collegato a GitHub) oppure **Manual Deploy** dal pannello Render.
+
+### OCR in produzione
+
+Tesseract e Poppler sono installati nell'immagine Docker. Dopo un upload documento, controlla in `/admin` → documenti socio i campi **OCR valido** e **Note OCR**.
+
+### Sviluppo locale con Docker (opzionale)
+
+```powershell
+cd apps/web
+docker build -t amaro-web .
+docker run --rm -p 8000:8000 --env-file .env amaro-web
+```
+
+### Altre piattaforme
+
+Railway e Fly.io funzionano allo stesso modo: usa il Dockerfile in `apps/web` e monta storage persistente per database e upload.

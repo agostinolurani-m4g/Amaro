@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: amaro-web
+    runtime: docker
+    rootDir: apps/web
+    plan: starter
+    disk:
+      name: amaro-data
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      - key: DATABASE_URL
+        value: sqlite:////data/amaro.db
+      - key: UPLOAD_PATH
+        value: /data/uploads
+      - key: SESSION_SECRET
+        generateValue: true
