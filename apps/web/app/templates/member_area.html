@@ -233,9 +233,12 @@
               enctype="multipart/form-data"
               class="form"
               data-doc-validation
+              data-first-name-field="profile_first_name"
+              data-last-name-field="profile_last_name"
               data-cf-field="profile_codice_fiscale"
               data-doc-number-field="profile_document_number"
               data-medical-expiry-field="profile_medical_certificate_expiry"
+              data-sport-type="{{ member.sport_type or '' }}"
             >
               <label for="extra_identity_documents">Carta d'identit&agrave; / Passaporto</label>
               <input

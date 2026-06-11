@@ -2731,9 +2731,12 @@ _VALID_DOCUMENT_CATEGORIES = {
 async def validate_document_upload(
     file: UploadFile = File(...),
     category: str = Form(...),
+    first_name: str | None = Form(None),
+    last_name: str | None = Form(None),
     codice_fiscale: str | None = Form(None),
     document_number: str | None = Form(None),
     medical_certificate_expiry: str | None = Form(None),
+    sport_type: str | None = Form(None),
 ) -> JSONResponse:
     if category not in _VALID_DOCUMENT_CATEGORIES:
         raise HTTPException(
@@ -2765,11 +2768,14 @@ async def validate_document_upload(
                 tmp.write(chunk)
 
         context = MemberValidationContext(
+            first_name=first_name,
+            last_name=last_name,
             codice_fiscale=codice_fiscale,
             document_number=document_number,
             medical_certificate_expiry=_parse_optional_date(
                 medical_certificate_expiry
             ),
+            sport_type=sport_type,
         )
         result = validate_upload_file(
             tmp_path,

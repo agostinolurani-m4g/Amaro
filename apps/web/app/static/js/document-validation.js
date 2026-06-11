@@ -39,22 +39,39 @@
   }
 
   function readContext(form) {
+    const firstNameId = form.dataset.firstNameField || "first_name";
+    const lastNameId = form.dataset.lastNameField || "last_name";
     const cfId = form.dataset.cfField || "codice_fiscale";
     const docId = form.dataset.docNumberField || "document_number";
     const medId = form.dataset.medicalExpiryField || "medical_certificate_expiry";
+    const sportType =
+      form.dataset.sportType ||
+      document.getElementById("sport_type")?.value ||
+      "";
     return {
+      first_name: (document.getElementById(firstNameId)?.value || "").trim(),
+      last_name: (document.getElementById(lastNameId)?.value || "").trim(),
       codice_fiscale: (document.getElementById(cfId)?.value || "").trim(),
       document_number: (document.getElementById(docId)?.value || "").trim(),
       medical_certificate_expiry: (document.getElementById(medId)?.value || "").trim(),
+      sport_type: sportType.trim(),
     };
   }
 
   function precheckContext(category, context) {
+    if (!context.first_name || !context.last_name) {
+      return "Compila nome e cognome prima di caricare i documenti.";
+    }
     if (category === "Tessera sanitaria" && !context.codice_fiscale) {
       return "Compila il codice fiscale prima di caricare la tessera sanitaria.";
     }
-    if (category === "Certificato medico agonistico" && !context.medical_certificate_expiry) {
-      return "Indica la scadenza del certificato medico prima di caricare il file.";
+    if (category === "Certificato medico agonistico") {
+      if (!context.medical_certificate_expiry) {
+        return "Indica la scadenza del certificato medico prima di caricare il file.";
+      }
+      if (!context.sport_type) {
+        return "Disciplina non indicata: impossibile verificare il certificato medico.";
+      }
     }
     return null;
   }
@@ -84,11 +101,14 @@
     const body = new FormData();
     body.append("file", file);
     body.append("category", category);
+    if (context.first_name) body.append("first_name", context.first_name);
+    if (context.last_name) body.append("last_name", context.last_name);
     if (context.codice_fiscale) body.append("codice_fiscale", context.codice_fiscale);
     if (context.document_number) body.append("document_number", context.document_number);
     if (context.medical_certificate_expiry) {
       body.append("medical_certificate_expiry", context.medical_certificate_expiry);
     }
+    if (context.sport_type) body.append("sport_type", context.sport_type);
 
     try {
       const response = await fetch("/api/documenti/valida", {
