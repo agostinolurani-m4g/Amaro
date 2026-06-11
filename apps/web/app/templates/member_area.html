@@ -196,11 +196,23 @@
           {% if documents %}
             <ul class="document-list">
               {% for doc in documents %}
-                <li>
+                <li
+                  data-document-id="{{ doc.id }}"
+                  {% if doc.ocr_status == 'pending' or doc.id in pending_doc_ids %}data-ocr-pending="1"{% endif %}
+                >
                   <a href="/tesseramento/documenti/{{ doc.id }}">{{ doc.original_name }}</a>
                   <span class="muted">
                     {{ doc.document_category or "Documento" }} - caricato il {{ doc.uploaded_at.strftime('%d/%m/%Y') }}
                   </span>
+                  {% if doc.ocr_status == 'done' %}
+                    <span class="doc-badge doc-badge--{{ 'ok' if doc.ocr_valid else 'warn' if doc.ocr_valid is none else 'bad' }}" data-doc-status="1">
+                      {{ 'Valido' if doc.ocr_valid else 'Non verificabile' if doc.ocr_valid is none else 'Non valido' }}
+                    </span>
+                  {% elif doc.ocr_status == 'pending' or doc.id in pending_doc_ids %}
+                    <span class="doc-badge doc-badge--pending" data-doc-status="1">Verifica in corso...</span>
+                  {% elif doc.ocr_status == 'failed' %}
+                    <span class="doc-badge doc-badge--warn" data-doc-status="1">Non verificabile</span>
+                  {% endif %}
                 </li>
               {% endfor %}
             </ul>
@@ -215,7 +227,16 @@
             <p class="muted">
               Puoi aggiungere nuovi documenti quando vuoi (certificato medico, carta d'identita, tessera, ecc.).
             </p>
-            <form method="post" action="/area-tesserati/documenti" enctype="multipart/form-data" class="form">
+            <form
+              method="post"
+              action="/area-tesserati/documenti"
+              enctype="multipart/form-data"
+              class="form"
+              data-doc-validation
+              data-cf-field="profile_codice_fiscale"
+              data-doc-number-field="profile_document_number"
+              data-medical-expiry-field="profile_medical_certificate_expiry"
+            >
               <label for="extra_identity_documents">Carta d'identit&agrave; / Passaporto</label>
               <input
                 id="extra_identity_documents"
@@ -224,6 +245,7 @@
                 accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
                 multiple
               />
+              <div class="doc-validation" data-for="extra_identity_documents"></div>
 
               <label for="extra_health_documents">Tessera sanitaria</label>
               <input
@@ -233,6 +255,7 @@
                 accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
                 multiple
               />
+              <div class="doc-validation" data-for="extra_health_documents"></div>
 
               <label for="extra_medical_documents">Certificato Medico Agonistico (1 per disciplina scelta)</label>
               <input
@@ -242,6 +265,7 @@
                 accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
                 multiple
               />
+              <div class="doc-validation" data-for="extra_medical_documents"></div>
               <button class="btn btn-primary" type="submit">Carica documenti</button>
             </form>
           </div>
@@ -294,4 +318,10 @@
       {% endif %}
     </article>
   </section>
+  {% if pending_doc_ids %}
+    <script>
+      document.body.dataset.pendingDocIds = {{ pending_doc_ids | tojson }};
+    </script>
+  {% endif %}
+  <script src="{{ url_for('static', path='js/document-validation.js') }}"></script>
 {% endblock %}

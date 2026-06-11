@@ -72,55 +72,55 @@ ADMIN_PASSWORD=cambia-questa-password
 
 2. Avvia l'app e visita `http://127.0.0.1:8000/admin` per accedere al pannello.
 
-## Deploy su Render (Docker)
+## OCR documenti (Google Cloud Vision)
 
-L'app gira su **Render** con **Docker** (necessario per Tesseract OCR: il runtime Python nativo di Render non permette `apt-get`).
+L'OCR usa **Google Cloud Vision** via API REST: funziona sul **runtime Python nativo** di Render, senza Docker né Tesseract.
 
-### File nel repo
+Circa **1000 immagini/mese gratuite** (per ~200 tesseramenti/anno sei ampiamente dentro il free tier).
 
-- [`apps/web/Dockerfile`](apps/web/Dockerfile) – immagine con Python, Tesseract (ita) e Poppler
-- [`render.yaml`](render.yaml) – blueprint Render con disco persistente su `/data`
+### Configurazione Google Cloud
 
-### Prima configurazione su Render
+1. Crea un progetto su [Google Cloud Console](https://console.cloud.google.com/).
+2. Abilita **Cloud Vision API**.
+3. Crea una **API key** (APIs & Services → Credentials → Create API key).
+4. Aggiungi in `apps/web/.env` (e su Render → Environment):
 
-1. Nel servizio web, imposta **Environment: Docker** (non Python).
-2. **Root Directory:** `apps/web`
-3. **Dockerfile Path:** `./Dockerfile`
-4. Lascia vuoti **Build Command** e **Start Command** (usa Dockerfile + entrypoint).
-5. Aggiungi un **Persistent Disk** montato su `/data` (1 GB basta).
-6. Imposta le variabili d'ambiente nel pannello Render:
+```
+GOOGLE_VISION_API_KEY=la-tua-chiave-api
+```
+
+Opzionale: limita la chiave solo a Cloud Vision API e al dominio/IP del sito.
+
+## Deploy su Render
+
+L'app può girare con **runtime Python** (consigliato): niente Docker obbligatorio.
+
+### Configurazione servizio
+
+1. **Root Directory:** `apps/web`
+2. **Build Command:** `pip install -r requirements.txt`
+3. **Start Command:** `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
+4. **Persistent Disk** montato su `/data` (1 GB)
+5. Variabili d'ambiente:
 
 ```
 DATABASE_URL=sqlite:////data/amaro.db
 UPLOAD_PATH=/data/uploads
+GOOGLE_VISION_API_KEY=...
 SESSION_SECRET=<stringa-lunga-random>
 ADMIN_USERNAME=admin
 ADMIN_PASSWORD=<password-sicura>
 NEXI_MERCHANT_ID=...
 NEXI_API_KEY=...
 NEXI_ENDPOINT=https://ecommerce.nexi.it/ecomm/ecomm/DispatcherServlet
-NEXI_SUCCESS_URL=https://<tuo-dominio-render>/tesseramento?success=1
-NEXI_FAILURE_URL=https://<tuo-dominio-render>/tesseramento?failed=1
+NEXI_SUCCESS_URL=https://<tuo-dominio>/tesseramento?success=1
+NEXI_FAILURE_URL=https://<tuo-dominio>/tesseramento?failed=1
 ```
 
-7. Fai **Manual Deploy** dopo il push su GitHub.
+6. **Manual Deploy** dopo il push su GitHub.
 
-### Aggiornamenti
+Il file [`render.yaml`](render.yaml) e il [`Dockerfile`](apps/web/Dockerfile) restano disponibili come alternativa, ma non sono necessari per l'OCR.
 
-Ogni push su `main` (se collegato a GitHub) oppure **Manual Deploy** dal pannello Render.
+### Validazione live
 
-### OCR in produzione
-
-Tesseract e Poppler sono installati nell'immagine Docker. Dopo un upload documento, controlla in `/admin` → documenti socio i campi **OCR valido** e **Note OCR**.
-
-### Sviluppo locale con Docker (opzionale)
-
-```powershell
-cd apps/web
-docker build -t amaro-web .
-docker run --rm -p 8000:8000 --env-file .env amaro-web
-```
-
-### Altre piattaforme
-
-Railway e Fly.io funzionano allo stesso modo: usa il Dockerfile in `apps/web` e monta storage persistente per database e upload.
+Dopo la configurazione di `GOOGLE_VISION_API_KEY`, la verifica documenti funziona in tempo reale sui form di tesseramento e area soci.

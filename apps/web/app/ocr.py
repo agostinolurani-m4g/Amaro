@@ -1,13 +1,15 @@
 from __future__ import annotations
 
+import base64
 import logging
 import re
 import threading
-from datetime import date, datetime, timedelta
+from dataclasses import dataclass
+from datetime import date, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from PIL import Image
+import requests
 
 from .config import settings
 from .database import SessionLocal
@@ -26,6 +28,8 @@ logger = logging.getLogger(__name__)
 
 BASE_DIR = Path(__file__).resolve().parent
 UPLOADS_DIR = (BASE_DIR / settings.uploads_path).resolve()
+MAX_UPLOAD_BYTES = 10 * 1024 * 1024
+VISION_API_URL = "https://vision.googleapis.com/v1/images:annotate"
 
 CODICE_FISCALE_RE = re.compile(r"\b([A-Z]{6}[0-9]{2}[A-Z][0-9]{2}[A-Z][0-9]{3}[A-Z])\b", re.I)
 DATE_RE = re.compile(
@@ -35,6 +39,37 @@ DOCUMENT_NUMBER_RE = re.compile(r"\b([A-Z]{2}\d{5,7}[A-Z0-9]?)\b", re.I)
 SUPPORTED_IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png", ".webp", ".tif", ".tiff", ".bmp"}
 SUPPORTED_PDF_SUFFIXES = {".pdf"}
 UNSUPPORTED_SUFFIXES = {".doc", ".docx"}
+
+
+@dataclass
+class MemberValidationContext:
+    codice_fiscale: str | None = None
+    document_number: str | None = None
+    medical_certificate_expiry: date | None = None
+
+    @classmethod
+    def from_member(cls, member: Member) -> MemberValidationContext:
+        return cls(
+            codice_fiscale=member.codice_fiscale,
+            document_number=member.document_number,
+            medical_certificate_expiry=member.medical_certificate_expiry,
+        )
+
+
+def validation_label(valid: bool | None) -> str:
+    if valid is True:
+        return "Valido"
+    if valid is False:
+        return "Non valido"
+    return "Non verificabile"
+
+
+def validation_badge_class(valid: bool | None) -> str:
+    if valid is True:
+        return "ok"
+    if valid is False:
+        return "bad"
+    return "warn"
 
 
 def schedule_documents_ocr(
@@ -51,6 +86,65 @@ def schedule_documents_ocr(
                 args=(document_id, member_id),
                 daemon=True,
             ).start()
+
+
+def validate_upload_file(
+    path: Path,
+    category: str,
+    context: MemberValidationContext,
+    *,
+    file_size: int | None = None,
+) -> dict[str, Any]:
+    size = file_size if file_size is not None else path.stat().st_size
+    if size > MAX_UPLOAD_BYTES:
+        return {
+            "status": "failed",
+            "valid": None,
+            "label": validation_label(None),
+            "notes": "File troppo grande (max 10 MB).",
+            "text": "",
+        }
+
+    suffix = path.suffix.lower()
+    if suffix in UNSUPPORTED_SUFFIXES:
+        return {
+            "status": "failed",
+            "valid": None,
+            "label": validation_label(None),
+            "notes": "Formato Word non supportato per OCR. Carica PDF o immagine.",
+            "text": "",
+        }
+
+    if not settings.google_vision_api_key:
+        return {
+            "status": "failed",
+            "valid": None,
+            "label": validation_label(None),
+            "notes": "OCR non configurato: imposta GOOGLE_VISION_API_KEY.",
+            "text": "",
+        }
+
+    try:
+        text = _extract_text(path)
+    except Exception as exc:
+        logger.exception("OCR validation failed for %s", path.name)
+        return {
+            "status": "failed",
+            "valid": None,
+            "label": validation_label(None),
+            "notes": f"OCR non disponibile: {exc}",
+            "text": "",
+        }
+
+    extracted = _extract_fields(category, text)
+    is_valid, notes = _validate(category, extracted, context)
+    return {
+        "status": "done",
+        "valid": is_valid,
+        "label": validation_label(is_valid),
+        "notes": notes,
+        "text": text[:8000] if text else "",
+    }
 
 
 def ocr_document(document_id: int, member_id: int) -> None:
@@ -71,64 +165,103 @@ def ocr_document(document_id: int, member_id: int) -> None:
             session.commit()
             return
 
-        suffix = path.suffix.lower()
-        if suffix in UNSUPPORTED_SUFFIXES:
-            document.ocr_status = "failed"
-            document.ocr_valid = None
-            document.ocr_notes = (
-                "Formato Word non supportato per OCR. Carica PDF o immagine."
-            )
-            session.commit()
-            return
-
-        try:
-            text = _extract_text(path)
-        except Exception as exc:
-            logger.exception("OCR failed for document %s", document_id)
-            document.ocr_status = "failed"
-            document.ocr_valid = None
-            document.ocr_notes = f"OCR non disponibile: {exc}"
-            session.commit()
-            return
-
-        document.ocr_text = text[:8000] if text else ""
-        category = document.document_category or ""
-        extracted = _extract_fields(category, text)
-        is_valid, notes = _validate(category, extracted, member)
-        document.ocr_status = "done"
-        document.ocr_valid = is_valid
-        document.ocr_notes = notes
+        context = MemberValidationContext.from_member(member)
+        result = validate_upload_file(
+            path,
+            document.document_category or "",
+            context,
+        )
+        document.ocr_status = result["status"]
+        document.ocr_valid = result["valid"]
+        document.ocr_notes = result["notes"]
+        document.ocr_text = result.get("text") or ""
         session.commit()
     finally:
         session.close()
 
 
+def document_status_payload(document: MemberDocument) -> dict[str, Any]:
+    valid = document.ocr_valid
+    return {
+        "ocr_status": document.ocr_status,
+        "valid": valid,
+        "label": validation_label(valid) if document.ocr_status == "done" else None,
+        "notes": document.ocr_notes,
+        "badge_class": validation_badge_class(valid)
+        if document.ocr_status == "done"
+        else "pending",
+    }
+
+
 def _extract_text(path: Path) -> str:
     suffix = path.suffix.lower()
+    image_chunks = _file_to_image_bytes(path, suffix)
+    texts: list[str] = []
+    for image_bytes in image_chunks:
+        text = _vision_ocr_image_bytes(image_bytes)
+        if text:
+            texts.append(text)
+    return "\n".join(texts).strip()
+
+
+def _file_to_image_bytes(path: Path, suffix: str) -> list[bytes]:
     if suffix in SUPPORTED_PDF_SUFFIXES:
-        images = _pdf_to_images(path)
-    elif suffix in SUPPORTED_IMAGE_SUFFIXES:
-        images = [Image.open(path)]
-    else:
-        raise ValueError(f"Formato file non supportato: {suffix or 'sconosciuto'}")
-
-    chunks: list[str] = []
-    for image in images:
-        chunks.append(_run_tesseract(image))
-        image.close()
-    return "\n".join(chunk for chunk in chunks if chunk).strip()
+        return _pdf_pages_to_png_bytes(path)
+    if suffix in SUPPORTED_IMAGE_SUFFIXES:
+        return [path.read_bytes()]
+    raise ValueError(f"Formato file non supportato: {suffix or 'sconosciuto'}")
 
 
-def _pdf_to_images(path: Path) -> list[Image.Image]:
-    from pdf2image import convert_from_path
+def _pdf_pages_to_png_bytes(path: Path, max_pages: int = 2) -> list[bytes]:
+    import fitz
 
-    return convert_from_path(str(path), first_page=1, last_page=2)
+    doc = fitz.open(path)
+    try:
+        pages: list[bytes] = []
+        for page_index in range(min(max_pages, doc.page_count)):
+            page = doc.load_page(page_index)
+            pixmap = page.get_pixmap(dpi=150)
+            pages.append(pixmap.tobytes("png"))
+        return pages
+    finally:
+        doc.close()
 
 
-def _run_tesseract(image: Image.Image) -> str:
-    import pytesseract
+def _vision_ocr_image_bytes(image_bytes: bytes) -> str:
+    api_key = settings.google_vision_api_key
+    if not api_key:
+        raise ValueError("GOOGLE_VISION_API_KEY non configurata.")
 
-    return pytesseract.image_to_string(image, lang="ita")
+    payload = {
+        "requests": [
+            {
+                "image": {
+                    "content": base64.b64encode(image_bytes).decode("ascii"),
+                },
+                "features": [{"type": "DOCUMENT_TEXT_DETECTION"}],
+                "imageContext": {"languageHints": ["it"]},
+            }
+        ]
+    }
+    response = requests.post(
+        VISION_API_URL,
+        params={"key": api_key},
+        json=payload,
+        timeout=60,
+    )
+    response.raise_for_status()
+    data = response.json()
+    annotation = (data.get("responses") or [{}])[0]
+    if annotation.get("error"):
+        message = annotation["error"].get("message", "Errore Vision API")
+        raise ValueError(message)
+    full_text = (annotation.get("fullTextAnnotation") or {}).get("text", "")
+    if full_text:
+        return full_text.strip()
+    texts = annotation.get("textAnnotations") or []
+    if texts:
+        return (texts[0].get("description") or "").strip()
+    return ""
 
 
 def _extract_fields(category: str, text: str) -> dict[str, Any]:
@@ -180,7 +313,7 @@ def _extract_medical_cert(text: str) -> dict[str, Any]:
 def _validate(
     category: str,
     extracted: dict[str, Any],
-    member: Member,
+    context: MemberValidationContext,
 ) -> tuple[bool | None, str]:
     today = date.today()
     notes: list[str] = []
@@ -190,11 +323,11 @@ def _validate(
         expiry_dates = extracted.get("expiry_dates", [])
         if numbers:
             notes.append(f"Numero rilevato: {numbers[0]}")
-        if member.document_number:
-            member_number = member.document_number.replace(" ", "").upper()
+        if context.document_number:
+            member_number = context.document_number.replace(" ", "").upper()
             if numbers and member_number not in numbers:
                 notes.append(
-                    f"Numero modulo ({member.document_number}) diverso da OCR."
+                    f"Numero modulo ({context.document_number}) diverso da OCR."
                 )
         if expiry_dates:
             latest = max(expiry_dates)
@@ -208,7 +341,7 @@ def _validate(
 
     if category == DOCUMENT_CATEGORY_HEALTH:
         codici = extracted.get("codici_fiscali", [])
-        member_cf = (member.codice_fiscale or "").replace(" ", "").upper()
+        member_cf = (context.codice_fiscale or "").replace(" ", "").upper()
         if codici:
             notes.append(f"Codice fiscale rilevato: {codici[0]}")
         if not member_cf:
@@ -227,12 +360,12 @@ def _validate(
         if expiry_dates:
             latest = max(expiry_dates)
             notes.append(f"Scadenza rilevata: {latest.isoformat()}")
-            if member.medical_certificate_expiry:
+            if context.medical_certificate_expiry:
                 notes.append(
                     "Scadenza modulo: "
-                    f"{member.medical_certificate_expiry.isoformat()}"
+                    f"{context.medical_certificate_expiry.isoformat()}"
                 )
-                if latest != member.medical_certificate_expiry:
+                if latest != context.medical_certificate_expiry:
                     notes.append("Scadenza OCR diversa da quella indicata nel modulo.")
             if latest < today:
                 notes.append("Certificato scaduto.")
@@ -240,12 +373,12 @@ def _validate(
             if latest <= today + timedelta(days=60):
                 notes.append("Attenzione: certificato in scadenza entro 60 giorni.")
             return True, "\n".join(notes)
-        if member.medical_certificate_expiry:
+        if context.medical_certificate_expiry:
             notes.append(
                 "Scadenza modulo: "
-                f"{member.medical_certificate_expiry.isoformat()}"
+                f"{context.medical_certificate_expiry.isoformat()}"
             )
-            if member.medical_certificate_expiry < today:
+            if context.medical_certificate_expiry < today:
                 notes.append("Certificato scaduto (dato modulo).")
                 return False, "\n".join(notes)
             return None, "\n".join(notes) + "\nScadenza non rilevata dall'OCR."

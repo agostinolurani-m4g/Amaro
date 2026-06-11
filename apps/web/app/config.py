@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     nexipay_success_url: str = Field(..., env='NEXI_SUCCESS_URL')
     nexipay_failure_url: str = Field(..., env='NEXI_FAILURE_URL')
     uploads_path: str = Field('uploads', env='UPLOAD_PATH')
+    google_vision_api_key: str | None = Field(None, env='GOOGLE_VISION_API_KEY')
     google_drive_api_key: str | None = Field(None, env='GOOGLE_DRIVE_API_KEY')
     drive_events_folder_id: str | None = Field(None, env='GOOGLE_DRIVE_EVENTS_FOLDER_ID')
     drive_gallery_folder_id: str | None = Field(None, env='GOOGLE_DRIVE_GALLERY_FOLDER_ID')

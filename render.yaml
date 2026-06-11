@@ -1,9 +1,11 @@
 services:
   - type: web
     name: amaro-web
-    runtime: docker
+    runtime: python
     rootDir: apps/web
     plan: starter
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
     disk:
       name: amaro-data
       mountPath: /data

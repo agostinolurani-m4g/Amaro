@@ -8,6 +8,7 @@ import shutil
 import hashlib
 import secrets
 import smtplib
+import tempfile
 from datetime import date, datetime, timedelta
 from email.message import EmailMessage
 from pathlib import Path
@@ -26,7 +27,13 @@ from fastapi import (
     UploadFile,
     status,
 )
-from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Response
+from fastapi.responses import (
+    FileResponse,
+    HTMLResponse,
+    JSONResponse,
+    RedirectResponse,
+    Response,
+)
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from markupsafe import Markup, escape
@@ -52,7 +59,13 @@ from .models import (
     MEMBERSHIP_STATUS_PENDING,
 )
 from .nexi import NexiPaymentContext, NexiXpayClient
-from .ocr import schedule_documents_ocr
+from .ocr import (
+    MAX_UPLOAD_BYTES,
+    MemberValidationContext,
+    document_status_payload,
+    schedule_documents_ocr,
+    validate_upload_file,
+)
 from .seed import seed_sample_data
 
 GALLERY_IMAGES: list[dict[str, str]] = [
@@ -2698,6 +2711,100 @@ def nexi_failure(
     )
 
 
+def _parse_optional_date(value: str | None) -> date | None:
+    if not value or not value.strip():
+        return None
+    try:
+        return date.fromisoformat(value.strip())
+    except ValueError:
+        return None
+
+
+_VALID_DOCUMENT_CATEGORIES = {
+    DOCUMENT_CATEGORY_IDENTITY,
+    DOCUMENT_CATEGORY_HEALTH,
+    DOCUMENT_CATEGORY_MEDICAL,
+}
+
+
+@app.post("/api/documenti/valida")
+async def validate_document_upload(
+    file: UploadFile = File(...),
+    category: str = Form(...),
+    codice_fiscale: str | None = Form(None),
+    document_number: str | None = Form(None),
+    medical_certificate_expiry: str | None = Form(None),
+) -> JSONResponse:
+    if category not in _VALID_DOCUMENT_CATEGORIES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Categoria documento non valida.",
+        )
+    if not file.filename:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="File mancante.",
+        )
+
+    suffix = Path(file.filename).suffix or ".bin"
+    total_size = 0
+    tmp_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+            tmp_path = Path(tmp.name)
+            while True:
+                chunk = await file.read(1024 * 1024)
+                if not chunk:
+                    break
+                total_size += len(chunk)
+                if total_size > MAX_UPLOAD_BYTES:
+                    raise HTTPException(
+                        status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                        detail="File troppo grande (max 10 MB).",
+                    )
+                tmp.write(chunk)
+
+        context = MemberValidationContext(
+            codice_fiscale=codice_fiscale,
+            document_number=document_number,
+            medical_certificate_expiry=_parse_optional_date(
+                medical_certificate_expiry
+            ),
+        )
+        result = validate_upload_file(
+            tmp_path,
+            category,
+            context,
+            file_size=total_size,
+        )
+        return JSONResponse(result)
+    finally:
+        if tmp_path is not None:
+            tmp_path.unlink(missing_ok=True)
+        await file.close()
+
+
+@app.get("/api/documenti/{document_id}/stato")
+def document_validation_status(
+    document_id: int,
+    request: Request,
+    session: Session = Depends(get_session),
+) -> JSONResponse:
+    document = session.get(MemberDocument, document_id)
+    if not document:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Documento non trovato.",
+        )
+    member = _member_from_session(request, session)
+    if not member or member.id != document.member_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Non autorizzato.",
+        )
+    return JSONResponse(document_status_payload(document))
+
+
 @app.get("/area-tesserati", response_class=HTMLResponse)
 def member_area(request: Request, session: Session = Depends(get_session)) -> HTMLResponse:
     member = _member_from_session(request, session)
@@ -2708,6 +2815,7 @@ def member_area(request: Request, session: Session = Depends(get_session)) -> HT
     upload_notice = request.session.pop("member_notice", None)
     profile_notice = request.session.pop("member_profile_notice", None)
     reset_notice = request.session.pop("member_reset_notice", None)
+    pending_doc_ids = request.session.pop("pending_doc_ids", None) or []
     password_reset_enabled = bool(settings.smtp_host and settings.smtp_from)
     documents: list[MemberDocument] = list(member.documents) if member else []
     return templates.TemplateResponse(
@@ -2723,6 +2831,7 @@ def member_area(request: Request, session: Session = Depends(get_session)) -> HT
             "upload_notice": upload_notice,
             "profile_notice": profile_notice,
             "reset_notice": reset_notice,
+            "pending_doc_ids": pending_doc_ids,
             "password_reset_enabled": password_reset_enabled,
         },
     )
@@ -2763,6 +2872,7 @@ def member_upload_documents(
         saved_doc_ids = [doc.id for doc in saved_docs]
         session.commit()
         schedule_documents_ocr(saved_doc_ids, member.id, background_tasks)
+        request.session["pending_doc_ids"] = saved_doc_ids
         notice = f"Caricati {len(saved_docs)} documenti."
     else:
         notice = "Nessun documento caricato."

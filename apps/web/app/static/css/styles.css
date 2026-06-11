@@ -486,6 +486,49 @@ a {
   color: var(--text-muted);
 }
 
+.doc-validation {
+  margin: 0.5rem 0 1rem;
+  font-size: 0.9rem;
+}
+
+.doc-validation__notes {
+  margin: 0.5rem 0 0;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.doc-badge {
+  display: inline-block;
+  padding: 0.25rem 0.6rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  border: 1px solid var(--border-muted);
+}
+
+.doc-badge--ok {
+  color: #b8f5c3;
+  border-color: #3d8b5a;
+}
+
+.doc-badge--bad {
+  color: #ffb3b3;
+  border-color: #a33d3d;
+}
+
+.doc-badge--warn {
+  color: #ffe6a8;
+  border-color: #9a7b2e;
+}
+
+.doc-badge--pending {
+  color: var(--text-muted);
+  border-color: var(--accent-light);
+}
+
+.document-list li {
+  margin-bottom: 0.75rem;
+}
+
 .code-block {
   background: var(--bg-base);
   color: var(--text-main);
