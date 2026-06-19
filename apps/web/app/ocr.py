@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Any
 
 import requests
 
+from .acsi import maybe_submit_member_to_acsi
 from .config import settings
 from .database import SessionLocal
 from .models import (
@@ -253,6 +254,11 @@ def ocr_document(document_id: int, member_id: int) -> None:
         document.ocr_notes = result["notes"]
         document.ocr_text = result.get("text") or ""
         session.commit()
+        threading.Thread(
+            target=maybe_submit_member_to_acsi,
+            args=(member_id,),
+            daemon=True,
+        ).start()
     finally:
         session.close()
 
@@ -397,7 +403,7 @@ def _validate(
 ) -> tuple[bool | None, str]:
     checks: list[tuple[bool | None, str]] = [
         _validate_document_type(category, extracted),
-        _validate_person_data(extracted, context),
+        _validate_person_data(extracted, context, category),
     ]
 
     if category == DOCUMENT_CATEGORY_IDENTITY:
@@ -497,6 +503,7 @@ def _normalize_person_token(value: str) -> str:
 def _validate_person_data(
     extracted: dict[str, Any],
     context: MemberValidationContext,
+    category: str = "",
 ) -> tuple[bool | None, str]:
     text = extracted.get("_raw_text", "")
     if not text:
@@ -524,6 +531,8 @@ def _validate_person_data(
     if first and last:
         if first in normalized_text and last in normalized_text:
             return True, "\n".join(notes)
+        if category == DOCUMENT_CATEGORY_MEDICAL:
+            return None, "\n".join(notes)
         return False, "\n".join(notes)
     if (first and first in normalized_text) or (last and last in normalized_text):
         return True, "\n".join(notes)
@@ -592,7 +601,7 @@ def _validate_medical_certificate_type(
         return True, "Certificato medico agonistico riconosciuto."
     if "CERTIFICATO" in normalized and ("SPORTIV" in normalized or "MEDICO" in normalized):
         return None, "Certificato medico rilevato, ma non e' chiaramente agonistico."
-    return False, "Non sembra un certificato medico agonistico."
+    return None, "Tipo certificato non riconosciuto (testo poco leggibile o incompleto)."
 
 
 def _validate_medical_sport(
@@ -617,9 +626,9 @@ def _validate_medical_sport(
         if any(keyword in normalized for keyword in cycling_keywords):
             return True, "Disciplina ciclismo presente nel certificato."
         return (
-            False,
-            "Il certificato non risulta per il ciclismo (disciplina scelta: "
-            f"{sport_type}).",
+            None,
+            "Disciplina ciclismo non rilevata nel certificato "
+            f"(scelta: {sport_type}); verifica manuale consigliata.",
         )
 
     if sport_type == "Solo atletica":
@@ -627,9 +636,9 @@ def _validate_medical_sport(
         if any(keyword in normalized for keyword in athletics_keywords):
             return True, "Disciplina atletica presente nel certificato."
         return (
-            False,
-            "Il certificato non risulta per l'atletica (disciplina scelta: "
-            f"{sport_type}).",
+            None,
+            "Disciplina atletica non rilevata nel certificato "
+            f"(scelta: {sport_type}); verifica manuale consigliata.",
         )
 
     if matched:
@@ -639,8 +648,9 @@ def _validate_medical_sport(
             f"({', '.join(matched[:3]).lower()}).",
         )
     return (
-        False,
-        f"Il certificato non menziona la disciplina scelta ({sport_type}).",
+        None,
+        f"Disciplina '{sport_type}' non rilevata nel certificato; "
+        "verifica manuale consigliata.",
     )
 
 

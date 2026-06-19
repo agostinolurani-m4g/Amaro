@@ -124,3 +124,22 @@ Il file [`render.yaml`](render.yaml) e il [`Dockerfile`](apps/web/Dockerfile) re
 ### Validazione live
 
 Dopo la configurazione di `GOOGLE_VISION_API_KEY`, la verifica documenti funziona in tempo reale sui form di tesseramento e area soci.
+
+### Invio automatico ad ACSI
+
+Quando un socio ha **pagamento ok**, documenti verificati (CI e tessera validi; certificato medico almeno non rifiutato) e i tre allegati richiesti, il sistema invia automaticamente ad ACSI una email con:
+
+- Excel `acsi_tesseramento.xlsx` compilato (anagrafica, discipline, consensi)
+- Cartella documenti del socio (CI, tessera sanitaria, certificato medico)
+
+Variabili Render:
+
+```
+ACSI_NOTIFY_EMAIL=email@acsi.it
+SMTP_HOST=...
+SMTP_FROM=...
+```
+
+Template Excel: `apps/web/app/static/files/Modello_tesseramento_ACSI_NUOVO.xlsx`
+
+Dopo l'invio, il campo `acsi_submitted_at` sul socio evita invii duplicati.

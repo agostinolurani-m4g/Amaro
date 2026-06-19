@@ -31,6 +31,7 @@ class Settings(BaseSettings):
     privacy_other_url: str | None = Field(None, env='PRIVACY_OTHER_URL')
     events_notify_email: str | None = Field(None, env='EVENTS_NOTIFY_EMAIL')
     membership_notify_email: str | None = Field(None, env='MEMBERSHIP_NOTIFY_EMAIL')
+    acsi_notify_email: str | None = Field(None, env='ACSI_NOTIFY_EMAIL')
 
     class Config:
         env_file = '.env'
