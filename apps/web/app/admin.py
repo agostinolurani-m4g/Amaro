@@ -612,7 +612,7 @@ class AdminToolsView(BaseView):
                 if password_reset:
                     request.session["admin_password_reset"] = password_reset
                 return RedirectResponse(
-                    request.url_for("admin:tools"), status_code=303
+                    request.url_for("admin:view-tools"), status_code=303
                 )
 
             members = (
@@ -651,7 +651,7 @@ class AdminToolsView(BaseView):
             members = members_pending_acsi(session)
             if not members:
                 request.session["admin_notice"] = "Nessun socio da inviare ad ACSI."
-                return RedirectResponse(request.url_for("admin:tools"), status_code=303)
+                return RedirectResponse(request.url_for("admin:view-tools"), status_code=303)
             export_path = build_acsi_export(members)
         finally:
             session.close()
@@ -757,7 +757,7 @@ class AdminStatsView(BaseView):
                     selected_event = events[0]
             if not selected_event:
                 return RedirectResponse(
-                    request.url_for("admin:event_stats"), status_code=303
+                    request.url_for("admin:view-event_stats"), status_code=303
                 )
 
             registrations = (

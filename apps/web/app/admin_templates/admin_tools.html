@@ -25,7 +25,7 @@
   <div class="card">
     <div class="card-body">
       <h3 class="card-title">Carica documenti</h3>
-      <form action="{{ url_for('admin:tools') }}" method="post" enctype="multipart/form-data">
+      <form action="{{ url_for('admin:view-tools') }}" method="post" enctype="multipart/form-data">
         <input type="hidden" name="action" value="upload_documents" />
         <div class="mb-3">
           <label class="form-label">Socio</label>
@@ -59,7 +59,7 @@
   <div class="card">
     <div class="card-body">
       <h3 class="card-title">Rigenera password socio</h3>
-      <form action="{{ url_for('admin:tools') }}" method="post">
+      <form action="{{ url_for('admin:view-tools') }}" method="post">
         <input type="hidden" name="action" value="reset_password" />
         <div class="mb-3">
           <label class="form-label">Socio</label>
@@ -83,7 +83,7 @@
       <h3 class="card-title">Pacchetto ACSI</h3>
       {% if pending_members_count %}
       <p class="muted">Soci da inviare: {{ pending_members_count }}</p>
-      <a class="btn btn-primary" href="{{ url_for('admin:acsi_export') }}">Scarica pacchetto</a>
+      <a class="btn btn-primary" href="{{ url_for('admin:view-acsi_export') }}">Scarica pacchetto</a>
       {% else %}
       <p class="muted">Nessun socio da inviare ad ACSI.</p>
       {% endif %}
@@ -95,7 +95,7 @@
   <div class="card">
     <div class="card-body">
       <h3 class="card-title">Carica tessera e segna tesserato</h3>
-      <form action="{{ url_for('admin:tools') }}" method="post" enctype="multipart/form-data">
+      <form action="{{ url_for('admin:view-tools') }}" method="post" enctype="multipart/form-data">
         <input type="hidden" name="action" value="upload_card" />
         <div class="mb-3">
           <label class="form-label">Socio</label>

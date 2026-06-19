@@ -4,7 +4,7 @@
 <div class="col-12">
   <div class="card mb-4">
     <div class="card-body">
-      <form method="get" action="{{ request.url_for('admin:event_stats') }}" class="row g-2 align-items-end">
+      <form method="get" action="{{ request.url_for('admin:view-event_stats') }}" class="row g-2 align-items-end">
         <div class="col-auto">
           <label class="form-label mb-1">Evento</label>
           <select class="form-select" name="event_id" onchange="this.form.submit()">
@@ -17,7 +17,7 @@
         </div>
         {% if selected_event %}
         <div class="col-auto">
-          <a class="btn btn-outline-primary" href="{{ request.url_for('admin:event_stats_export') }}?event_id={{ selected_event.id }}">
+          <a class="btn btn-outline-primary" href="{{ request.url_for('admin:view-event_stats_export') }}?event_id={{ selected_event.id }}">
             Esporta iscrizioni CSV
           </a>
         </div>
