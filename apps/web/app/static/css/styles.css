@@ -497,6 +497,20 @@ a {
   font-size: 0.85rem;
 }
 
+.doc-validation__manual {
+  margin: 0.5rem 0 0;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.doc-validation__proceed-banner {
+  margin: 0 0 1rem;
+}
+
+[data-manual-review-submit] {
+  margin-top: 0.5rem;
+}
+
 .doc-badge {
   display: inline-block;
   padding: 0.25rem 0.6rem;

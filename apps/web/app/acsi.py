@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import mimetypes
 import os
 import re
 import smtplib
@@ -243,39 +244,66 @@ def member_acsi_ready(member: Member) -> tuple[bool, str]:
     return True, "Pronto per invio ACSI."
 
 
-def maybe_submit_member_to_acsi(member_id: int) -> None:
+def member_acsi_ready_forced(member: Member) -> tuple[bool, str]:
+    if member.payment_status != "paid":
+        return False, "Pagamento non completato."
+    if member.acsi_submitted_at is not None:
+        return False, "Pratica gia inviata ad ACSI."
+    if member.membership_status == MEMBERSHIP_STATUS_COMPLETED:
+        return False, "Socio gia tesserato."
+
+    docs_by_category: dict[str, list[MemberDocument]] = {}
+    for document in member.documents:
+        category = document.document_category or ""
+        if category in REQUIRED_DOCUMENT_CATEGORIES:
+            docs_by_category.setdefault(category, []).append(document)
+
+    for category in REQUIRED_DOCUMENT_CATEGORIES:
+        category_docs = docs_by_category.get(category)
+        if not category_docs:
+            return False, f"Manca documento: {category}."
+        if not any((UPLOADS_DIR / doc.stored_filename).exists() for doc in category_docs):
+            return False, f"File mancante per: {category}."
+
+    return True, "Pronto per invio ACSI (verifica manuale)."
+
+
+def submit_member_to_acsi(member_id: int, *, force: bool = False) -> tuple[bool, str]:
     session = SessionLocal()
     zip_path: str | None = None
     try:
         member = session.get(Member, member_id)
         if not member:
-            return
-        ready, reason = member_acsi_ready(member)
+            return False, "Socio non trovato."
+        ready, reason = (
+            member_acsi_ready_forced(member)
+            if force
+            else member_acsi_ready(member)
+        )
         if not ready:
-            logger.debug("ACSI non inviato per socio %s: %s", member_id, reason)
-            return
-        review_doc = _member_medical_needs_manual_review(member)
-        if review_doc:
-            maybe_notify_medical_manual_review(member.id, review_doc.id)
+            return False, reason
+        if not force:
+            review_doc = _member_medical_needs_manual_review(member)
+            if review_doc:
+                maybe_notify_medical_manual_review(member.id, review_doc.id)
         if not settings.acsi_notify_email:
-            logger.warning(
-                "ACSI_NOTIFY_EMAIL non configurata: invio automatico saltato "
-                "per socio %s.",
-                member_id,
-            )
-            return
+            return False, "ACSI_NOTIFY_EMAIL non configurata."
 
         zip_path = build_acsi_export([member])
-        sent = send_acsi_submission_email(member, zip_path)
+        sent = send_acsi_submission_email(member, zip_path, manual_review=force)
         if not sent:
-            return
+            return False, "Invio email ACSI non riuscito."
 
         member.acsi_submitted_at = datetime.now(timezone.utc)
         session.commit()
-        logger.info("Pacchetto ACSI inviato per socio %s.", member_id)
+        logger.info("Pacchetto ACSI inviato per socio %s (force=%s).", member_id, force)
         _notify_staff_acsi_sent(member)
+        return True, (
+            f"Pacchetto ACSI inviato per {member.first_name} {member.last_name}."
+        )
     except Exception:
-        logger.exception("Invio automatico ACSI fallito per socio %s", member_id)
+        logger.exception("Invio ACSI fallito per socio %s", member_id)
+        return False, "Errore durante l'invio ad ACSI."
     finally:
         if zip_path:
             try:
@@ -283,6 +311,106 @@ def maybe_submit_member_to_acsi(member_id: int) -> None:
             except OSError:
                 logger.warning("Impossibile rimuovere zip ACSI temporaneo: %s", zip_path)
         session.close()
+
+
+def maybe_submit_member_to_acsi(member_id: int) -> None:
+    success, reason = submit_member_to_acsi(member_id, force=False)
+    if not success:
+        logger.debug("ACSI non inviato per socio %s: %s", member_id, reason)
+
+
+def send_documents_manual_review_email(
+    member: Member,
+    documents: list[MemberDocument],
+) -> bool:
+    to_email = settings.medical_manual_review_email or settings.membership_notify_email
+    if not to_email or not settings.smtp_host or not settings.smtp_from:
+        logger.warning(
+            "Email verifica manuale non configurata per socio %s.", member.id
+        )
+        return False
+
+    body = (
+        "Un socio ha inviato documenti che non hanno superato la verifica automatica.\n"
+        "Serve controllo manuale prima dell'invio ad ACSI.\n\n"
+        f"Socio: {member.first_name} {member.last_name}\n"
+        f"Email: {member.email}\n"
+        f"Telefono: {member.phone or '-'}\n"
+        f"Codice fiscale: {member.codice_fiscale or '-'}\n"
+        f"Disciplina: {member.sport_type or '-'}\n"
+        f"ID socio: {member.id}\n\n"
+        "Documenti in allegato da verificare:\n"
+    )
+    for document in documents:
+        body += f"- {document.document_category or 'Documento'}: {document.original_name}\n"
+    body += (
+        "\nDopo la verifica usa Admin > Tools > Invia ad ACSI per completare "
+        "la pratica.\n\n"
+        f"— {settings.app_name}\n"
+    )
+
+    message = EmailMessage()
+    message["Subject"] = (
+        f"{settings.app_name} - Documenti da verificare "
+        f"({member.last_name} {member.first_name})"
+    )
+    message["From"] = settings.smtp_from
+    message["To"] = to_email
+    message.set_content(body)
+
+    attached = 0
+    for document in documents:
+        path = UPLOADS_DIR / document.stored_filename
+        if not path.exists():
+            continue
+        mime_type, _encoding = mimetypes.guess_type(document.original_name)
+        if mime_type:
+            maintype, subtype = mime_type.split("/", 1)
+        else:
+            maintype, subtype = "application", "octet-stream"
+        message.add_attachment(
+            path.read_bytes(),
+            maintype=maintype,
+            subtype=subtype,
+            filename=_safe_filename(document.original_name),
+        )
+        attached += 1
+
+    if attached == 0:
+        logger.warning(
+            "Nessun allegato disponibile per verifica manuale socio %s.", member.id
+        )
+        return False
+
+    server = None
+    try:
+        if settings.smtp_use_ssl:
+            server = smtplib.SMTP_SSL(
+                settings.smtp_host, settings.smtp_port, timeout=30
+            )
+        else:
+            server = smtplib.SMTP(
+                settings.smtp_host, settings.smtp_port, timeout=30
+            )
+            if settings.smtp_use_tls:
+                server.starttls()
+        if settings.smtp_user and settings.smtp_password:
+            server.login(settings.smtp_user, settings.smtp_password)
+        server.send_message(message)
+        return True
+    except Exception:
+        logger.exception(
+            "Invio email verifica manuale fallito per socio %s verso %s",
+            member.id,
+            to_email,
+        )
+        return False
+    finally:
+        if server:
+            try:
+                server.quit()
+            except Exception:
+                pass
 
 
 def _notify_staff_acsi_sent(member: Member) -> None:
@@ -328,7 +456,9 @@ def _notify_staff_acsi_sent(member: Member) -> None:
                 pass
 
 
-def send_acsi_submission_email(member: Member, zip_path: str) -> bool:
+def send_acsi_submission_email(
+    member: Member, zip_path: str, *, manual_review: bool = False
+) -> bool:
     if not settings.smtp_host or not settings.smtp_from or not settings.acsi_notify_email:
         return False
 
@@ -348,8 +478,12 @@ def send_acsi_submission_email(member: Member, zip_path: str) -> bool:
         "Il pacchetto include:\n"
         "- foglio Excel ACSI compilato\n"
         "- documenti del socio (CI, tessera sanitaria, certificato medico)\n\n"
-        "Documenti verificati automaticamente (OCR) e pagamento registrato.\n\n"
-        f"— {settings.app_name}\n"
+        + (
+            "Documenti verificati manualmente dalla segreteria e pagamento registrato.\n\n"
+            if manual_review
+            else "Documenti verificati automaticamente (OCR) e pagamento registrato.\n\n"
+        )
+        + f"— {settings.app_name}\n"
     )
     message = EmailMessage()
     message["Subject"] = (

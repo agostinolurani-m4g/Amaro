@@ -94,6 +94,36 @@
 <div class="col-12 col-lg-6">
   <div class="card">
     <div class="card-body">
+      <h3 class="card-title">Invia socio ad ACSI</h3>
+      <p class="muted">
+        Dopo aver caricato e verificato manualmente i documenti, invia il pacchetto ACSI
+        per quel socio. Salta i controlli OCR automatici.
+      </p>
+      {% if acsi_submit_candidates %}
+      <form action="{{ url_for('admin:view-tools') }}" method="post">
+        <input type="hidden" name="action" value="submit_acsi" />
+        <div class="mb-3">
+          <label class="form-label">Socio pronto per invio</label>
+          <select class="form-select" name="member_id" required>
+            {% for member in acsi_submit_candidates %}
+            <option value="{{ member.id }}">
+              {{ member.last_name }} {{ member.first_name }} - {{ member.email }} (ID {{ member.id }})
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+        <button class="btn btn-primary" type="submit">Invia ad ACSI</button>
+      </form>
+      {% else %}
+      <p class="muted">Nessun socio con documenti completi in attesa di invio ACSI.</p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<div class="col-12 col-lg-6">
+  <div class="card">
+    <div class="card-body">
       <h3 class="card-title">Carica tessera e segna tesserato</h3>
       <form action="{{ url_for('admin:view-tools') }}" method="post" enctype="multipart/form-data">
         <input type="hidden" name="action" value="upload_card" />

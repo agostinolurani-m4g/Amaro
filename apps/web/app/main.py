@@ -42,6 +42,7 @@ from sqlalchemy import inspect, or_, text
 from sqlalchemy.orm import Session
 from starlette.middleware.sessions import SessionMiddleware
 
+from .acsi import send_documents_manual_review_email
 from .admin import setup_admin
 from .config import settings
 from .database import Base, SessionLocal, engine, get_session
@@ -2505,6 +2506,7 @@ def membership_submit(
     identity_documents: list[UploadFile] = File(...),
     health_documents: list[UploadFile] = File(...),
     medical_documents: list[UploadFile] = File(...),
+    request_manual_review: str | None = Form(None),
     session: Session = Depends(get_session),
 ) -> RedirectResponse:
     payment = (
@@ -2584,8 +2586,16 @@ def membership_submit(
     session.commit()
     if saved_doc_ids:
         schedule_documents_ocr(saved_doc_ids, member.id, background_tasks)
+    manual_review = _normalize(request_manual_review) == "1"
+    if manual_review and saved_docs:
+        send_documents_manual_review_email(member, saved_docs)
     request.session["member_id"] = member.id
     request.session["member_password_hint"] = password_plain
+    if manual_review:
+        request.session["member_notice"] = (
+            "Modulo inviato per verifica manuale dei documenti. "
+            "La pratica non sara automatica e i tempi saranno piu lunghi."
+        )
     admin_base = _admin_base_url(request)
     staff_lines = [
         "Nuovo tesseramento: modulo e documenti inviati (area tesserati).",
@@ -2596,8 +2606,15 @@ def membership_submit(
         f"Disciplina: {member.sport_type}",
         f"ID socio: {member.id}",
         "",
-        "Verifica i documenti e completa l'approvazione socio dal pannello.",
     ]
+    if manual_review:
+        staff_lines.append(
+            "Documenti inviati per verifica manuale (OCR non superato)."
+        )
+    else:
+        staff_lines.append(
+            "Verifica i documenti e completa l'approvazione socio dal pannello."
+        )
     if admin_base:
         staff_lines.append(f"Pannello: {admin_base}/admin")
     _send_membership_staff_email(
@@ -2852,9 +2869,9 @@ def member_upload_documents(
     identity_documents: list[UploadFile] | None = File(None),
     health_documents: list[UploadFile] | None = File(None),
     medical_documents: list[UploadFile] | None = File(None),
+    request_manual_review: str | None = Form(None),
     session: Session = Depends(get_session),
 ) -> RedirectResponse:
-    member = _member_from_session(request, session)
     if not member:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -2881,7 +2898,16 @@ def member_upload_documents(
         session.commit()
         schedule_documents_ocr(saved_doc_ids, member.id, background_tasks)
         request.session["pending_doc_ids"] = saved_doc_ids
-        notice = f"Caricati {len(saved_docs)} documenti."
+        manual_review = _normalize(request_manual_review) == "1"
+        if manual_review:
+            send_documents_manual_review_email(member, saved_docs)
+            notice = (
+                f"Caricati {len(saved_docs)} documenti. "
+                "Inviati per verifica manuale: la pratica non sara automatica "
+                "e i tempi saranno piu lunghi."
+            )
+        else:
+            notice = f"Caricati {len(saved_docs)} documenti."
     else:
         notice = "Nessun documento caricato."
     request.session["member_notice"] = notice

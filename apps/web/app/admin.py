@@ -30,7 +30,12 @@ from sqlalchemy.orm import Session
 from wtforms import SelectField
 from wtforms.validators import DataRequired
 
-from .acsi import build_acsi_export, members_pending_acsi
+from .acsi import (
+    build_acsi_export,
+    member_acsi_ready_forced,
+    members_pending_acsi,
+    submit_member_to_acsi,
+)
 from .config import settings
 from .database import SessionLocal, engine
 from .ocr import schedule_documents_ocr
@@ -587,6 +592,13 @@ class AdminToolsView(BaseView):
                             "password": password_plain,
                         }
                         notice = "Password rigenerata."
+                    elif action == "submit_acsi":
+                        success, message = submit_member_to_acsi(member.id, force=True)
+                        notice = (
+                            message
+                            if success
+                            else f"Invio ACSI non riuscito: {message}"
+                        )
                     elif action == "upload_card":
                         uploads = form.getlist("documents")
                         saved_docs = _save_uploaded_documents(member.id, uploads)
@@ -625,6 +637,13 @@ class AdminToolsView(BaseView):
                 .all()
             )
             pending_members = members_pending_acsi(session)
+            acsi_submit_candidates = []
+            for member in members:
+                if member.acsi_submitted_at is not None:
+                    continue
+                ready, _reason = member_acsi_ready_forced(member)
+                if ready:
+                    acsi_submit_candidates.append(member)
             notice = request.session.pop("admin_notice", None)
             password_reset = request.session.pop("admin_password_reset", None)
             if not isinstance(password_reset, dict):
@@ -633,6 +652,7 @@ class AdminToolsView(BaseView):
                 "request": request,
                 "members": members,
                 "pending_members_count": len(pending_members),
+                "acsi_submit_candidates": acsi_submit_candidates,
                 "notice": notice,
                 "password_reset": password_reset,
                 "title": "Admin tools",

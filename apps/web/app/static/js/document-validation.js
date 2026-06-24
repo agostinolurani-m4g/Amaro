@@ -14,12 +14,20 @@
     return "doc-badge--warn";
   }
 
+  const MANUAL_REVIEW_HINT =
+    "Puoi ricaricare un file corretto oppure usare il pulsante Invia per verifica manuale.";
+
   function renderResult(container, result) {
     const badgeClassName = badgeClass(result.valid);
     const notes = result.notes ? `<p class="doc-validation__notes">${escapeHtml(result.notes).replace(/\n/g, "<br>")}</p>` : "";
+    const manualHint =
+      result.valid === false
+        ? `<p class="doc-validation__manual">${escapeHtml(MANUAL_REVIEW_HINT)}</p>`
+        : "";
     container.innerHTML = `
       <span class="doc-badge ${badgeClassName}">${escapeHtml(result.label || "Non verificabile")}</span>
       ${notes}
+      ${manualHint}
     `;
     container.dataset.valid = result.valid === null ? "null" : String(result.valid);
   }
@@ -81,6 +89,7 @@
     if (!file) {
       container.innerHTML = "";
       container.dataset.valid = "";
+      updateFormManualReviewState(form);
       return;
     }
 
@@ -93,6 +102,7 @@
     const precheck = precheckContext(category, context);
     if (precheck) {
       renderMessage(container, precheck, "warn");
+      updateFormManualReviewState(form);
       return;
     }
 
@@ -118,12 +128,90 @@
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
         renderMessage(container, payload.detail || "Verifica non riuscita.", "error");
+        updateFormManualReviewState(form);
         return;
       }
       renderResult(container, payload);
+      updateFormManualReviewState(form);
     } catch (_error) {
       renderMessage(container, "Errore di rete durante la verifica.", "error");
+      updateFormManualReviewState(form);
     }
+  }
+
+  function ensureManualReviewUi(form) {
+    const submitBtn = form.querySelector("[data-doc-submit]");
+    const anchor = submitBtn || null;
+
+    let banner = form.querySelector(".doc-validation__proceed-banner");
+    if (!banner) {
+      banner = document.createElement("p");
+      banner.className = "alert doc-validation__proceed-banner";
+      banner.hidden = true;
+      if (anchor) {
+        form.insertBefore(banner, anchor);
+      } else {
+        form.appendChild(banner);
+      }
+    }
+
+    let manualBtn = form.querySelector("[data-manual-review-submit]");
+    if (!manualBtn) {
+      manualBtn = document.createElement("button");
+      manualBtn.type = "button";
+      manualBtn.className = "btn btn-secondary";
+      manualBtn.dataset.manualReviewSubmit = "1";
+      manualBtn.textContent = "Invia per verifica manuale";
+      manualBtn.hidden = true;
+      manualBtn.addEventListener("click", () => {
+        let input = form.querySelector("input[name='request_manual_review']");
+        if (!input) {
+          input = document.createElement("input");
+          input.type = "hidden";
+          input.name = "request_manual_review";
+          form.appendChild(input);
+        }
+        input.value = "1";
+        if (typeof form.requestSubmit === "function") {
+          form.requestSubmit();
+        } else {
+          form.submit();
+        }
+      });
+      if (anchor) {
+        form.insertBefore(manualBtn, anchor);
+      } else {
+        form.appendChild(manualBtn);
+      }
+    }
+
+    return { banner, manualBtn };
+  }
+
+  function updateFormManualReviewState(form) {
+    const invalidContainers = form.querySelectorAll(".doc-validation[data-valid='false']");
+    const hasInvalid = invalidContainers.length > 0;
+    const submitBtn = form.querySelector("[data-doc-submit]");
+    const { banner, manualBtn } = ensureManualReviewUi(form);
+
+    if (hasInvalid) {
+      if (submitBtn) {
+        submitBtn.hidden = true;
+      }
+      banner.hidden = false;
+      banner.textContent =
+        "Alcuni documenti richiederanno verifica manuale: la pratica non sara automatica e i tempi saranno piu lunghi. Puoi ricaricare i file corretti oppure inviare per verifica manuale.";
+      manualBtn.hidden = false;
+      form.querySelector("input[name='request_manual_review']")?.remove();
+      return;
+    }
+
+    if (submitBtn) {
+      submitBtn.hidden = false;
+    }
+    banner.hidden = true;
+    manualBtn.hidden = true;
+    form.querySelector("input[name='request_manual_review']")?.remove();
   }
 
   function initForm(form) {
@@ -139,16 +227,19 @@
         container.dataset.for = input.id;
         input.insertAdjacentElement("afterend", container);
       }
-      input.addEventListener("change", () => validateFile(input, form, container));
+      input.addEventListener("change", () => {
+        validateFile(input, form, container);
+      });
     });
 
+    ensureManualReviewUi(form);
+    updateFormManualReviewState(form);
+
     form.addEventListener("submit", (event) => {
-      const containers = form.querySelectorAll(".doc-validation[data-valid='false']");
-      if (containers.length) {
+      const invalidContainers = form.querySelectorAll(".doc-validation[data-valid='false']");
+      const manualReview = form.querySelector("input[name='request_manual_review']");
+      if (invalidContainers.length && !manualReview) {
         event.preventDefault();
-        window.alert(
-          "Uno o piu documenti risultano non validi. Correggi gli allegati prima di inviare."
-        );
         return;
       }
       const pending = form.querySelector(".doc-validation .doc-badge--pending");
