@@ -122,6 +122,9 @@ class Member(Base):
     password_reset_token_hash: Mapped[str | None] = Column(String(200))
     password_reset_expires_at: Mapped[DateTime | None] = Column(DateTime(timezone=True))
     acsi_submitted_at: Mapped[DateTime | None] = Column(DateTime(timezone=True))
+    medical_manual_review_notified_at: Mapped[DateTime | None] = Column(
+        DateTime(timezone=True)
+    )
     created_at: Mapped[DateTime] = Column(
         DateTime(timezone=True), server_default=func.now()
     )

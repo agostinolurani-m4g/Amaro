@@ -22,6 +22,7 @@ from .models import (
     DOCUMENT_CATEGORY_IDENTITY,
     DOCUMENT_CATEGORY_MEDICAL,
     Member,
+    MemberDocument,
     MEMBERSHIP_STATUS_COMPLETED,
 )
 
@@ -63,6 +64,135 @@ REQUIRED_DOCUMENT_CATEGORIES = {
 }
 
 
+def medical_document_needs_manual_review(document: MemberDocument) -> bool:
+    if document.document_category != DOCUMENT_CATEGORY_MEDICAL:
+        return False
+    if document.ocr_status in (None, "pending"):
+        return False
+    if document.ocr_status == "failed":
+        return True
+    return document.ocr_status == "done" and document.ocr_valid is None
+
+
+def _member_medical_needs_manual_review(member: Member) -> MemberDocument | None:
+    for document in member.documents:
+        if medical_document_needs_manual_review(document):
+            return document
+    return None
+
+
+def maybe_notify_medical_manual_review(member_id: int, document_id: int) -> None:
+    session = SessionLocal()
+    try:
+        member = session.get(Member, member_id)
+        document = session.get(MemberDocument, document_id)
+        if not member or not document or document.member_id != member.id:
+            return
+        if not medical_document_needs_manual_review(document):
+            return
+        if member.medical_manual_review_notified_at and document.uploaded_at:
+            if document.uploaded_at <= member.medical_manual_review_notified_at:
+                return
+        review_email = settings.medical_manual_review_email
+        if not review_email:
+            logger.warning(
+                "MEDICAL_MANUAL_REVIEW_EMAIL non configurata: reminder saltato "
+                "per socio %s.",
+                member_id,
+            )
+            return
+        sent = send_medical_manual_review_email(member, document, review_email)
+        if not sent:
+            return
+        member.medical_manual_review_notified_at = datetime.now(timezone.utc)
+        session.commit()
+        logger.info(
+            "Reminder certificato medico inviato per socio %s a %s.",
+            member_id,
+            review_email,
+        )
+    except Exception:
+        logger.exception(
+            "Invio reminder certificato medico fallito per socio %s", member_id
+        )
+    finally:
+        session.close()
+
+
+def send_medical_manual_review_email(
+    member: Member,
+    document: MemberDocument,
+    to_email: str,
+) -> bool:
+    if not settings.smtp_host or not settings.smtp_from:
+        return False
+
+    ocr_label = "Non verificabile"
+    if document.ocr_status == "failed":
+        ocr_label = "Verifica OCR non riuscita"
+
+    body = (
+        "Il certificato medico di un socio non e' stato riconosciuto "
+        "completamente dall'OCR.\n"
+        "La pratica puo' proseguire in automatico, ma serve una verifica manuale.\n\n"
+        f"Socio: {member.first_name} {member.last_name}\n"
+        f"Email: {member.email}\n"
+        f"Telefono: {member.phone or '-'}\n"
+        f"Codice fiscale: {member.codice_fiscale or '-'}\n"
+        f"Disciplina: {member.sport_type or '-'}\n"
+        f"Scadenza indicata nel modulo: "
+        f"{member.medical_certificate_expiry.isoformat() if member.medical_certificate_expiry else '-'}\n"
+        f"Documento: {document.original_name}\n"
+        f"Esito OCR: {ocr_label}\n"
+    )
+    if document.ocr_notes:
+        body += f"\nNote OCR:\n{document.ocr_notes}\n"
+    body += (
+        f"\nID socio: {member.id}\n"
+        "Apri il pannello admin (/admin) > Tools o Member documents per controllare.\n\n"
+        f"— {settings.app_name}\n"
+    )
+
+    message = EmailMessage()
+    message["Subject"] = (
+        f"{settings.app_name} - Certificato medico da verificare "
+        f"({member.last_name} {member.first_name})"
+    )
+    message["From"] = settings.smtp_from
+    message["To"] = to_email
+    message.set_content(body)
+
+    server = None
+    try:
+        if settings.smtp_use_ssl:
+            server = smtplib.SMTP_SSL(
+                settings.smtp_host, settings.smtp_port, timeout=30
+            )
+        else:
+            server = smtplib.SMTP(
+                settings.smtp_host, settings.smtp_port, timeout=30
+            )
+            if settings.smtp_use_tls:
+                server.starttls()
+        if settings.smtp_user and settings.smtp_password:
+            server.login(settings.smtp_user, settings.smtp_password)
+        server.send_message(message)
+        return True
+    except Exception:
+        logger.exception(
+            "Invio reminder certificato medico fallito per socio %s verso %s",
+            member.id,
+            to_email,
+        )
+        return False
+    finally:
+        if server:
+            try:
+                server.quit()
+            except Exception:
+                pass
+
+
 def members_pending_acsi(session: Session) -> list[Member]:
     return (
         session.query(Member)
@@ -98,12 +228,14 @@ def member_acsi_ready(member: Member) -> tuple[bool, str]:
     for document in member.documents:
         if document.document_category not in REQUIRED_DOCUMENT_CATEGORIES:
             continue
-        if document.ocr_status != "done":
-            return False, f"Verifica OCR in corso: {document.original_name}."
         if document.document_category == DOCUMENT_CATEGORY_MEDICAL:
             if document.ocr_valid is False:
                 return False, f"Certificato medico non valido: {document.original_name}."
+            if document.ocr_status in (None, "pending"):
+                return False, f"Verifica OCR in corso: {document.original_name}."
             continue
+        if document.ocr_status != "done":
+            return False, f"Verifica OCR in corso: {document.original_name}."
         if document.ocr_valid is not True:
             label = "non valido" if document.ocr_valid is False else "non verificabile"
             return False, f"Documento {label}: {document.original_name}."
@@ -122,6 +254,9 @@ def maybe_submit_member_to_acsi(member_id: int) -> None:
         if not ready:
             logger.debug("ACSI non inviato per socio %s: %s", member_id, reason)
             return
+        review_doc = _member_medical_needs_manual_review(member)
+        if review_doc:
+            maybe_notify_medical_manual_review(member.id, review_doc.id)
         if not settings.acsi_notify_email:
             logger.warning(
                 "ACSI_NOTIFY_EMAIL non configurata: invio automatico saltato "

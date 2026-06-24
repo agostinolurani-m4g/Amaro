@@ -961,6 +961,7 @@ def ensure_member_schema() -> None:
         "password_reset_token_hash": "TEXT",
         "password_reset_expires_at": "DATETIME",
         "acsi_submitted_at": "DATETIME",
+        "medical_manual_review_notified_at": "DATETIME",
     }
     added_membership_status = False
     with engine.begin() as conn:

@@ -11,7 +11,11 @@ from typing import TYPE_CHECKING, Any
 
 import requests
 
-from .acsi import maybe_submit_member_to_acsi
+from .acsi import (
+    maybe_notify_medical_manual_review,
+    maybe_submit_member_to_acsi,
+    medical_document_needs_manual_review,
+)
 from .config import settings
 from .database import SessionLocal
 from .models import (
@@ -254,6 +258,13 @@ def ocr_document(document_id: int, member_id: int) -> None:
         document.ocr_notes = result["notes"]
         document.ocr_text = result.get("text") or ""
         session.commit()
+        if document.document_category == DOCUMENT_CATEGORY_MEDICAL:
+            if medical_document_needs_manual_review(document):
+                threading.Thread(
+                    target=maybe_notify_medical_manual_review,
+                    args=(member_id, document_id),
+                    daemon=True,
+                ).start()
         threading.Thread(
             target=maybe_submit_member_to_acsi,
             args=(member_id,),

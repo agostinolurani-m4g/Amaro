@@ -32,6 +32,9 @@ class Settings(BaseSettings):
     events_notify_email: str | None = Field(None, env='EVENTS_NOTIFY_EMAIL')
     membership_notify_email: str | None = Field(None, env='MEMBERSHIP_NOTIFY_EMAIL')
     acsi_notify_email: str | None = Field(None, env='ACSI_NOTIFY_EMAIL')
+    medical_manual_review_email: str | None = Field(
+        'amaro.bici@gmail.com', env='MEDICAL_MANUAL_REVIEW_EMAIL'
+    )
 
     class Config:
         env_file = '.env'
