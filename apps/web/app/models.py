@@ -201,6 +201,11 @@ class EventRegistration(Base):
     payment_reference: Mapped[str | None] = Column(String(40))
     payment_status: Mapped[str | None] = Column(String(20))
     total_amount_cents: Mapped[int | None] = Column(Integer)
+    bib_number: Mapped[str | None] = Column(String(20))
+    race_pack_collected: Mapped[bool] = Column(Boolean, default=False)
+    arrived: Mapped[bool] = Column(Boolean, default=False)
+    arrived_at: Mapped[DateTime | None] = Column(DateTime(timezone=True))
+    merch_collected: Mapped[bool] = Column(Boolean, default=False)
     created_at: Mapped[DateTime] = Column(
         DateTime(timezone=True), server_default=func.now()
     )

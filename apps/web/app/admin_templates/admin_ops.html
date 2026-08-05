@@ -1,0 +1,948 @@
+{% extends "layout.html" %}
+
+{% block content_header %}{% endblock %}
+
+{% block content %}
+<style>
+  /* Tabler row-deck spezza i figli in colonne: disattiviamo su questa pagina */
+  .page-body .row-cards { display: block; }
+
+  .ops {
+    --ok: #198754;
+    --ok-bg: #d1e7dd;
+    --no: #b02a37;
+    --no-bg: #f8d7da;
+    --muted: #6c757d;
+    --border: #e2e8f0;
+    --surface: #f8fafc;
+  }
+
+  .ops-page {
+    width: 100%;
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 0 .5rem 2rem;
+  }
+
+  .ops-topbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: .75rem 1rem;
+    margin-bottom: 1rem;
+    padding-bottom: .85rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .ops-event-info h2 {
+    margin: 0;
+    font-size: 1.2rem;
+    font-weight: 700;
+    line-height: 1.25;
+  }
+  .ops-event-info .meta {
+    font-size: .82rem;
+    color: var(--muted);
+    margin-top: .15rem;
+  }
+  .ops-event-select {
+    height: 34px;
+    font-size: .82rem;
+    padding: .2rem .6rem;
+    border-radius: 8px;
+    max-width: 260px;
+    border: 1px solid var(--border);
+  }
+
+  .ops-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .4rem;
+    align-items: center;
+  }
+  .ops-pill {
+    font-size: .75rem;
+    color: var(--muted);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: .2rem .55rem;
+    white-space: nowrap;
+  }
+  .ops-pill strong {
+    font-weight: 700;
+    color: #0f172a;
+    margin-right: .15rem;
+  }
+  .ops-pill.ok strong { color: var(--ok); }
+
+  .ops-filters {
+    display: flex;
+    align-items: center;
+    gap: .65rem;
+    margin-bottom: .65rem;
+    flex-wrap: wrap;
+  }
+  .ops-search-wrap {
+    position: relative;
+    flex: 0 1 240px;
+    min-width: 160px;
+  }
+  .ops-search {
+    height: 34px;
+    font-size: .84rem;
+    border-radius: 8px;
+    padding: 0 .65rem 0 1.85rem;
+    border: 1px solid var(--border);
+    width: 100%;
+  }
+  .ops-search-icon {
+    position: absolute;
+    left: .55rem;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: .75rem;
+    color: var(--muted);
+    pointer-events: none;
+  }
+  .ops-result-count {
+    font-size: .78rem;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+
+  .ops-table-card {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    width: 100%;
+  }
+  .ops-table-wrap { overflow-x: auto; }
+  .ops-table {
+    width: 100%;
+    margin: 0;
+    font-size: .86rem;
+    table-layout: auto;
+  }
+  .ops-table thead th {
+    background: var(--surface);
+    font-size: .68rem;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: var(--muted);
+    font-weight: 600;
+    padding: .55rem .6rem;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  .ops-table tbody td {
+    padding: .55rem .6rem;
+    vertical-align: middle;
+    border-bottom: 1px solid #f1f5f9;
+  }
+  .ops-table tbody tr { cursor: pointer; }
+  .ops-table tbody tr:hover { background: #f8fafc; }
+  .ops-table tbody tr.is-hidden { display: none; }
+  .ops-table tbody tr.is-arrived { background: #f0fdf4; }
+  .ops-name { font-weight: 600; color: #0f172a; }
+  .ops-sub { display: block; font-size: .74rem; color: var(--muted); }
+
+  .ops-chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.8rem;
+    padding: .15rem .4rem;
+    border-radius: 999px;
+    font-size: .68rem;
+    font-weight: 700;
+  }
+  .ops-chip.ok { background: var(--ok-bg); color: #0f5132; }
+  .ops-chip.no { background: var(--no-bg); color: var(--no); }
+  .ops-chip.na { background: #e9ecef; color: #495057; }
+
+  .ops-empty {
+    text-align: center;
+    padding: 2.5rem 1rem;
+    color: var(--muted);
+    font-size: .9rem;
+  }
+
+  /* Overlay + drawer */
+  .ops-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, .5);
+    z-index: 1040;
+    backdrop-filter: blur(2px);
+  }
+  .ops-backdrop.open { display: block; }
+
+  .ops-panel {
+    position: fixed;
+    inset: auto 0 0 0;
+    max-height: 94vh;
+    overflow-y: auto;
+    background: #fff;
+    border-radius: 20px 20px 0 0;
+    z-index: 1050;
+    transform: translateY(105%);
+    transition: transform .28s cubic-bezier(.4,0,.2,1);
+    box-shadow: 0 -8px 32px rgba(15,23,42,.15);
+  }
+  .ops-panel.open { transform: translateY(0); }
+  @media (min-width: 768px) {
+    .ops-panel {
+      inset: 50% auto auto 50%;
+      width: min(540px, 94vw);
+      max-height: 90vh;
+      border-radius: 16px;
+      transform: translate(-50%, -48%) scale(.96);
+      opacity: 0;
+      pointer-events: none;
+    }
+    .ops-panel.open {
+      transform: translate(-50%, -50%) scale(1);
+      opacity: 1;
+      pointer-events: auto;
+    }
+  }
+
+  .ops-panel-header {
+    position: sticky;
+    top: 0;
+    background: #fff;
+    padding: 1.25rem 1.25rem .75rem;
+    border-bottom: 1px solid var(--border);
+    z-index: 2;
+  }
+  .ops-panel-header h3 {
+    margin: 0 2rem .35rem 0;
+    font-size: 1.4rem;
+    font-weight: 700;
+  }
+  .ops-panel-meta {
+    font-size: .88rem;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+  .ops-panel-meta a { color: inherit; text-decoration: none; }
+  .ops-panel-close {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    width: 40px;
+    height: 40px;
+    border: 0;
+    background: var(--surface);
+    border-radius: 50%;
+    font-size: 1.4rem;
+    line-height: 1;
+    cursor: pointer;
+    color: #334155;
+  }
+  .ops-panel-body { padding: 1rem 1.25rem 1.5rem; }
+
+  .ops-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1rem;
+    margin-bottom: .85rem;
+  }
+  .ops-card:last-child { margin-bottom: 0; }
+  .ops-card-title {
+    font-size: .72rem;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: var(--muted);
+    font-weight: 700;
+    margin: 0 0 .65rem;
+  }
+  .ops-kv {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: .35rem 0;
+    font-size: .92rem;
+  }
+  .ops-kv span:first-child { color: var(--muted); }
+  .ops-kv strong { text-align: right; }
+
+  .ops-status-box {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .75rem;
+    padding: .75rem;
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    margin-bottom: .5rem;
+  }
+  .ops-status-box:last-child { margin-bottom: 0; }
+  .ops-status-box .label { font-weight: 500; font-size: .92rem; }
+  .ops-status-box .current {
+    font-size: .82rem;
+    font-weight: 700;
+    padding: .25rem .6rem;
+    border-radius: 999px;
+  }
+  .ops-status-box .current.ok { background: var(--ok-bg); color: #0f5132; }
+  .ops-status-box .current.no { background: var(--no-bg); color: var(--no); }
+
+  .ops-btn {
+    display: block;
+    width: 100%;
+    min-height: 48px;
+    margin-top: .5rem;
+    border-radius: 10px;
+    font-weight: 600;
+    font-size: .92rem;
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: opacity .15s;
+  }
+  .ops-btn:disabled { opacity: .5; cursor: not-allowed; }
+  .ops-btn-primary { background: #0d6efd; color: #fff; }
+  .ops-btn-primary:hover:not(:disabled) { background: #0b5ed7; }
+  .ops-btn-success { background: var(--ok); color: #fff; }
+  .ops-btn-success:hover:not(:disabled) { background: #157347; }
+  .ops-btn-outline { background: #fff; border-color: var(--border); color: #334155; }
+  .ops-btn-outline:hover:not(:disabled) { background: var(--surface); }
+  .ops-btn-danger-outline { background: #fff; border-color: #f5c2c7; color: var(--no); }
+
+  .ops-bib-field {
+    display: flex;
+    gap: .5rem;
+    margin-top: .5rem;
+  }
+  .ops-bib-field input {
+    flex: 1;
+    min-height: 48px;
+    font-size: 1.15rem;
+    font-weight: 600;
+    text-align: center;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+  }
+  .ops-bib-hint {
+    font-size: .8rem;
+    color: var(--muted);
+    margin-top: .4rem;
+  }
+
+  .ops-alert-box {
+    background: #fff3cd;
+    border: 1px solid #ffecb5;
+    border-radius: 10px;
+    padding: .75rem;
+    font-size: .88rem;
+    color: #664d03;
+  }
+
+  /* Confirm modal */
+  .ops-confirm {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 1100;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    background: rgba(15, 23, 42, .55);
+    backdrop-filter: blur(3px);
+  }
+  .ops-confirm.open { display: flex; }
+  .ops-confirm-box {
+    background: #fff;
+    border-radius: 16px;
+    padding: 1.5rem;
+    width: min(400px, 100%);
+    box-shadow: 0 20px 48px rgba(15,23,42,.2);
+  }
+  .ops-confirm-box h4 {
+    margin: 0 0 .5rem;
+    font-size: 1.1rem;
+    font-weight: 700;
+  }
+  .ops-confirm-box p {
+    margin: 0 0 1.25rem;
+    color: var(--muted);
+    font-size: .92rem;
+    line-height: 1.5;
+  }
+  .ops-confirm-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: .5rem;
+  }
+  .ops-confirm-actions .ops-btn { margin-top: 0; }
+
+  .ops-toast {
+    position: fixed;
+    bottom: 1.25rem;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: #1e293b;
+    color: #fff;
+    padding: .75rem 1.25rem;
+    border-radius: 10px;
+    font-size: .9rem;
+    font-weight: 500;
+    z-index: 1200;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .2s, transform .2s;
+    max-width: 90vw;
+    text-align: center;
+  }
+  .ops-toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+  .ops-toast.ok { background: var(--ok); }
+  .ops-toast.err { background: var(--no); }
+
+  .ops-loading::after {
+    content: '';
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    margin-left: .5rem;
+    border: 2px solid rgba(255,255,255,.4);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: ops-spin .6s linear infinite;
+    vertical-align: middle;
+  }
+  @keyframes ops-spin { to { transform: rotate(360deg); } }
+</style>
+
+<div class="col-12">
+  <div class="ops">
+    <div class="ops-page">
+      {% if not events %}
+      <div class="alert alert-warning">Nessun evento AMARO trovato.</div>
+
+      {% else %}
+      <div class="ops-topbar">
+        <div class="ops-event-info">
+          {% if selected_event %}
+          <h2>{{ selected_event.title }}</h2>
+          {% if selected_event.date %}
+          <div class="meta">{{ selected_event.date.strftime('%d/%m/%Y') }}{% if selected_event.location %} · {{ selected_event.location }}{% endif %}</div>
+          {% endif %}
+          {% else %}
+          <h2>Gestionale eventi</h2>
+          {% endif %}
+        </div>
+        <form method="get" action="{{ request.url_for('admin:ops') }}">
+          <select class="form-select ops-event-select" name="event_id" onchange="this.form.submit()" aria-label="Evento">
+            {% for ev in events %}
+            <option value="{{ ev.id }}" {% if selected_event and ev.id == selected_event.id %}selected{% endif %}>
+              {{ ev.title }}{% if ev.date %} — {{ ev.date.strftime('%d/%m/%Y') }}{% endif %}
+            </option>
+            {% endfor %}
+          </select>
+        </form>
+        {% if stats %}
+        <div class="ops-pills">
+          <span class="ops-pill"><strong data-stat="total">{{ stats.total }}</strong> iscritti</span>
+          <span class="ops-pill ok"><strong data-stat="paid">{{ stats.paid }}</strong> pagati</span>
+          <span class="ops-pill"><strong data-stat="arrived">{{ stats.arrived }}</strong> arrivati</span>
+          <span class="ops-pill"><strong data-stat="race_pack">{{ stats.race_pack }}</strong> pacchi</span>
+        </div>
+        {% endif %}
+      </div>
+
+      {% if selected_event %}
+      <div class="ops-filters">
+        <div class="ops-search-wrap">
+          <span class="ops-search-icon">⌕</span>
+          <input
+            type="search"
+            id="ops-search"
+            class="form-control ops-search"
+            placeholder="Cerca cognome, nome, tel…"
+            autocomplete="off"
+            inputmode="search"
+          >
+        </div>
+        <span class="ops-result-count" id="ops-result-count"></span>
+      </div>
+
+      <div class="ops-table-card">
+    {% if registrations %}
+    <div class="ops-table-wrap">
+      <table class="ops-table">
+        <thead>
+          <tr>
+            <th>Partecipante</th>
+            <th>Pett.</th>
+            <th>Gara</th>
+            <th>Pag.</th>
+            <th>Pacco</th>
+            <th>Arr.</th>
+            <th>Merch</th>
+          </tr>
+        </thead>
+        <tbody id="ops-tbody">
+          {% for r in registrations %}
+          <tr
+            data-id="{{ r.id }}"
+            class="{% if r.arrived %}is-arrived{% endif %}"
+            data-search="{{ (r.last_name ~ ' ' ~ r.first_name ~ ' ' ~ r.phone ~ ' ' ~ r.email ~ ' ' ~ r.bib_number)|lower }}"
+          >
+            <td>
+              <span class="ops-name">{{ r.last_name }} {{ r.first_name }}</span>
+              {% if r.phone %}<span class="ops-sub">{{ r.phone }}</span>{% endif %}
+            </td>
+            <td class="cell-bib"><strong>{{ r.bib_number or '—' }}</strong></td>
+            <td>{{ r.race }}</td>
+            <td class="cell-paid">
+              <span class="ops-chip {% if r.paid %}ok{% else %}no{% endif %}">{% if r.paid %}OK{% else %}NO{% endif %}</span>
+            </td>
+            <td class="cell-pack">
+              <span class="ops-chip {% if r.race_pack_collected %}ok{% else %}no{% endif %}">{% if r.race_pack_collected %}✓{% else %}—{% endif %}</span>
+            </td>
+            <td class="cell-arrived">
+              <span class="ops-chip {% if r.arrived %}ok{% else %}no{% endif %}">{% if r.arrived %}✓{% else %}—{% endif %}</span>
+            </td>
+            <td class="cell-merch">
+              {% if r.has_merch %}
+              <span class="ops-chip {% if r.merch_collected %}ok{% else %}no{% endif %}">{% if r.merch_collected %}✓{% else %}—{% endif %}</span>
+              {% else %}
+              <span class="ops-chip na">—</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="ops-empty">Nessuna iscrizione per questo evento.</div>
+    {% endif %}
+      </div>
+      {% endif %}
+      {% endif %}
+    </div>
+
+    <!-- overlay: dentro ops per non finire nel row-deck -->
+    <div class="ops-backdrop" id="ops-backdrop"></div>
+    <div class="ops-panel" id="ops-panel" role="dialog" aria-modal="true" aria-labelledby="panel-name">
+  <div class="ops-panel-header">
+    <button type="button" class="ops-panel-close" id="ops-panel-close" aria-label="Chiudi">×</button>
+    <h3 id="panel-name"></h3>
+    <div class="ops-panel-meta" id="panel-meta"></div>
+  </div>
+  <div class="ops-panel-body">
+    <div class="ops-card">
+      <div class="ops-card-title">Gara</div>
+      <div class="ops-kv"><span>Disciplina / percorso</span><strong id="panel-race"></strong></div>
+      <div class="ops-kv"><span>Team</span><strong id="panel-team"></strong></div>
+    </div>
+
+    <div class="ops-card">
+      <div class="ops-card-title">Pagamento</div>
+      <div class="ops-kv"><span>Importo dovuto</span><strong id="panel-amount"></strong></div>
+      <div class="ops-status-box">
+        <span class="label">Stato attuale</span>
+        <span class="current" id="panel-payment-badge"></span>
+      </div>
+      <button type="button" class="ops-btn ops-btn-success" id="btn-payment" hidden></button>
+    </div>
+
+    <div class="ops-card">
+      <div class="ops-card-title">Pranzo</div>
+      <div class="ops-kv"><span>Opzione</span><strong id="panel-lunch"></strong></div>
+    </div>
+
+    <div class="ops-card" id="panel-merch-card">
+      <div class="ops-card-title">Merch prenotato</div>
+      <div class="ops-kv"><span>Dettaglio</span><strong id="panel-merch-info"></strong></div>
+      <div class="ops-status-box" id="panel-merch-status-wrap" hidden>
+        <span class="label">Consegna</span>
+        <span class="current" id="panel-merch-badge"></span>
+      </div>
+      <button type="button" class="ops-btn ops-btn-primary" id="btn-merch" hidden></button>
+    </div>
+
+    <div class="ops-card">
+      <div class="ops-card-title">Pettorale</div>
+      <div class="ops-bib-field">
+        <input type="text" id="panel-bib" maxlength="20" placeholder="N°" inputmode="numeric" aria-label="Numero pettorale">
+      </div>
+      <div class="ops-bib-hint" id="panel-bib-current"></div>
+      <div class="ops-bib-hint">Assegnato in ordine di iscrizione; modificabile manualmente se serve.</div>
+      <button type="button" class="ops-btn ops-btn-primary" id="btn-bib">Conferma pettorale</button>
+    </div>
+
+    <div class="ops-card">
+      <div class="ops-card-title">Check-in e pacco gara</div>
+      <div class="ops-status-box">
+        <span class="label">Pacco gara</span>
+        <span class="current" id="panel-pack-badge"></span>
+      </div>
+      <button type="button" class="ops-btn ops-btn-primary" id="btn-pack"></button>
+
+      <div class="ops-status-box" style="margin-top:.75rem">
+        <span class="label">Presenza</span>
+        <span class="current" id="panel-arrived-badge"></span>
+      </div>
+      <div class="ops-kv" id="panel-arrived-at-wrap" hidden><span>Ora arrivo</span><strong id="panel-arrived-at"></strong></div>
+      <button type="button" class="ops-btn ops-btn-success" id="btn-arrived"></button>
+    </div>
+
+    <div class="ops-card" id="panel-intol-wrap" hidden>
+      <div class="ops-card-title">Intolleranze / allergie</div>
+      <div class="ops-alert-box" id="panel-intolerances"></div>
+    </div>
+    </div>
+    </div>
+
+    <div class="ops-confirm" id="ops-confirm" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title">
+      <div class="ops-confirm-box">
+        <h4 id="confirm-title">Conferma modifica</h4>
+        <p id="confirm-message"></p>
+        <div class="ops-confirm-actions">
+          <button type="button" class="ops-btn ops-btn-outline" id="confirm-cancel">Annulla</button>
+          <button type="button" class="ops-btn ops-btn-success" id="confirm-ok">Conferma</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="ops-toast" id="ops-toast" role="status"></div>
+  </div>
+</div>
+
+<script>
+(function () {
+  const registrations = {{ registrations | tojson }};
+  const byId = Object.fromEntries(registrations.map(r => [String(r.id), r]));
+  const updateUrl = {{ update_url | tojson }};
+
+  let currentId = null;
+  let busy = false;
+  let pendingAction = null;
+
+  const backdrop = document.getElementById('ops-backdrop');
+  const panel = document.getElementById('ops-panel');
+  const confirmEl = document.getElementById('ops-confirm');
+  const confirmMsg = document.getElementById('confirm-message');
+  const confirmOk = document.getElementById('confirm-ok');
+  const confirmCancel = document.getElementById('confirm-cancel');
+  const toast = document.getElementById('ops-toast');
+  const tbody = document.getElementById('ops-tbody');
+  const searchInput = document.getElementById('ops-search');
+  const resultCount = document.getElementById('ops-result-count');
+
+  function showToast(msg, type) {
+    toast.textContent = msg;
+    toast.className = 'ops-toast show' + (type ? ' ' + type : '');
+    setTimeout(() => { toast.className = 'ops-toast'; }, 2800);
+  }
+
+  function chipClass(ok) { return ok ? 'ok' : 'no'; }
+
+  function chipHtml(ok, yes, no) {
+    return `<span class="ops-chip ${chipClass(ok)}">${ok ? yes : no}</span>`;
+  }
+
+  function updateResultCount() {
+    if (!tbody || !resultCount) return;
+    const rows = [...tbody.querySelectorAll('tr')];
+    const visible = rows.filter(r => !r.classList.contains('is-hidden')).length;
+    resultCount.textContent = visible === rows.length
+      ? `${rows.length} partecipanti`
+      : `${visible} di ${rows.length} partecipanti`;
+  }
+
+  function updateRow(reg) {
+    const row = tbody && tbody.querySelector(`tr[data-id="${reg.id}"]`);
+    if (!row) return;
+    row.classList.toggle('is-arrived', reg.arrived);
+    const bibCell = row.querySelector('.cell-bib');
+    if (bibCell) bibCell.innerHTML = `<strong>${reg.bib_number || '—'}</strong>`;
+    const paidCell = row.querySelector('.cell-paid');
+    if (paidCell) paidCell.innerHTML = chipHtml(reg.paid, 'OK', 'NO');
+    const packCell = row.querySelector('.cell-pack');
+    if (packCell) packCell.innerHTML = chipHtml(reg.race_pack_collected, '✓', '—');
+    const arrCell = row.querySelector('.cell-arrived');
+    if (arrCell) arrCell.innerHTML = chipHtml(reg.arrived, '✓', '—');
+    const merchCell = row.querySelector('.cell-merch');
+    if (merchCell) {
+      merchCell.innerHTML = reg.has_merch
+        ? chipHtml(reg.merch_collected, '✓', '—')
+        : '<span class="ops-chip na">—</span>';
+    }
+    row.dataset.search = [reg.last_name, reg.first_name, reg.phone, reg.email, reg.bib_number]
+      .join(' ').toLowerCase();
+  }
+
+  function updateStats() {
+    const s = {
+      total: registrations.length,
+      paid: registrations.filter(r => r.paid).length,
+      arrived: registrations.filter(r => r.arrived).length,
+      race_pack: registrations.filter(r => r.race_pack_collected).length,
+    };
+    Object.entries(s).forEach(([k, v]) => {
+      const el = document.querySelector(`[data-stat="${k}"]`);
+      if (el) el.textContent = v;
+    });
+  }
+
+  function setBadge(el, ok, yesLabel, noLabel) {
+    el.textContent = ok ? yesLabel : noLabel;
+    el.className = 'current ' + chipClass(ok);
+  }
+
+  function renderPanel(reg) {
+    document.getElementById('panel-name').textContent = reg.full_name || '—';
+    const metaParts = [];
+    if (reg.phone) metaParts.push(`<a href="tel:${reg.phone}">${reg.phone}</a>`);
+    if (reg.email) metaParts.push(`<a href="mailto:${reg.email}">${reg.email}</a>`);
+    document.getElementById('panel-meta').innerHTML = metaParts.join(' · ') || '—';
+
+    document.getElementById('panel-race').textContent = reg.race || '—';
+    document.getElementById('panel-team').textContent = reg.team_name || '—';
+    document.getElementById('panel-amount').textContent = reg.total_amount || 'Gratuito';
+    document.getElementById('panel-lunch').textContent = reg.lunch || '—';
+
+    setBadge(document.getElementById('panel-payment-badge'), reg.paid, 'Pagato', 'Non pagato');
+    const btnPay = document.getElementById('btn-payment');
+    btnPay.hidden = false;
+    if (reg.paid) {
+      btnPay.textContent = 'Annulla pagamento';
+      btnPay.className = 'ops-btn ops-btn-danger-outline';
+    } else {
+      btnPay.textContent = 'Conferma pagamento';
+      btnPay.className = 'ops-btn ops-btn-success';
+    }
+
+    document.getElementById('panel-merch-info').textContent = reg.merch || 'Nessun merch';
+    const merchWrap = document.getElementById('panel-merch-status-wrap');
+    const btnMerch = document.getElementById('btn-merch');
+    if (reg.has_merch) {
+      merchWrap.hidden = false;
+      setBadge(document.getElementById('panel-merch-badge'), reg.merch_collected, 'Consegnato', 'Da consegnare');
+      btnMerch.hidden = false;
+      btnMerch.textContent = reg.merch_collected ? 'Annulla consegna merch' : 'Conferma consegna merch';
+      btnMerch.className = reg.merch_collected ? 'ops-btn ops-btn-danger-outline' : 'ops-btn ops-btn-primary';
+    } else {
+      merchWrap.hidden = true;
+      btnMerch.hidden = true;
+    }
+
+    document.getElementById('panel-bib').value = reg.bib_number || '';
+    document.getElementById('panel-bib-current').textContent = reg.bib_number
+      ? `Attuale: ${reg.bib_number}`
+      : 'Nessun pettorale assegnato';
+
+    setBadge(document.getElementById('panel-pack-badge'), reg.race_pack_collected, 'Ritirato', 'Non ritirato');
+    const btnPack = document.getElementById('btn-pack');
+    btnPack.textContent = reg.race_pack_collected ? 'Annulla ritiro pacco' : 'Conferma ritiro pacco';
+    btnPack.className = reg.race_pack_collected ? 'ops-btn ops-btn-danger-outline' : 'ops-btn ops-btn-primary';
+
+    setBadge(document.getElementById('panel-arrived-badge'), reg.arrived, 'Presente', 'Non arrivato');
+    const btnArr = document.getElementById('btn-arrived');
+    btnArr.textContent = reg.arrived ? 'Annulla presenza' : 'Conferma arrivo';
+    btnArr.className = reg.arrived ? 'ops-btn ops-btn-danger-outline' : 'ops-btn ops-btn-success';
+
+    const atWrap = document.getElementById('panel-arrived-at-wrap');
+    if (reg.arrived_at) {
+      atWrap.hidden = false;
+      document.getElementById('panel-arrived-at').textContent = reg.arrived_at;
+    } else {
+      atWrap.hidden = true;
+    }
+
+    const intolWrap = document.getElementById('panel-intol-wrap');
+    if (reg.intolerances) {
+      intolWrap.hidden = false;
+      document.getElementById('panel-intolerances').textContent = reg.intolerances;
+    } else {
+      intolWrap.hidden = true;
+    }
+  }
+
+  function openPanel(id) {
+    const reg = byId[String(id)];
+    if (!reg) return;
+    currentId = String(id);
+    renderPanel(reg);
+    backdrop.classList.add('open');
+    panel.classList.add('open');
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closePanel() {
+    backdrop.classList.remove('open');
+    panel.classList.remove('open');
+    document.body.style.overflow = '';
+    currentId = null;
+  }
+
+  function askConfirm(message, onConfirm) {
+    pendingAction = onConfirm;
+    confirmMsg.textContent = message;
+    confirmEl.classList.add('open');
+  }
+
+  function closeConfirm() {
+    confirmEl.classList.remove('open');
+    pendingAction = null;
+  }
+
+  async function patchField(field, value) {
+    if (!currentId || busy) return;
+    busy = true;
+    confirmOk.disabled = true;
+    const prevText = confirmOk.textContent;
+    confirmOk.textContent = 'Salvataggio…';
+    confirmOk.classList.add('ops-loading');
+    try {
+      const res = await fetch(updateUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ registration_id: Number(currentId), field, value }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        showToast(data.error || 'Errore aggiornamento', 'err');
+        return;
+      }
+      const reg = data.registration;
+      byId[String(reg.id)] = reg;
+      const idx = registrations.findIndex(r => r.id === reg.id);
+      if (idx >= 0) registrations[idx] = reg;
+      updateRow(reg);
+      updateStats();
+      renderPanel(reg);
+      showToast('Modifica salvata', 'ok');
+      closeConfirm();
+    } catch (e) {
+      showToast('Errore di rete', 'err');
+    } finally {
+      busy = false;
+      confirmOk.disabled = false;
+      confirmOk.textContent = prevText;
+      confirmOk.classList.remove('ops-loading');
+    }
+  }
+
+  function confirmAndPatch(message, field, value) {
+    askConfirm(message, () => patchField(field, value));
+  }
+
+  // Search
+  if (searchInput && tbody) {
+    searchInput.addEventListener('input', () => {
+      const q = searchInput.value.trim().toLowerCase();
+      tbody.querySelectorAll('tr').forEach(row => {
+        row.classList.toggle('is-hidden', q && !(row.dataset.search || '').includes(q));
+      });
+      updateResultCount();
+    });
+    updateResultCount();
+  }
+
+  if (tbody) {
+    tbody.addEventListener('click', (e) => {
+      const row = e.target.closest('tr[data-id]');
+      if (row) openPanel(row.dataset.id);
+    });
+  }
+
+  document.getElementById('ops-panel-close').addEventListener('click', closePanel);
+  backdrop.addEventListener('click', closePanel);
+
+  confirmCancel.addEventListener('click', closeConfirm);
+  confirmOk.addEventListener('click', () => {
+    if (pendingAction) pendingAction();
+  });
+  confirmEl.addEventListener('click', (e) => {
+    if (e.target === confirmEl) closeConfirm();
+  });
+
+  document.getElementById('btn-payment').addEventListener('click', () => {
+    const reg = byId[currentId];
+    if (!reg) return;
+    if (reg.paid) {
+      confirmAndPatch(
+        `Annullare il pagamento di ${reg.full_name}?`,
+        'payment_status', 'pending'
+      );
+    } else {
+      confirmAndPatch(
+        `Confermare il pagamento di ${reg.full_name} (${reg.total_amount || 'importo da verificare'})?`,
+        'payment_status', 'paid'
+      );
+    }
+  });
+
+  document.getElementById('btn-pack').addEventListener('click', () => {
+    const reg = byId[currentId];
+    if (!reg) return;
+    const next = !reg.race_pack_collected;
+    confirmAndPatch(
+      next
+        ? `Confermare il ritiro del pacco gara per ${reg.full_name}?`
+        : `Annullare il ritiro pacco per ${reg.full_name}?`,
+      'race_pack_collected', next
+    );
+  });
+
+  document.getElementById('btn-arrived').addEventListener('click', () => {
+    const reg = byId[currentId];
+    if (!reg) return;
+    const next = !reg.arrived;
+    confirmAndPatch(
+      next
+        ? `Segnare ${reg.full_name} come arrivato/a?`
+        : `Annullare la presenza di ${reg.full_name}?`,
+      'arrived', next
+    );
+  });
+
+  document.getElementById('btn-merch').addEventListener('click', () => {
+    const reg = byId[currentId];
+    if (!reg || !reg.has_merch) return;
+    const next = !reg.merch_collected;
+    confirmAndPatch(
+      next
+        ? `Confermare la consegna merch (${reg.merch}) a ${reg.full_name}?`
+        : `Annullare la consegna merch per ${reg.full_name}?`,
+      'merch_collected', next
+    );
+  });
+
+  document.getElementById('btn-bib').addEventListener('click', () => {
+    const reg = byId[currentId];
+    if (!reg) return;
+    const val = document.getElementById('panel-bib').value.trim();
+    const current = (reg.bib_number || '').trim();
+    if (val === current) {
+      showToast('Nessuna modifica al pettorale', 'err');
+      return;
+    }
+    const label = val ? `n° ${val}` : 'nessun numero';
+    confirmAndPatch(
+      `Assegnare pettorale ${label} a ${reg.full_name}?`,
+      'bib_number', val
+    );
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      if (confirmEl.classList.contains('open')) closeConfirm();
+      else if (panel.classList.contains('open')) closePanel();
+    }
+  });
+})();
+</script>
+{% endblock %}

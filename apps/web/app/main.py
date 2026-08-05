@@ -46,6 +46,7 @@ from .acsi import send_documents_manual_review_email
 from .admin import setup_admin
 from .config import settings
 from .database import Base, SessionLocal, engine, get_session
+from .event_bibs import assign_bib_on_registration
 from .models import (
     DOCUMENT_CATEGORY_HEALTH,
     DOCUMENT_CATEGORY_IDENTITY,
@@ -1201,6 +1202,11 @@ def ensure_event_registration_schema() -> None:
         "payment_reference": "TEXT",
         "payment_status": "TEXT",
         "total_amount_cents": "INTEGER",
+        "bib_number": "TEXT",
+        "race_pack_collected": "INTEGER",
+        "arrived": "INTEGER",
+        "arrived_at": "TEXT",
+        "merch_collected": "INTEGER",
     }
     with engine.begin() as conn:
         for column, ddl in required_columns.items():
@@ -2041,6 +2047,7 @@ def register_event(
     )
     session.add(registration)
     session.flush()
+    assign_bib_on_registration(session, registration)
 
     base_price = event.event_price_cents or 0
     lunch_price = 0

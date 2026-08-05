@@ -11,7 +11,7 @@ import tempfile
 import zipfile
 import csv
 from copy import deepcopy
-from datetime import date as dt_date, datetime as dt_datetime
+from datetime import date as dt_date, datetime as dt_datetime, timezone
 from pathlib import Path
 from uuid import uuid4
 from xml.etree import ElementTree as ET
@@ -25,7 +25,7 @@ from starlette.background import BackgroundTask
 from starlette.datastructures import UploadFile
 from starlette.exceptions import HTTPException
 from starlette.requests import Request
-from starlette.responses import FileResponse, RedirectResponse, Response
+from starlette.responses import FileResponse, JSONResponse, RedirectResponse, Response
 from sqlalchemy.orm import Session
 from wtforms import SelectField
 from wtforms.validators import DataRequired
@@ -38,6 +38,7 @@ from .acsi import (
 )
 from .config import settings
 from .database import SessionLocal, engine
+from .event_bibs import backfill_missing_bib_numbers
 from .ocr import schedule_documents_ocr
 from .models import (
     DOCUMENT_CATEGORY_HEALTH,
@@ -119,6 +120,78 @@ def _slugify(value: str) -> str:
     value = value.strip().lower()
     value = re.sub(r"[^a-z0-9]+", "-", value)
     return value.strip("-") or "evento"
+
+
+def _has_merch_booked(reg: EventRegistration) -> bool:
+    return bool((reg.jersey_size or "").strip() and (reg.jersey_gender or "").strip())
+
+
+def _format_race(reg: EventRegistration) -> str:
+    parts: list[str] = []
+    if reg.discipline:
+        parts.append(reg.discipline)
+    if reg.route_length:
+        parts.append(reg.route_length)
+    return " / ".join(parts) if parts else "—"
+
+
+def _format_lunch(reg: EventRegistration) -> str:
+    if not reg.lunch_option:
+        return "—"
+    label = reg.lunch_option.replace("_", " ")
+    if reg.lunch_guests:
+        return f"{label} (+{reg.lunch_guests} ospiti)"
+    return label
+
+
+def _format_merch(reg: EventRegistration) -> str:
+    if not _has_merch_booked(reg):
+        return "Nessun merch"
+    return f"{reg.jersey_gender} — {reg.jersey_size}"
+
+
+def _is_paid(reg: EventRegistration) -> bool:
+    return reg.payment_status == "paid"
+
+
+def _format_amount_cents(cents: int | None) -> str:
+    if cents is None:
+        return "—"
+    return f"{cents / 100:.2f} €"
+
+
+def _registration_ops_payload(reg: EventRegistration) -> dict:
+    return {
+        "id": reg.id,
+        "first_name": reg.first_name or "",
+        "last_name": reg.last_name or "",
+        "full_name": f"{reg.last_name or ''} {reg.first_name or ''}".strip(),
+        "email": reg.email or "",
+        "phone": reg.phone or "",
+        "team_name": reg.team_name or "",
+        "discipline": reg.discipline or "",
+        "route_length": reg.route_length or "",
+        "race": _format_race(reg),
+        "lunch": _format_lunch(reg),
+        "lunch_option": reg.lunch_option or "",
+        "lunch_guests": reg.lunch_guests,
+        "merch": _format_merch(reg),
+        "has_merch": _has_merch_booked(reg),
+        "jersey_size": reg.jersey_size or "",
+        "jersey_gender": reg.jersey_gender or "",
+        "bib_number": reg.bib_number or "",
+        "payment_status": reg.payment_status or "pending",
+        "paid": _is_paid(reg),
+        "total_amount_cents": reg.total_amount_cents,
+        "total_amount": _format_amount_cents(reg.total_amount_cents),
+        "race_pack_collected": bool(reg.race_pack_collected),
+        "arrived": bool(reg.arrived),
+        "arrived_at": (
+            reg.arrived_at.strftime("%d/%m/%Y %H:%M") if reg.arrived_at else ""
+        ),
+        "merch_collected": bool(reg.merch_collected),
+        "intolerances": (reg.intolerances or "").strip(),
+    }
 
 
 def _unique_event_slug(base_slug: str, event_id: int | None = None) -> str:
@@ -420,6 +493,11 @@ class EventRegistrationAdmin(AmaroAdmin, model=EventRegistration):
         "jersey_gender",
         "payment_status",
         "total_amount_cents",
+        "bib_number",
+        "race_pack_collected",
+        "arrived",
+        "arrived_at",
+        "merch_collected",
     ]
     column_searchable_list = ["first_name", "last_name", "email", "phone"]
     column_sortable_list = ["id", "created_at"]
@@ -440,6 +518,11 @@ class EventRegistrationAdmin(AmaroAdmin, model=EventRegistration):
         "jersey_gender": "Genere maglia",
         "payment_status": "Stato pagamento",
         "total_amount_cents": "Importo totale (cent)",
+        "bib_number": "Pettorale",
+        "race_pack_collected": "Pacco gara",
+        "arrived": "Arrivato",
+        "arrived_at": "Ora arrivo",
+        "merch_collected": "Merch consegnato",
     }
     column_formatters = {
         "medical_original_name": lambda m, a: Markup(
@@ -624,7 +707,7 @@ class AdminToolsView(BaseView):
                 if password_reset:
                     request.session["admin_password_reset"] = password_reset
                 return RedirectResponse(
-                    request.url_for("admin:view-tools"), status_code=303
+                    request.url_for("admin:tools"), status_code=303
                 )
 
             members = (
@@ -671,7 +754,7 @@ class AdminToolsView(BaseView):
             members = members_pending_acsi(session)
             if not members:
                 request.session["admin_notice"] = "Nessun socio da inviare ad ACSI."
-                return RedirectResponse(request.url_for("admin:view-tools"), status_code=303)
+                return RedirectResponse(request.url_for("admin:tools"), status_code=303)
             export_path = build_acsi_export(members)
         finally:
             session.close()
@@ -683,6 +766,122 @@ class AdminToolsView(BaseView):
             filename=filename,
             background=BackgroundTask(os.unlink, export_path),
         )
+
+
+class AdminOpsView(BaseView):
+    name = "Gestionale eventi"
+    icon = "fa-solid fa-clipboard-check"
+
+    @expose("/gestionale", methods=["GET"], identity="ops")
+    async def ops(self, request: Request) -> object:
+        event_id_raw = request.query_params.get("event_id")
+        with SessionLocal() as session:
+            events = (
+                session.query(Event)
+                .filter(Event.is_amaro_event == True)
+                .order_by(Event.date.desc())
+                .all()
+            )
+            selected_event = None
+            registrations: list[dict] = []
+            stats = None
+            if event_id_raw and event_id_raw.isdigit():
+                selected_event = session.get(Event, int(event_id_raw))
+            elif events:
+                selected_event = events[0]
+
+            if selected_event:
+                backfill_missing_bib_numbers(session, selected_event.id)
+                regs = (
+                    session.query(EventRegistration)
+                    .filter(EventRegistration.event_id == selected_event.id)
+                    .order_by(
+                        EventRegistration.created_at.asc(),
+                        EventRegistration.id.asc(),
+                    )
+                    .all()
+                )
+                registrations = [_registration_ops_payload(r) for r in regs]
+                stats = {
+                    "total": len(regs),
+                    "paid": sum(1 for r in regs if _is_paid(r)),
+                    "arrived": sum(1 for r in regs if r.arrived),
+                    "race_pack": sum(1 for r in regs if r.race_pack_collected),
+                }
+
+        context = {
+            "request": request,
+            "events": events,
+            "selected_event": selected_event,
+            "registrations": registrations,
+            "stats": stats,
+            "title": "Gestionale eventi",
+            "update_url": str(request.url_for("admin:ops_update")),
+        }
+        return await self.templates.TemplateResponse(request, "admin_ops.html", context)
+
+    @expose("/gestionale/update", methods=["POST"], identity="ops_update")
+    async def ops_update(self, request: Request) -> object:
+        try:
+            body = await request.json()
+        except Exception:
+            return JSONResponse({"ok": False, "error": "JSON non valido"}, status_code=400)
+
+        registration_id = body.get("registration_id")
+        field = body.get("field")
+        value = body.get("value")
+
+        if not registration_id or not str(registration_id).isdigit():
+            return JSONResponse(
+                {"ok": False, "error": "Iscrizione non valida"}, status_code=400
+            )
+        if not field:
+            return JSONResponse(
+                {"ok": False, "error": "Campo mancante"}, status_code=400
+            )
+
+        with SessionLocal() as session:
+            reg = session.get(EventRegistration, int(registration_id))
+            if not reg:
+                return JSONResponse(
+                    {"ok": False, "error": "Iscrizione non trovata"}, status_code=404
+                )
+
+            if field == "payment_status":
+                if value not in ("paid", "pending"):
+                    return JSONResponse(
+                        {"ok": False, "error": "Stato pagamento non valido"},
+                        status_code=400,
+                    )
+                reg.payment_status = value
+            elif field == "race_pack_collected":
+                reg.race_pack_collected = bool(value)
+            elif field == "arrived":
+                arrived = bool(value)
+                reg.arrived = arrived
+                if arrived and not reg.arrived_at:
+                    reg.arrived_at = dt_datetime.now(timezone.utc)
+                elif not arrived:
+                    reg.arrived_at = None
+            elif field == "merch_collected":
+                if bool(value) and not _has_merch_booked(reg):
+                    return JSONResponse(
+                        {"ok": False, "error": "Nessun merch prenotato"},
+                        status_code=400,
+                    )
+                reg.merch_collected = bool(value)
+            elif field == "bib_number":
+                reg.bib_number = str(value).strip()[:20] or None
+            else:
+                return JSONResponse(
+                    {"ok": False, "error": "Campo non consentito"}, status_code=400
+                )
+
+            session.commit()
+            session.refresh(reg)
+            payload = _registration_ops_payload(reg)
+
+        return JSONResponse({"ok": True, "registration": payload})
 
 
 class AdminStatsView(BaseView):
@@ -777,7 +976,7 @@ class AdminStatsView(BaseView):
                     selected_event = events[0]
             if not selected_event:
                 return RedirectResponse(
-                    request.url_for("admin:view-event_stats"), status_code=303
+                    request.url_for("admin:event_stats"), status_code=303
                 )
 
             registrations = (
@@ -798,6 +997,18 @@ class AdminStatsView(BaseView):
                     "telefono",
                     "riferimento_pagamento",
                     "stato_pagamento",
+                    "importo_totale_eur",
+                    "disciplina",
+                    "percorso",
+                    "pranzo",
+                    "ospiti_pranzo",
+                    "maglia_genere",
+                    "maglia_taglia",
+                    "pettorale",
+                    "pacco_gara",
+                    "arrivato",
+                    "ora_arrivo",
+                    "merch_consegnato",
                     "intolleranze",
                     "data_iscrizione",
                 ]
@@ -812,6 +1023,22 @@ class AdminStatsView(BaseView):
                         reg.phone or "",
                         reg.payment_reference or "",
                         reg.payment_status or "pending",
+                        f"{(reg.total_amount_cents or 0) / 100:.2f}",
+                        reg.discipline or "",
+                        reg.route_length or "",
+                        reg.lunch_option or "",
+                        reg.lunch_guests or "",
+                        reg.jersey_gender or "",
+                        reg.jersey_size or "",
+                        reg.bib_number or "",
+                        "si" if reg.race_pack_collected else "no",
+                        "si" if reg.arrived else "no",
+                        (
+                            reg.arrived_at.strftime("%Y-%m-%d %H:%M:%S")
+                            if reg.arrived_at
+                            else ""
+                        ),
+                        "si" if reg.merch_collected else "no",
                         (reg.intolerances or "").strip(),
                         (
                             reg.created_at.strftime("%Y-%m-%d %H:%M:%S")
@@ -868,4 +1095,5 @@ def setup_admin(app: FastAPI) -> None:
     admin.add_view(MemberDocumentAdmin)
     admin.add_view(MembershipPaymentAdmin)
     admin.add_view(AdminToolsView)
+    admin.add_view(AdminOpsView)
     admin.add_view(AdminStatsView)
