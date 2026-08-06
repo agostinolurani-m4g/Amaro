@@ -20,7 +20,7 @@
       {% for section in menu %}
         <section class="m4g-card">
           <div class="m4g-card__head">{{ section.category }}</div>
-          {% for item in section.items %}
+          {% for item in section['items'] %}
             <div class="m4g-item" data-item-id="{{ item.id }}" data-price-cents="{{ item.price_cents }}">
               <div class="m4g-item__info">
                 <p class="m4g-item__name">{{ item.name }}</p>

@@ -29,7 +29,7 @@
       </div>
 
       <ul class="m4g-voucher__lines">
-        {% for item in voucher.items %}
+        {% for item in voucher['items'] %}
           <li>
             <span>{{ item.quantity }}× {{ item.name }}</span>
             <span>{{ price_fn(item.price_cents * item.quantity) }} €</span>
