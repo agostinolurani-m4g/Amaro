@@ -1,0 +1,56 @@
+{% extends "m4g_base.html" %}
+
+{% block title %}Voucher — Move for Gaza{% endblock %}
+
+{% block content %}
+  <div
+    class="m4g-voucher {% if voucher.status == 'redeemed' %}m4g-voucher--redeemed{% else %}m4g-voucher--valid{% endif %}"
+    id="m4g-voucher"
+    data-token="{{ voucher.token }}"
+    data-status="{{ voucher.status }}"
+  >
+    <div class="m4g-voucher__card {% if voucher.status == 'redeemed' %}is-redeemed{% endif %}">
+      <p class="m4g-hero__eyebrow" style="color: var(--m4g-muted);">Move for Gaza</p>
+      <h1 id="m4g-voucher-title">
+        {% if voucher.status == 'redeemed' %}Voucher usato{% else %}Voucher valido{% endif %}
+      </h1>
+
+      {% if voucher.status != 'redeemed' %}
+        <p class="m4g-muted">
+          Mostra questo schermo al banco. Il cameriere invalida con due tap rapidi.
+        </p>
+      {% else %}
+        <p class="m4g-muted">Ordine consegnato. Grazie!</p>
+      {% endif %}
+
+      <div class="m4g-voucher__ref">
+        <span class="m4g-muted">Codice</span><br />
+        {{ voucher.reference }}
+      </div>
+
+      <ul class="m4g-voucher__lines">
+        {% for item in voucher.items %}
+          <li>
+            <span>{{ item.quantity }}× {{ item.name }}</span>
+            <span>{{ price_fn(item.price_cents * item.quantity) }} €</span>
+          </li>
+        {% endfor %}
+      </ul>
+      <p style="display:flex;justify-content:space-between;font-weight:700;margin-top:1rem;padding-top:0.75rem;border-top:1px solid #e2e8f0;">
+        <span>Totale</span>
+        <span>{{ price_fn(voucher.amount_cents) }} €</span>
+      </p>
+
+      {% if voucher.status == 'valid' %}
+        <div class="m4g-voucher__hint" id="m4g-redeem-hint">Doppio tap per il cameriere</div>
+      {% endif %}
+
+      <p id="m4g-voucher-error" class="m4g-alert" style="display:none;margin-top:1rem;"></p>
+
+      <p style="margin-top: 1.25rem; text-align: center;">
+        <a class="m4g-link" href="/m4g/bar">Nuovo ordine</a>
+      </p>
+    </div>
+  </div>
+  <script src="{{ url_for('static', path='js/m4g-bar.js') }}"></script>
+{% endblock %}

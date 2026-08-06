@@ -1,0 +1,33 @@
+{% extends "m4g_base.html" %}
+
+{% block title %}Iscrizione — Move for Gaza{% endblock %}
+
+{% block content %}
+  <section class="m4g-hero">
+    <div class="m4g-wrap">
+      <p class="m4g-hero__eyebrow">Move for Gaza</p>
+      <h1>Iscrizione all'evento</h1>
+      <p>Scegli l'attività e completa il pagamento con carta per confermare.</p>
+    </div>
+  </section>
+
+  <div class="m4g-wrap">
+    <section class="m4g-card m4g-card--padded">
+      <p class="m4g-prose">{{ event.descrizione_evento }}</p>
+    </section>
+
+    <section class="m4g-grid">
+      {% for act in activities %}
+        <a href="{{ act.path }}" class="m4g-activity-card">
+          <h3>{{ act.title }}</h3>
+          <p>{{ act.subtitle }}</p>
+          <span class="m4g-activity-card__price">Da {{ act.price_label }}</span>
+        </a>
+      {% endfor %}
+    </section>
+
+    <p class="m4g-muted" style="margin-top: 2rem; text-align: center;">
+      <a href="/m4g/" class="m4g-link">← Torna alla home</a>
+    </p>
+  </div>
+{% endblock %}

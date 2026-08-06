@@ -222,3 +222,40 @@ class EventWaitlistEntry(Base):
     )
 
     event: Mapped["Event"] = relationship("Event", back_populates="waitlist_entries")
+
+
+class BarOrder(Base):
+    __tablename__ = "bar_orders"
+
+    id: Mapped[int] = Column(Integer, primary_key=True)
+    reference: Mapped[str] = Column(String(40), unique=True, nullable=False)
+    items_json: Mapped[str] = Column(Text, nullable=False)
+    amount_cents: Mapped[int] = Column(Integer, nullable=False)
+    payment_status: Mapped[str] = Column(String(20), default="pending")
+    voucher_token: Mapped[str | None] = Column(String(80), unique=True)
+    voucher_status: Mapped[str] = Column(String(20), default="none")
+    created_at: Mapped[DateTime] = Column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    paid_at: Mapped[DateTime | None] = Column(DateTime(timezone=True))
+    redeemed_at: Mapped[DateTime | None] = Column(DateTime(timezone=True))
+
+
+class M4gRegistration(Base):
+    __tablename__ = "m4g_registrations"
+
+    id: Mapped[int] = Column(Integer, primary_key=True)
+    reference: Mapped[str] = Column(String(40), unique=True, nullable=False)
+    activity: Mapped[str] = Column(String(20), nullable=False)
+    first_name: Mapped[str | None] = Column(String(80))
+    last_name: Mapped[str | None] = Column(String(80))
+    email: Mapped[str | None] = Column(String(140))
+    phone: Mapped[str | None] = Column(String(40))
+    payload_json: Mapped[str] = Column(Text, nullable=False, default="{}")
+    amount_cents: Mapped[int] = Column(Integer, nullable=False)
+    payment_status: Mapped[str] = Column(String(20), default="pending")
+    confirmation_token: Mapped[str | None] = Column(String(80), unique=True)
+    created_at: Mapped[DateTime] = Column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    paid_at: Mapped[DateTime | None] = Column(DateTime(timezone=True))

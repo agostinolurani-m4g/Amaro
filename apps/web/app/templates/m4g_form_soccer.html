@@ -1,0 +1,49 @@
+{% extends "m4g_base.html" %}
+{% block title %}Play4Gaza — Calcio{% endblock %}
+{% block content %}
+<section class="m4g-hero"><div class="m4g-wrap"><p class="m4g-hero__eyebrow">Play4Gaza</p><h1>Iscrizione calcio</h1><p>{{ m4g.descrizione_calcio }}</p></div></section>
+<div class="m4g-wrap">
+  {% if payment_failed %}<div class="m4g-alert">Pagamento non riuscito. Riprova.</div>{% endif %}
+  <div class="m4g-card m4g-card--padded">
+    <p>Squadre iscritte: {{ teams_count }} / {{ m4g.limits.soccer_teams_max }}</p>
+    {% if soccer_full %}
+      <div class="m4g-alert">Posti squadre esauriti.</div>
+    {% else %}
+    <p>Donazione squadra: <strong>{{ price }} €</strong></p>
+    <form method="post" action="/m4g/calcio" class="m4g-form" id="soccer-form">
+      <label>Nome squadra<input name="team_name" required /></label>
+      <label>Referente (capitanə)<input name="captain" required /></label>
+      <label>Email squadra<input type="email" name="email" required /></label>
+      <label>Telefono<input type="tel" name="phone" /></label>
+      <label>N. giocatori
+        <input type="number" name="count" min="5" max="12" value="6" id="player-count" />
+      </label>
+      <div id="player-fields"></div>
+      <label class="m4g-checkbox"><input type="checkbox" name="fairplay" value="1" required /> Accetto regolamento fair play</label>
+      <button type="submit" class="m4g-btn m4g-btn--primary">Procedi al pagamento</button>
+    </form>
+  {% endif %}
+  </div>
+  <p class="m4g-muted" style="text-align:center;margin:1.5rem 0;"><a href="/m4g/iscrizione" class="m4g-link">← Iscrizione</a></p>
+</div>
+<script>
+(function(){
+  const countInput = document.getElementById('player-count');
+  const fields = document.getElementById('player-fields');
+  function render(){
+    const n = Math.min(12, Math.max(5, Number(countInput.value)||6));
+    fields.innerHTML = '';
+    for(let i=1;i<=n;i++){
+      const label = document.createElement('label');
+      label.textContent = 'Giocatorə '+i;
+      const input = document.createElement('input');
+      input.name = 'player_'+i;
+      label.appendChild(input);
+      fields.appendChild(label);
+    }
+  }
+  countInput.addEventListener('change', render);
+  render();
+})();
+</script>
+{% endblock %}

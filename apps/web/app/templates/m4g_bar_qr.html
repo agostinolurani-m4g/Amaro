@@ -1,0 +1,16 @@
+{% extends "m4g_base.html" %}
+
+{% block title %}QR Bar — Move for Gaza{% endblock %}
+
+{% block content %}
+  <div class="m4g-qr">
+    <p class="m4g-hero__eyebrow" style="color: var(--m4g-muted);">Staff evento</p>
+    <h1>QR Bar</h1>
+    <p class="m4g-muted">Stampa o mostra questo codice al banco dell'evento.</p>
+    <img src="{{ qr_url }}" alt="QR code menu bar Move for Gaza" width="320" height="320" />
+    <p style="margin-top: 1rem; word-break: break-all;"><a class="m4g-link" href="{{ bar_url }}">{{ bar_url }}</a></p>
+    <p style="margin-top: 1.5rem;">
+      <a class="m4g-btn m4g-btn--secondary" href="/m4g/bar">Apri menu bar</a>
+    </p>
+  </div>
+{% endblock %}

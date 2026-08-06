@@ -1,0 +1,33 @@
+{% extends "m4g_base.html" %}
+
+{% block title %}Pagamento bar — Move for Gaza{% endblock %}
+
+{% block content %}
+  <div class="m4g-payment">
+    <p class="m4g-hero__eyebrow" style="color: var(--m4g-muted);">Move for Gaza</p>
+    <h1>Pagamento bar</h1>
+    <p>Importo totale: <strong>{{ total }} €</strong></p>
+    <ul class="m4g-voucher__lines">
+      {% for item in items %}
+        <li>
+          <span>{{ item.quantity }}× {{ item.name }}</span>
+          <span>{{ price_fn(item.price_cents * item.quantity) }} €</span>
+        </li>
+      {% endfor %}
+    </ul>
+    <form method="post" action="{{ payment.redirect_url }}" style="margin-top: 1.5rem;">
+      {% for name, value in payment.payload.items() %}
+        <input type="hidden" name="{{ name }}" value="{{ value }}" />
+      {% endfor %}
+      <button class="m4g-btn m4g-btn--primary" type="submit" style="width: 100%;">
+        Vai al pagamento sicuro
+      </button>
+    </form>
+    <p class="m4g-muted" style="margin-top: 1rem;">
+      Verrai reindirizzato su Nexi/XPay. Riferimento: <code>{{ reference }}</code>
+    </p>
+    <p style="margin-top: 1rem;">
+      <a class="m4g-link" href="/m4g/bar">← Torna al menu</a>
+    </p>
+  </div>
+{% endblock %}

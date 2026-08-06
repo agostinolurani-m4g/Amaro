@@ -1,0 +1,22 @@
+{% extends "m4g_base.html" %}
+{% block title %}Support4Gaza — Ingresso{% endblock %}
+{% block content %}
+<section class="m4g-hero"><div class="m4g-wrap"><p class="m4g-hero__eyebrow">Support4Gaza</p><h1>Ingresso evento</h1><p>{{ m4g.descrizione_ingresso }}</p></div></section>
+<div class="m4g-wrap">
+  {% if payment_failed %}<div class="m4g-alert">Pagamento non riuscito. Riprova.</div>{% endif %}
+  <div class="m4g-card m4g-card--padded">
+    <p>Donazione: <strong>{{ price }} €</strong></p>
+    <form method="post" action="/m4g/ingresso" class="m4g-form">
+      <div class="m4g-form__row">
+        <label>Nome<input name="first_name" required /></label>
+        <label>Cognome<input name="last_name" required /></label>
+      </div>
+      <label>Email<input type="email" name="email" required /></label>
+      <label>Telefono (opz.)<input type="tel" name="phone" /></label>
+      <label>Note<textarea name="notes" rows="3"></textarea></label>
+      <button type="submit" class="m4g-btn m4g-btn--primary">Procedi al pagamento</button>
+    </form>
+  </div>
+  <p class="m4g-muted" style="text-align:center;margin:1.5rem 0;"><a href="/m4g/iscrizione" class="m4g-link">← Iscrizione</a></p>
+</div>
+{% endblock %}

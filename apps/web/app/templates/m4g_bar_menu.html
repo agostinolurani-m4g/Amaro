@@ -1,0 +1,54 @@
+{% extends "m4g_base.html" %}
+
+{% block title %}Move for Gaza — Bar evento{% endblock %}
+
+{% block content %}
+  <header class="m4g-hero">
+    <div class="m4g-wrap" style="padding-bottom: 0;">
+      <p class="m4g-hero__eyebrow">Move for Gaza</p>
+      <h1>Bar evento</h1>
+      <p>Scegli cibo e birra, paga con carta e mostra il voucher al banco.</p>
+    </div>
+  </header>
+
+  <div class="m4g-wrap">
+    {% if payment_failed %}
+      <div class="m4g-alert">Pagamento annullato o non riuscito. Riprova quando vuoi.</div>
+    {% endif %}
+
+    <div id="m4g-menu">
+      {% for section in menu %}
+        <section class="m4g-card">
+          <div class="m4g-card__head">{{ section.category }}</div>
+          {% for item in section.items %}
+            <div class="m4g-item" data-item-id="{{ item.id }}" data-price-cents="{{ item.price_cents }}">
+              <div class="m4g-item__info">
+                <p class="m4g-item__name">{{ item.name }}</p>
+                <p class="m4g-item__price">{{ price_fn(item.price_cents) }} €</p>
+              </div>
+              <div class="m4g-qty">
+                <button type="button" class="m4g-qty__minus" aria-label="Meno">−</button>
+                <span class="m4g-qty__value">0</span>
+                <button type="button" class="m4g-qty__plus" aria-label="Più">+</button>
+              </div>
+            </div>
+          {% endfor %}
+        </section>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="m4g-checkout">
+    <form id="m4g-checkout-form" class="m4g-checkout__inner" method="post" action="/m4g/bar/checkout">
+      <input type="hidden" name="cart_json" id="m4g-cart-json" value="[]" />
+      <div class="m4g-checkout__total">
+        <p class="m4g-checkout__label">Totale</p>
+        <p class="m4g-checkout__amount" id="m4g-total">0,00 €</p>
+        <p class="m4g-checkout__meta" id="m4g-items-count">Nessun articolo</p>
+      </div>
+      <button type="submit" class="m4g-btn m4g-btn--primary" id="m4g-pay-btn" disabled>Paga ora</button>
+    </form>
+  </div>
+
+  <script src="{{ url_for('static', path='js/m4g-bar.js') }}"></script>
+{% endblock %}
