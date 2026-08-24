@@ -35,6 +35,18 @@ class Settings(BaseSettings):
     medical_manual_review_email: str | None = Field(
         'amaro.bici@gmail.com', env='MEDICAL_MANUAL_REVIEW_EMAIL'
     )
+    wattlab_download_url: str | None = Field(None, env='WATTLAB_DOWNLOAD_URL')
+    wattlab_token_ttl_days: int = Field(30, env='WATTLAB_TOKEN_TTL_DAYS')
+    wattlab_version: str = Field('0.1.0', env='WATTLAB_VERSION')
+    wattlab_releases_dir: str = Field('releases/wattlab', env='WATTLAB_RELEASES_DIR')
+    wattlab_installer_path: str | None = Field(None, env='WATTLAB_INSTALLER_PATH')
+    wattlab_installer_filename: str = Field(
+        'WattLab_0.1.0_x64-setup.exe',
+        env='WATTLAB_INSTALLER_FILENAME',
+    )
+    app_public_url: str | None = Field(None, env='APP_PUBLIC_URL')
+    strava_client_id: str | None = Field(None, env='STRAVA_CLIENT_ID')
+    strava_client_secret: str | None = Field(None, env='STRAVA_CLIENT_SECRET')
 
     class Config:
         env_file = '.env'

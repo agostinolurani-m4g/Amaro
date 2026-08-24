@@ -10,6 +10,9 @@ __pycache__/
 *.py[cod]
 .venv/
 .env
+.env.local
+*.exe
+*.msi
 *.db
 *.sqlite3
 apps/web/app/uploads/
