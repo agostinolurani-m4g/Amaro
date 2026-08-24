@@ -56,6 +56,7 @@ Metti le foto nelle cartelle Drive indicate (eventi e galleria generale); la pag
 - Quota annuale: **50 €**, include assicurazione base e accesso alle attività.
 - Per tesserarti servono carta d'identità, tessera sanitaria, certificato medico e pagamento via Nexi/XPay.
 - Durante l'invio viene generata una password per l'area soci. È necessaria per accedere a `/area-tesserati` e scaricare i documenti caricati.
+- I tesserati con pagamento completato trovano **WattLab** nell'area personale (`/area-tesserati#wattlab`) con download diretto dell'installer Windows.
 - I documenti vengono salvati in `apps/web/app/uploads/` e protetti: il download richiede login con l'account del socio.
 - Schema del database aggiornato automaticamente all'avvio (`ensure_member_schema`) per includere i nuovi campi del socio (dati anagrafici, password hash, documenti).
 
@@ -141,5 +142,34 @@ SMTP_FROM=...
 ```
 
 Template Excel: `apps/web/app/static/files/Modello_tesseramento_ACSI_NUOVO.xlsx`
+
+## WattLab (app desktop tesserati)
+
+I tesserati con pagamento completato scaricano WattLab dall'**area personale** (`/area-tesserati#wattlab`).
+
+### Pubblicare una nuova versione
+
+1. Nella cartella `wattlab`, compila l'installer:
+   ```bash
+   npm run tauri:build
+   ```
+2. Copia l'installer nel sito Amaro:
+   ```bash
+   node scripts/copy-wattlab-release.mjs
+   ```
+3. L'installer finisce in `apps/web/releases/wattlab/`.
+4. In produzione (Render) usa il disco persistente in `/data/releases/wattlab/` (`WATTLAB_RELEASES_DIR`). Se la cartella sul disco è vuota, il server usa comunque l'eventuale installer nel repo.
+
+L'API WattLab (`/api/wattlab/*`) è usata dall'app desktop per il login. Il download web passa dalla sessione dell'area tesserati (`/area-tesserati/wattlab/download`).
+
+Collegamento Strava (un bottone in WattLab, credenziali solo sul server):
+
+```
+APP_PUBLIC_URL=https://amarobici.it
+STRAVA_CLIENT_ID=...
+STRAVA_CLIENT_SECRET=...
+```
+
+Su [strava.com/settings/api](https://www.strava.com/settings/api) imposta **Authorization Callback Domain** su `amarobici.it`.
 
 Dopo l'invio, il campo `acsi_submitted_at` sul socio evita invii duplicati.

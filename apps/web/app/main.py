@@ -70,6 +70,9 @@ from .ocr import (
     validate_upload_file,
 )
 from .seed import seed_sample_data
+from .wattlab_auth import router as wattlab_router
+from .wattlab_strava import router as wattlab_strava_router
+from .wattlab_download import resolve_wattlab_installer, wattlab_installer_info
 
 GALLERY_IMAGES: list[dict[str, str]] = [
 ]
@@ -388,8 +391,30 @@ templates = Jinja2Templates(directory=templates_dir)
 templates.env.globals["current_year"] = datetime.utcnow().year
 logger = logging.getLogger(__name__)
 app.add_middleware(SessionMiddleware, secret_key=settings.session_secret, session_cookie="amaro_session")
+app.include_router(wattlab_router)
+app.include_router(wattlab_strava_router)
 app.include_router(m4g_router)
 setup_admin(app)
+
+
+@app.middleware("http")
+async def wattlab_cors_middleware(request: Request, call_next):
+    if request.url.path.startswith("/api/wattlab"):
+        if request.method == "OPTIONS":
+            return Response(
+                status_code=204,
+                headers={
+                    "Access-Control-Allow-Origin": "*",
+                    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+                    "Access-Control-Allow-Headers": "Authorization, Content-Type",
+                },
+            )
+        response = await call_next(request)
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type"
+        return response
+    return await call_next(request)
 
 UPLOADS_DIR = (BASE_DIR / settings.uploads_path).resolve()
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
@@ -967,6 +992,10 @@ def ensure_member_schema() -> None:
         "password_reset_expires_at": "DATETIME",
         "acsi_submitted_at": "DATETIME",
         "medical_manual_review_notified_at": "DATETIME",
+        "strava_access_token": "TEXT",
+        "strava_refresh_token": "TEXT",
+        "strava_expires_at": "INTEGER",
+        "strava_athlete_id": "INTEGER",
     }
     added_membership_status = False
     with engine.begin() as conn:
@@ -2857,6 +2886,7 @@ def member_area(request: Request, session: Session = Depends(get_session)) -> HT
     pending_doc_ids = request.session.pop("pending_doc_ids", None) or []
     password_reset_enabled = bool(settings.smtp_host and settings.smtp_from)
     documents: list[MemberDocument] = list(member.documents) if member else []
+    wattlab_info = wattlab_installer_info() if member and member.payment_status == "paid" else None
     return templates.TemplateResponse(
         "member_area.html",
         {
@@ -2872,7 +2902,36 @@ def member_area(request: Request, session: Session = Depends(get_session)) -> HT
             "reset_notice": reset_notice,
             "pending_doc_ids": pending_doc_ids,
             "password_reset_enabled": password_reset_enabled,
+            "wattlab_info": wattlab_info,
         },
+    )
+
+
+@app.get("/area-tesserati/wattlab/download", response_model=None)
+def member_download_wattlab(
+    request: Request,
+    session: Session = Depends(get_session),
+):
+    member = _member_from_session(request, session)
+    if not member:
+        return RedirectResponse(url="/area-tesserati", status_code=status.HTTP_303_SEE_OTHER)
+    if member.payment_status != "paid":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Pagamento obbligatorio.",
+        )
+
+    installer = resolve_wattlab_installer()
+    if installer is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Installer non ancora disponibile. Contatta la segreteria Amaro.",
+        )
+
+    return FileResponse(
+        installer,
+        filename=installer.name,
+        media_type="application/octet-stream",
     )
 
 
