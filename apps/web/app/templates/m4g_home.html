@@ -1,0 +1,43 @@
+{% extends "m4g_base.html" %}
+
+{% block title %}Move for Gaza{% endblock %}
+
+{% block content %}
+  <section class="m4g-hero m4g-hero--home">
+    <div class="m4g-wrap">
+      <p class="m4g-hero__eyebrow">Evento solidale</p>
+      <h1>{{ event.title }}</h1>
+      <p class="m4g-hero__tagline">{{ event.tagline }}</p>
+      <p class="m4g-chips">
+        <span>{{ event.date }}</span>
+        <span>{{ event.location }}</span>
+      </p>
+      <div class="m4g-hero__actions">
+        <a href="/m4g/iscrizione" class="m4g-btn m4g-btn--primary">Iscriviti all'evento</a>
+        <a href="/m4g/bar" class="m4g-btn m4g-btn--secondary">Bar evento</a>
+      </div>
+    </div>
+  </section>
+
+  <div class="m4g-wrap">
+    <section class="m4g-card m4g-card--padded">
+      <h2>Perché lo facciamo</h2>
+      <p class="m4g-prose">{{ event.cause }}</p>
+    </section>
+
+    <section class="m4g-card m4g-card--padded">
+      <h2>Il programma</h2>
+      <p class="m4g-prose">{{ event.descrizione_evento }}</p>
+    </section>
+
+    <section class="m4g-grid">
+      {% for act in activities %}
+        <a href="{{ act.path }}" class="m4g-activity-card">
+          <h3>{{ act.title }}</h3>
+          <p>{{ act.subtitle }}</p>
+          <span class="m4g-activity-card__price">{{ act.price_label }}</span>
+        </a>
+      {% endfor %}
+    </section>
+  </div>
+{% endblock %}

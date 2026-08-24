@@ -1,0 +1,37 @@
+{% extends "m4g_base.html" %}
+{% block title %}Ride4Gaza — Bici{% endblock %}
+{% block content %}
+<section class="m4g-hero"><div class="m4g-wrap"><p class="m4g-hero__eyebrow">Ride4Gaza</p><h1>Iscrizione bici</h1><p>{{ m4g.descrizione_bici }}</p></div></section>
+<div class="m4g-wrap">
+  {% if payment_failed %}<div class="m4g-alert">Pagamento non riuscito. Riprova.</div>{% endif %}
+  <div class="m4g-card m4g-card--padded">
+    <p>Donazione obbligatoria: <strong>{{ price }} €</strong>. Il pranzo non è incluso.</p>
+    <p class="m4g-muted"><a href="{{ m4g.gpx.bike_112 }}" class="m4g-link">GPX 112 km</a> · <a href="{{ m4g.gpx.bike_20 }}" class="m4g-link">GPX 25 km</a></p>
+    <form method="post" action="/m4g/bici" class="m4g-form">
+      <div class="m4g-form__row">
+        <label>Nome<input name="first_name" required /></label>
+        <label>Cognome<input name="last_name" required /></label>
+      </div>
+      <div class="m4g-form__row">
+        <label>Email<input type="email" name="email" required /></label>
+        <label>Telefono<input type="tel" name="phone" /></label>
+      </div>
+      <label>Percorso
+        <select name="distance">
+          {% for d in m4g.bike_distances %}
+          <option value="{{ d.key }}">{{ d.label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>Squadra (opz.)<input name="team_name" /></label>
+      <label>Livello
+        <select name="level">
+          <option>Principiante</option><option>Intermedio</option><option>Avanzato</option>
+        </select>
+      </label>
+      <button type="submit" class="m4g-btn m4g-btn--primary">Procedi al pagamento</button>
+    </form>
+  </div>
+  <p class="m4g-muted" style="text-align:center;margin:1.5rem 0;"><a href="/m4g/iscrizione" class="m4g-link">← Iscrizione</a></p>
+</div>
+{% endblock %}

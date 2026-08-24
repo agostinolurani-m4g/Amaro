@@ -1,0 +1,32 @@
+{% extends "m4g_base.html" %}
+{% block title %}Run4Gaza — Corsa{% endblock %}
+{% block content %}
+<section class="m4g-hero"><div class="m4g-wrap"><p class="m4g-hero__eyebrow">Run4Gaza</p><h1>Iscrizione corsa</h1><p>{{ m4g.descrizione_corsa }}</p></div></section>
+<div class="m4g-wrap">
+  {% if payment_failed %}<div class="m4g-alert">Pagamento non riuscito. Riprova.</div>{% endif %}
+  <div class="m4g-card m4g-card--padded">
+    <p>Iscritti: {{ run_count }} / {{ m4g.limits.run_max }}</p>
+    {% if run_full %}
+      <div class="m4g-alert">Posti corsa esauriti.</div>
+    {% else %}
+    <p>Donazione: <strong>{{ price }} €</strong></p>
+    <p class="m4g-muted"><a href="{{ m4g.gpx.run }}" class="m4g-link">Scarica GPX corsa</a></p>
+    <form method="post" action="/m4g/corsa" class="m4g-form">
+      <label>Nome e cognome<input name="name" required /></label>
+      <label>Email<input type="email" name="email" required /></label>
+      <label>Telefono<input type="tel" name="phone" required /></label>
+      <label>Distanza
+        <select name="distance"><option value="7">7 km</option><option value="14">14 km</option></select>
+      </label>
+      <label>Staffetta
+        <select name="staffetta"><option value="no">No</option><option value="si">Sì</option></select>
+      </label>
+      <label>Squadra staffetta (opz.)<input name="team_name" /></label>
+      <label class="m4g-checkbox"><input type="checkbox" name="waiver" value="1" required /> Dichiaro idoneità fisica</label>
+      <button type="submit" class="m4g-btn m4g-btn--primary">Procedi al pagamento</button>
+    </form>
+    {% endif %}
+  </div>
+  <p class="m4g-muted" style="text-align:center;margin:1.5rem 0;"><a href="/m4g/iscrizione" class="m4g-link">← Iscrizione</a></p>
+</div>
+{% endblock %}

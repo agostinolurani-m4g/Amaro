@@ -1,0 +1,25 @@
+{% extends "m4g_base.html" %}
+
+{% block title %}Iscrizione confermata — Move for Gaza{% endblock %}
+
+{% block content %}
+  <div class="m4g-confirm">
+    <div class="m4g-confirm__card">
+      <p class="m4g-hero__eyebrow" style="color: var(--m4g-muted);">Move for Gaza</p>
+      <h1>Iscrizione confermata</h1>
+      <p>Pagamento ricevuto. Grazie per il tuo sostegno!</p>
+      <div class="m4g-voucher__ref">
+        <span class="m4g-muted">Codice</span><br />
+        {{ registration.reference }}
+      </div>
+      <p><strong>{{ activity_label }}</strong></p>
+      <p>{{ registration.first_name }} {{ registration.last_name }}</p>
+      <p>{{ registration.email }}</p>
+      {% if payload.team_name %}<p>Squadra: {{ payload.team_name }}</p>{% endif %}
+      <p class="m4g-payment__total">Pagato: {{ price_fn(registration.amount_cents) }} €</p>
+      <p style="margin-top:1.5rem;">
+        <a href="/m4g/" class="m4g-btn m4g-btn--primary">Torna alla home</a>
+      </p>
+    </div>
+  </div>
+{% endblock %}

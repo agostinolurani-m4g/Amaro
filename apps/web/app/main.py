@@ -44,6 +44,8 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from .acsi import send_documents_manual_review_email
 from .admin import setup_admin
+from .m4g_common import apply_m4g_payment_by_reference, ensure_bar_order_schema
+from .m4g_site import router as m4g_router
 from .config import settings
 from .database import Base, SessionLocal, engine, get_session
 from .models import (
@@ -391,6 +393,7 @@ logger = logging.getLogger(__name__)
 app.add_middleware(SessionMiddleware, secret_key=settings.session_secret, session_cookie="amaro_session")
 app.include_router(wattlab_router)
 app.include_router(wattlab_strava_router)
+app.include_router(m4g_router)
 setup_admin(app)
 
 
@@ -432,6 +435,7 @@ def on_startup() -> None:
     ensure_event_registration_schema()
     ensure_merch_schema()
     ensure_membership_payment_schema()
+    ensure_bar_order_schema()
     session = SessionLocal()
     try:
         seed_sample_data(session)
@@ -1499,6 +1503,10 @@ def _apply_reference_payment(
 ) -> dict[str, object]:
     if not ref:
         return {}
+
+    bar_context = apply_m4g_payment_by_reference(ref, session, success, request)
+    if bar_context:
+        return bar_context
 
     payment = session.query(MembershipPayment).filter_by(reference=ref).first()
     if payment:
@@ -2722,6 +2730,9 @@ def nexi_success(
     for key, value in ref_context.items():
         if value is not None:
             context[key] = value
+    redirect_url = context.get("redirect_url")
+    if isinstance(redirect_url, str) and redirect_url:
+        return RedirectResponse(url=redirect_url, status_code=status.HTTP_303_SEE_OTHER)
     return templates.TemplateResponse(
         "payment_result.html",
         {
@@ -2748,6 +2759,9 @@ def nexi_failure(
     for key, value in ref_context.items():
         if value is not None:
             context[key] = value
+    redirect_url = context.get("redirect_url")
+    if isinstance(redirect_url, str) and redirect_url:
+        return RedirectResponse(url=redirect_url, status_code=status.HTTP_303_SEE_OTHER)
     return templates.TemplateResponse(
         "payment_result.html",
         {

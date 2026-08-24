@@ -1,0 +1,31 @@
+{% extends "m4g_base.html" %}
+
+{% block title %}Pagamento — Move for Gaza{% endblock %}
+
+{% block content %}
+  <div class="m4g-payment">
+    <p class="m4g-hero__eyebrow" style="color: var(--m4g-muted);">Move for Gaza</p>
+    <h1>Conferma e paga</h1>
+    <p><strong>{{ activity_label }}</strong></p>
+    <p>
+      {{ registration.first_name }} {{ registration.last_name }}<br />
+      {{ registration.email }}
+    </p>
+    {% if payload.team_name %}
+      <p>Squadra: {{ payload.team_name }}</p>
+    {% endif %}
+    {% if payload.distance %}
+      <p>Percorso/distanza: {{ payload.distance }}</p>
+    {% endif %}
+    <p class="m4g-payment__total">Totale: <strong>{{ total }} €</strong></p>
+    <form method="post" action="{{ payment.redirect_url }}">
+      {% for name, value in payment.payload.items() %}
+        <input type="hidden" name="{{ name }}" value="{{ value }}" />
+      {% endfor %}
+      <button class="m4g-btn m4g-btn--primary" type="submit" style="width:100%;margin-top:1rem;">
+        Paga con carta (Nexi)
+      </button>
+    </form>
+    <p class="m4g-muted" style="margin-top:1rem;">Rif. {{ reference }}</p>
+  </div>
+{% endblock %}
