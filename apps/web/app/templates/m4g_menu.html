@@ -1,0 +1,25 @@
+{% extends "m4g_base.html" %}
+{% block title %}Menu pranzo — Move for Gaza{% endblock %}
+{% block content %}
+<section class="m4g-hero"><div class="m4g-wrap"><p class="m4g-hero__eyebrow">Pranzo sociale</p><h1>Menu</h1><p>Consulta il menu e contribuisci con una donazione.</p></div></section>
+<div class="m4g-wrap m4g-wrap--wide">
+  {% if payment_failed %}<div class="m4g-alert">Pagamento non riuscito. Riprova.</div>{% endif %}
+  <div class="m4g-menu-images">
+    <figure class="m4g-card m4g-card--padded"><img src="{{ event.menu_images.cibo }}" alt="Menu cibo" /><figcaption>Cibo</figcaption></figure>
+    <figure class="m4g-card m4g-card--padded"><img src="{{ event.menu_images.bere }}" alt="Menu bevande" /><figcaption>Bevande</figcaption></figure>
+  </div>
+  <div class="m4g-card m4g-card--padded">
+    <h2>Donazione per il pranzo (Nexi)</h2>
+    <form method="post" action="/m4g/menu" class="m4g-form">
+      <div class="m4g-form__row">
+        <label>Nome<input name="first_name" required /></label>
+        <label>Cognome<input name="last_name" required /></label>
+      </div>
+      <label>Email<input type="email" name="email" required /></label>
+      <label>Importo (€)<input name="amount_eur" type="number" min="1" step="0.01" required /></label>
+      <button type="submit" class="m4g-btn m4g-btn--primary">Procedi al pagamento</button>
+    </form>
+  </div>
+  <p class="m4g-muted" style="text-align:center;"><a href="/m4g/" class="m4g-link">← Home</a></p>
+</div>
+{% endblock %}

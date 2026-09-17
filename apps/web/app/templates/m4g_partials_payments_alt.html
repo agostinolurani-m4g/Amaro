@@ -1,0 +1,17 @@
+<div class="m4g-payments-alt">
+  <h3>Altri metodi di pagamento</h3>
+  <p class="m4g-muted">
+    Nella causale del bonifico inserisci «Move4Gaza» e nome, cognome, sport e quota.
+  </p>
+  <p>
+    <a class="m4g-btn m4g-btn--secondary m4g-btn--inline" href="{{ m4g.payments.paypal_link }}" target="_blank" rel="noreferrer">PayPal Pool</a>
+    {% if paypal_merch %}
+    <a class="m4g-btn m4g-btn--secondary m4g-btn--inline" href="{{ m4g.payments.paypal_link_merch }}" target="_blank" rel="noreferrer">PayPal Merch</a>
+    {% endif %}
+  </p>
+  <div class="m4g-iban">
+    <p><strong>Intestatario:</strong> {{ m4g.payments.iban_owner }}</p>
+    <p><strong>IBAN:</strong> <code id="m4g-iban">{{ m4g.payments.iban }}</code></p>
+    <button type="button" class="m4g-btn m4g-btn--secondary m4g-btn--inline" onclick="navigator.clipboard.writeText('{{ m4g.payments.iban }}').then(()=>alert('IBAN copiato'))">Copia IBAN</button>
+  </div>
+</div>
