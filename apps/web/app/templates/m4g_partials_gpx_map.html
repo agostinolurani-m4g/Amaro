@@ -1,0 +1,53 @@
+{% if gpx_url %}
+<div class="m4g-gpx">
+  <div class="m4g-gpx__flag" aria-hidden="true"></div>
+  <div id="m4g-map-{{ map_id }}" class="m4g-gpx__map" data-gpx="{{ gpx_url }}"></div>
+  <p class="m4g-muted m4g-gpx__meta" id="m4g-map-meta-{{ map_id }}">Caricamento percorso…</p>
+  <a href="{{ gpx_url }}" class="m4g-link" download>Scarica GPX</a>
+</div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<script src="https://unpkg.com/leaflet-gpx@2.2.0/gpx.js"></script>
+<script>
+(function () {
+  const mapEl = document.getElementById("m4g-map-{{ map_id }}");
+  if (!mapEl || typeof L === "undefined") return;
+  const gpxUrl = mapEl.dataset.gpx;
+  const metaEl = document.getElementById("m4g-map-meta-{{ map_id }}");
+  const map = L.map(mapEl, { scrollWheelZoom: false, zoomControl: true }).setView([45.46, 9.19], 11);
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 18,
+    attribution: "&copy; OpenStreetMap",
+  }).addTo(map);
+  if (typeof L.GPX === "undefined") {
+    if (metaEl) metaEl.textContent = "Mappa non disponibile; scarica il GPX.";
+    return;
+  }
+  const gpxOpts = {
+    async: true,
+    marker_options: {
+      startIconUrl: false,
+      endIconUrl: false,
+      shadowUrl: false,
+      wptIconUrls: {},
+    },
+  };
+  new L.GPX(gpxUrl, Object.assign({ polyline_options: { color: "#000000", weight: 8, opacity: 1, lineCap: "round" } }, gpxOpts)).addTo(map);
+  new L.GPX(gpxUrl, Object.assign({ polyline_options: { color: "#007A3D", weight: 6, opacity: 1, lineCap: "round" } }, gpxOpts)).addTo(map);
+  new L.GPX(gpxUrl, Object.assign({ polyline_options: { color: "#CE1126", weight: 3, opacity: 1, lineCap: "round" } }, gpxOpts))
+    .on("loaded", function (e) {
+      map.fitBounds(e.target.getBounds(), { padding: [24, 24] });
+      const distKm = (e.target.get_distance() / 1000).toFixed(1);
+      const elev = e.target.get_elevation_gain();
+      if (metaEl) {
+        metaEl.textContent =
+          "Distanza circa " + distKm + " km" +
+          (elev ? " · dislivello " + Math.round(elev) + " m" : "");
+      }
+    })
+    .on("error", function () {
+      if (metaEl) metaEl.textContent = "Impossibile caricare il tracciato; usa il download GPX.";
+    })
+    .addTo(map);
+})();
+</script>
+{% endif %}

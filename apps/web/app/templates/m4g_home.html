@@ -4,7 +4,7 @@
 
 {% block content %}
   <section class="m4g-hero m4g-hero--home">
-    <div class="m4g-wrap">
+    <div class="m4g-wrap m4g-wrap--wide">
       <p class="m4g-hero__eyebrow">Evento solidale</p>
       <h1>{{ event.title }}</h1>
       <p class="m4g-hero__tagline">{{ event.tagline }}</p>
@@ -14,20 +14,50 @@
       </p>
       <div class="m4g-hero__actions">
         <a href="/m4g/iscrizione" class="m4g-btn m4g-btn--primary">Iscriviti all'evento</a>
-        <a href="/m4g/bar" class="m4g-btn m4g-btn--secondary">Bar evento</a>
+        <a href="/m4g/donazione" class="m4g-btn m4g-btn--secondary">Dona ora</a>
+        <a href="/m4g/merch" class="m4g-btn m4g-btn--secondary">Merch</a>
+        <a href="/m4g/giornata" class="m4g-btn m4g-btn--secondary">La giornata</a>
+        <a href="/m4g/bar" class="m4g-btn m4g-btn--secondary">Bar &amp; cucina</a>
       </div>
     </div>
   </section>
 
-  <div class="m4g-wrap">
+  <div class="m4g-wrap m4g-wrap--wide">
+    <section class="m4g-stats m4g-card m4g-card--padded">
+      <h2>Raccolta di questa edizione</h2>
+      <p class="m4g-stats__total"><strong>{{ price_fn(stats.total_cents) }} €</strong> confermati sul sito</p>
+      <p class="m4g-muted">
+        Somma dei pagamenti Nexi andati a buon fine (iscrizioni, donazioni, merch e bar).
+        Satispay Colletta, PayPal Pool e bonifici si aggiungono quando li registriamo.
+      </p>
+      <p class="m4g-muted">Nel 2025 ne abbiamo raccolti 26.000 € — <a href="/m4g/chi-siamo" class="m4g-link">chi siamo</a>.</p>
+    </section>
+
     <section class="m4g-card m4g-card--padded">
       <h2>Perché lo facciamo</h2>
       <p class="m4g-prose">{{ event.cause }}</p>
+      <p class="m4g-prose">{{ event.descrizione_evento_perche }}</p>
     </section>
 
     <section class="m4g-card m4g-card--padded">
       <h2>Il programma</h2>
       <p class="m4g-prose">{{ event.descrizione_evento }}</p>
+      <h3 class="m4g-subhead">Come partecipare</h3>
+      <ol class="m4g-steps">
+        <li>Scegli l'attività (bici, calcio, corsa o ingresso).</li>
+        <li>Compila il modulo e paga con carta (Nexi/XPay).</li>
+        <li>Ricevi la conferma via email dopo il pagamento.</li>
+      </ol>
+    </section>
+
+    <section class="m4g-card m4g-card--padded">
+      <h2>Realtà che hanno aderito</h2>
+      <div class="m4g-adherents">
+        {% for name in adherents %}
+          <span class="m4g-adherents__chip">{{ name }}</span>
+        {% endfor %}
+      </div>
+      <a class="m4g-btn m4g-btn--primary m4g-btn--inline" href="mailto:{{ event.contact_email }}?subject=Adesione%20associazione">Vuoi aderire come associazione? Scrivici!</a>
     </section>
 
     <section class="m4g-grid">
@@ -39,5 +69,19 @@
         </a>
       {% endfor %}
     </section>
+
+    <section class="m4g-card m4g-card--padded m4g-beneficiary-teaser">
+      <h2>A chi doniamo</h2>
+      <p>{{ event.beneficiary.blurb }}</p>
+      <a href="/m4g/chi-siamo" class="m4g-btn m4g-btn--primary m4g-btn--inline">Chi siamo e il beneficiario</a>
+    </section>
+
+    <section class="m4g-merch-cta m4g-card m4g-card--padded">
+      <h2>Merch solidale</h2>
+      <p>Calze e T-shirt a 15 €. Tutti i ricavi a Gaza Sunbirds. Materiali OEKO-TEX®.</p>
+      <a href="/m4g/merch" class="m4g-btn m4g-btn--primary m4g-btn--inline">Vai al merch</a>
+    </section>
+
+    {% include "m4g_partials_faq.html" %}
   </div>
 {% endblock %}

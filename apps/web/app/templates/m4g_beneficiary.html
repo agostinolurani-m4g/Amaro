@@ -1,0 +1,90 @@
+{% extends "m4g_base.html" %}
+{% block title %}Chi siamo — Move for Gaza{% endblock %}
+{% block content %}
+<section class="m4g-hero">
+  <div class="m4g-wrap m4g-wrap--wide">
+    <p class="m4g-hero__eyebrow">Chi siamo</p>
+    <h1>Move for Gaza</h1>
+    <p>Un evento sportivo solidale nato a Milano, e i fondi che arrivano ai Gaza Sunbirds.</p>
+  </div>
+</section>
+
+<div class="m4g-wrap m4g-wrap--wide">
+  <section class="m4g-card m4g-card--padded">
+    <h2>L'edizione {{ last.year }}</h2>
+    <p class="m4g-prose">
+      Circa <strong>{{ last.participants }} persone</strong> all'Arci Olmi, tra chi ha pedalato, corso,
+      giocato e chi è venuto solo a tifare e sostenere. Insieme abbiamo raccolto
+      <strong>{{ "{:,}".format(last.raised_eur).replace(",", ".") }} €</strong> destinati a Gaza Sunbirds.
+    </p>
+    <div class="m4g-numbers">
+      <article><strong>26.000 €</strong><span>raccolti</span></article>
+      <article><strong>~500</strong><span>partecipanti</span></article>
+      <article><strong>150</strong><span>ciclisti</span></article>
+      <article><strong>60</strong><span>corridori</span></article>
+      <article><strong>12</strong><span>squadre di calcio</span></article>
+      <article><strong>~100</strong><span>calciatori e calciatrici</span></article>
+    </div>
+    <p class="m4g-muted">Più un sacco di sostenitori: chi ha cucinato, chi ha tenuto il bar, chi ha donato senza iscriversi.</p>
+  </section>
+
+  <section class="m4g-card m4g-card--padded">
+    <h2>Km e minuti</h2>
+    <p class="m4g-prose">
+      Stima dai numeri dell'edizione: un terzo dei ciclisti sul percorso lungo (112 km),
+      due terzi sul cittadino (25 km); in corsa la maggior parte ha fatto 7 km, una parte 14 km;
+      a calcio ogni squadra ha giocato tre partite da 20 minuti.
+    </p>
+    <div class="m4g-numbers">
+      <article><strong>{{ "{:,}".format(last.bike_km).replace(",", ".") }} km</strong><span>in bici</span></article>
+      <article><strong>{{ last.run_km }} km</strong><span>a piedi</span></article>
+      <article><strong>{{ last.soccer_minutes }} min</strong><span>{{ last.soccer_matches }} partite di calcio</span></article>
+    </div>
+  </section>
+
+  <section class="m4g-card m4g-card--padded">
+    <h2>{{ last.meeting_title }}</h2>
+    <p class="m4g-prose">{{ last.meeting_text }}</p>
+  </section>
+
+  <section class="m4g-beneficiary-hero m4g-card m4g-card--padded">
+    <img src="{{ event.beneficiary.logo_url }}" alt="{{ event.beneficiary.name }}" class="m4g-beneficiary-hero__logo" />
+    <div>
+      <h2>A chi vanno i fondi</h2>
+      <p class="m4g-prose">{{ event.beneficiary.blurb }}</p>
+      <p>
+        <a href="{{ event.beneficiary.url }}" class="m4g-link" target="_blank" rel="noreferrer">Sito ufficiale</a>
+        ·
+        <a href="{{ event.beneficiary.links.contact_url }}" class="m4g-link" target="_blank" rel="noreferrer">Contatti</a>
+      </p>
+    </div>
+  </section>
+  <div class="m4g-beneficiary-grid">
+    <div class="m4g-card m4g-card--padded m4g-beneficiary-box">
+      <img src="{{ event.beneficiary.images.chi }}" alt="Chi sono" />
+      <h3>Chi sono</h3>
+      <p>Team di paraciclismo fondato a Gaza; mutual aid sul territorio.
+        <a href="{{ event.beneficiary.links.about_url }}" class="m4g-link" target="_blank" rel="noreferrer">Scopri di più</a>.
+      </p>
+    </div>
+    <div class="m4g-card m4g-card--padded m4g-beneficiary-box">
+      <img src="{{ event.beneficiary.images.mission }}" alt="Missione" />
+      <h3>Missione</h3>
+      <p>Aiuti comunitari, protezione dei civili e sport accessibile.
+        <a href="{{ event.beneficiary.links.mission_url }}" class="m4g-link" target="_blank" rel="noreferrer">Mission</a>.
+      </p>
+    </div>
+    <div class="m4g-card m4g-card--padded m4g-beneficiary-box">
+      <img src="{{ event.beneficiary.images.dist }}" alt="Dove vanno i fondi" />
+      <h3>Dove vanno i fondi</h3>
+      <p>Beni essenziali, distribuzioni locali, inclusione e sport.</p>
+    </div>
+    <div class="m4g-card m4g-card--padded m4g-beneficiary-box">
+      <img src="{{ event.beneficiary.images.aid }}" alt="Aid" />
+      <h3>Aid &amp; programmi</h3>
+      <p><a href="{{ event.beneficiary.links.aid_url }}" class="m4g-link" target="_blank" rel="noreferrer">Distribuzioni e aggiornamenti</a></p>
+    </div>
+  </div>
+  <p class="m4g-muted"><a href="/m4g/" class="m4g-link">← Home</a></p>
+</div>
+{% endblock %}

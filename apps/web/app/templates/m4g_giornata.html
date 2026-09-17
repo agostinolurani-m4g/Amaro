@@ -1,0 +1,42 @@
+{% extends "m4g_base.html" %}
+{% block title %}La giornata — Move for Gaza{% endblock %}
+{% block content %}
+<section class="m4g-hero">
+  <div class="m4g-wrap">
+    <p class="m4g-hero__eyebrow">Programma</p>
+    <h1>Come funziona la giornata</h1>
+    <p class="m4g-chips">
+      <span>{{ event.date }}</span>
+      <span>{{ event.location }}</span>
+    </p>
+  </div>
+</section>
+<div class="m4g-wrap m4g-wrap--wide">
+  <section class="m4g-card m4g-card--padded">
+    <p class="m4g-prose">{{ event.descrizione_evento }}</p>
+  </section>
+  <section class="m4g-card m4g-card--padded">
+    <h2>Orari</h2>
+    <ol class="m4g-timeline">
+      {% for slot in event.schedule %}
+        <li class="m4g-timeline__item">
+          <time class="m4g-timeline__time">{{ slot.time }}</time>
+          <div>
+            <strong>{{ slot.title }}</strong>
+            <p class="m4g-muted">{{ slot.detail }}</p>
+          </div>
+        </li>
+      {% endfor %}
+    </ol>
+  </section>
+  <section class="m4g-card m4g-card--padded">
+    <h2>Cibo e bar</h2>
+    <p class="m4g-prose">
+      Pranzo e consumazioni si ordinano dalla pagina
+      <a class="m4g-link" href="/m4g/bar">Bar &amp; cucina</a>:
+      carrello, pagamento (carta Nexi per i banner digitali al banco, oppure Satispay/PayPal con ricevuta in cassa).
+    </p>
+    <a class="m4g-btn m4g-btn--primary m4g-btn--inline" href="/m4g/iscrizione">Iscriviti a un'attività</a>
+  </section>
+</div>
+{% endblock %}

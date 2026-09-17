@@ -61,17 +61,14 @@
     renderCart();
   }
 
-  const voucherRoot = document.getElementById('m4g-voucher');
-  if (voucherRoot && voucherRoot.dataset.status === 'valid') {
-    const token = voucherRoot.dataset.token;
-    const hint = document.getElementById('m4g-redeem-hint');
-    const errorEl = document.getElementById('m4g-voucher-error');
-    const titleEl = document.getElementById('m4g-voucher-title');
+  function bindDoubleTapRedeem(root, redeemUrl) {
     let lastTap = 0;
     let redeeming = false;
+    const hint = root.querySelector('.m4g-consumption__hint, .m4g-voucher__hint, #m4g-redeem-hint');
+    const errorEl = root.querySelector('.m4g-consumption__error, #m4g-voucher-error');
 
-    voucherRoot.addEventListener('pointerdown', async () => {
-      if (redeeming) return;
+    root.addEventListener('pointerdown', async () => {
+      if (redeeming || root.dataset.status !== 'valid') return;
       const now = Date.now();
       if (now - lastTap > 500) {
         lastTap = now;
@@ -81,13 +78,13 @@
       redeeming = true;
       if (hint) hint.textContent = 'Invalidazione…';
       try {
-        const response = await fetch(`/m4g/voucher/${encodeURIComponent(token)}/redeem`, {
+        const response = await fetch(redeemUrl, {
           method: 'POST',
           headers: { Accept: 'application/json' },
         });
         if (!response.ok) {
           const data = await response.json().catch(() => ({}));
-          throw new Error(data.detail || 'Non è stato possibile invalidare il voucher');
+          throw new Error(data.detail || 'Non è stato possibile invalidare il banner');
         }
         window.location.reload();
       } catch (error) {
@@ -100,4 +97,11 @@
       }
     });
   }
+
+  document.querySelectorAll('.m4g-consumption[data-status="valid"]').forEach((card) => {
+    const ref = card.dataset.orderRef;
+    const token = card.dataset.token;
+    bindDoubleTapRedeem(card, `/m4g/ordine/${encodeURIComponent(ref)}/consumo/${encodeURIComponent(token)}/redeem`);
+  });
+
 })();

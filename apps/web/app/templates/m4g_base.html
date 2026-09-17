@@ -6,6 +6,7 @@
     <meta name="theme-color" content="#009739" />
     <title>{% block title %}Move for Gaza{% endblock %}</title>
     <link rel="stylesheet" href="{{ url_for('static', path='css/m4g-bar.css') }}" />
+    {% block head_extra %}{% endblock %}
   </head>
   <body class="m4g-body">
     <header class="m4g-nav">
@@ -13,8 +14,12 @@
         <img src="{{ m4g.logo_url }}" alt="Move for Gaza" height="40" />
       </a>
       <nav class="m4g-nav__links">
+        <a href="/m4g/giornata">La giornata</a>
         <a href="/m4g/iscrizione">Iscrizione</a>
-        <a href="/m4g/bar">Bar</a>
+        <a href="/m4g/bar">Bar &amp; cucina</a>
+        <a href="/m4g/merch">Merch</a>
+        <a href="/m4g/donazione">Dona</a>
+        <a href="/m4g/chi-siamo">Chi siamo</a>
       </nav>
     </header>
     {% block content %}{% endblock %}
@@ -23,6 +28,7 @@
       <p class="m4g-muted">
         A sostegno di
         <a href="{{ m4g.beneficiary_url }}" class="m4g-link" target="_blank" rel="noreferrer">{{ m4g.beneficiary_name }}</a>
+        · <a href="mailto:{{ m4g.contact_email }}" class="m4g-link">{{ m4g.contact_email }}</a>
       </p>
     </footer>
   </body>

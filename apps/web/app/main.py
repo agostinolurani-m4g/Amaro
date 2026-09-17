@@ -45,6 +45,8 @@ from starlette.middleware.sessions import SessionMiddleware
 from .acsi import send_documents_manual_review_email
 from .admin import setup_admin
 from .m4g_common import apply_m4g_payment_by_reference, ensure_bar_order_schema
+from .m4g_config import M4G_PUBLIC_HOSTS
+from .m4g_auth import M4gLoginRequired, access_router as m4g_access_router, m4g_access_redirect
 from .m4g_site import router as m4g_router
 from .config import settings
 from .database import Base, SessionLocal, engine, get_session
@@ -393,8 +395,14 @@ logger = logging.getLogger(__name__)
 app.add_middleware(SessionMiddleware, secret_key=settings.session_secret, session_cookie="amaro_session")
 app.include_router(wattlab_router)
 app.include_router(wattlab_strava_router)
+app.include_router(m4g_access_router)
 app.include_router(m4g_router)
 setup_admin(app)
+
+
+@app.exception_handler(M4gLoginRequired)
+async def m4g_login_required_handler(request: Request, exc: M4gLoginRequired):
+    return m4g_access_redirect(exc.next_url)
 
 
 @app.middleware("http")
@@ -415,6 +423,17 @@ async def wattlab_cors_middleware(request: Request, call_next):
         response.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type"
         return response
     return await call_next(request)
+
+
+@app.middleware("http")
+async def m4g_public_host_middleware(request: Request, call_next):
+    """Serve Move for Gaza at site root on www.move-4-gaza.com."""
+    host = (request.headers.get("host") or "").split(":")[0].lower()
+    path = request.url.path
+    if host in M4G_PUBLIC_HOSTS and not path.startswith("/m4g") and not path.startswith("/static"):
+        request.scope["path"] = "/m4g" + ("" if path == "/" else path)
+    return await call_next(request)
+
 
 UPLOADS_DIR = (BASE_DIR / settings.uploads_path).resolve()
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)

@@ -238,6 +238,7 @@ class BarOrder(Base):
     payment_status: Mapped[str] = Column(String(20), default="pending")
     voucher_token: Mapped[str | None] = Column(String(80), unique=True)
     voucher_status: Mapped[str] = Column(String(20), default="none")
+    consumption_tokens_json: Mapped[str | None] = Column(Text)
     created_at: Mapped[DateTime] = Column(
         DateTime(timezone=True), server_default=func.now()
     )

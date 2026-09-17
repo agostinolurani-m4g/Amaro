@@ -1,20 +1,32 @@
 {% extends "m4g_base.html" %}
 
-{% block title %}Move for Gaza — Bar evento{% endblock %}
+{% block title %}Bar &amp; cucina — Move for Gaza{% endblock %}
 
 {% block content %}
   <header class="m4g-hero">
     <div class="m4g-wrap" style="padding-bottom: 0;">
       <p class="m4g-hero__eyebrow">Move for Gaza</p>
-      <h1>Bar evento</h1>
-      <p>Scegli cibo e birra, paga con carta e mostra il voucher al banco.</p>
+      <h1>Bar &amp; cucina</h1>
+      <p>Pranzo e bar in un unico carrello. Paga e ricevi un banner digitale per ogni consumazione.</p>
     </div>
   </header>
 
-  <div class="m4g-wrap">
+  <div class="m4g-wrap m4g-wrap--wide">
     {% if payment_failed %}
       <div class="m4g-alert">Pagamento annullato o non riuscito. Riprova quando vuoi.</div>
     {% endif %}
+
+    <section class="m4g-card m4g-card--padded m4g-vendors">
+      <h2>Chi cucina</h2>
+      <div class="m4g-vendors__grid">
+        {% for vendor in vendors %}
+          <article class="m4g-vendor">
+            <h3>{{ vendor.name }}{% if vendor.placeholder %} <span class="m4g-muted">(da confermare)</span>{% endif %}</h3>
+            <p class="m4g-muted">{{ vendor.blurb }}</p>
+          </article>
+        {% endfor %}
+      </div>
+    </section>
 
     <div id="m4g-menu">
       {% for section in menu %}
@@ -46,7 +58,7 @@
         <p class="m4g-checkout__amount" id="m4g-total">0,00 €</p>
         <p class="m4g-checkout__meta" id="m4g-items-count">Nessun articolo</p>
       </div>
-      <button type="submit" class="m4g-btn m4g-btn--primary" id="m4g-pay-btn" disabled>Paga ora</button>
+      <button type="submit" class="m4g-btn m4g-btn--primary m4g-btn--nexi" id="m4g-pay-btn" disabled>Vai al pagamento</button>
     </form>
   </div>
 

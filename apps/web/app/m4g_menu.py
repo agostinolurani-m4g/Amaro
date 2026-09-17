@@ -1,6 +1,23 @@
-"""Menu bar evento Move for Gaza (catalogo statico MVP)."""
+"""Menu bar e cucina evento Move for Gaza."""
 
 BAR_MENU: list[dict[str, object]] = [
+    {
+        "category": "Pranzo — Cucina Franca",
+        "vendor_id": "cucina-franca",
+        "items": [
+            {"id": "primo-giorno", "name": "Primo del giorno", "price_cents": 800},
+            {"id": "secondo-giorno", "name": "Secondo del giorno", "price_cents": 900},
+            {"id": "contorno", "name": "Contorno", "price_cents": 400},
+        ],
+    },
+    {
+        "category": "Pranzo — Tondo Forno Radicale",
+        "vendor_id": "tondo-forno",
+        "items": [
+            {"id": "pizza-taglio", "name": "Pizza al taglio", "price_cents": 450},
+            {"id": "focaccia", "name": "Focaccia", "price_cents": 400},
+        ],
+    },
     {
         "category": "Birra",
         "items": [
@@ -11,7 +28,7 @@ BAR_MENU: list[dict[str, object]] = [
         ],
     },
     {
-        "category": "Cibo",
+        "category": "Snack bar",
         "items": [
             {"id": "panino", "name": "Panino", "price_cents": 600},
             {"id": "piadina", "name": "Piadina", "price_cents": 550},

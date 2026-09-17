@@ -1,0 +1,23 @@
+{% extends "m4g_base.html" %}
+{% block title %}Dona — Move for Gaza{% endblock %}
+{% block content %}
+<section class="m4g-hero"><div class="m4g-wrap"><p class="m4g-hero__eyebrow">Solidarietà</p><h1>Sostieni l'evento</h1><p>Donazione libera (min. {{ min_donation }} €) — Nexi, Satispay, PayPal o bonifico.</p></div></section>
+<div class="m4g-wrap m4g-wrap--wide">
+  {% if payment_failed %}<div class="m4g-alert">Pagamento non riuscito. Riprova.</div>{% endif %}
+  <div class="m4g-card m4g-card--padded">
+    <h2>I tuoi dati</h2>
+    <form method="post" action="/m4g/donazione" class="m4g-form" id="m4g-donate-form">
+      <div class="m4g-form__row">
+        <label>Nome<input name="first_name" required /></label>
+        <label>Cognome<input name="last_name" required /></label>
+      </div>
+      <label>Email<input type="email" name="email" required /></label>
+      <label>Telefono (opz.)<input type="tel" name="phone" /></label>
+      <label>Importo (€)<input name="amount_eur" type="number" min="{{ min_donation }}" step="0.01" value="{{ min_donation }}" required /></label>
+      <p class="m4g-muted">Dopo «Procedi» scegli Nexi, Satispay o PayPal.</p>
+      <button type="submit" class="m4g-btn m4g-btn--primary">Procedi al pagamento</button>
+    </form>
+  </div>
+</div>
+<p class="m4g-muted m4g-wrap" style="text-align:center;"><a href="/m4g/" class="m4g-link">← Home</a></p>
+{% endblock %}

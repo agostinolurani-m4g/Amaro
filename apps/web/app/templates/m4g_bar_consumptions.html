@@ -1,0 +1,36 @@
+{% extends "m4g_base.html" %}
+{% block title %}I tuoi banner — Move for Gaza{% endblock %}
+{% block content %}
+<section class="m4g-hero m4g-hero--compact">
+  <div class="m4g-wrap">
+    <p class="m4g-hero__eyebrow">Ordine {{ order.reference }}</p>
+    <h1>Banner in cassa</h1>
+    <p class="m4g-muted">Un banner per ogni consumazione. Mostra al banco: doppio tap per invalidare.</p>
+  </div>
+</section>
+<div class="m4g-wrap m4g-consumptions">
+  {% for v in vouchers %}
+    <article
+      class="m4g-consumption {% if v.status == 'redeemed' %}m4g-consumption--redeemed{% endif %}"
+      data-order-ref="{{ order.reference }}"
+      data-token="{{ v.token }}"
+      data-status="{{ v.status }}"
+    >
+      <p class="m4g-consumption__eyebrow">Move for Gaza</p>
+      <h2 class="m4g-consumption__title">
+        {% if v.status == 'redeemed' %}Consegnato{% else %}Da ritirare{% endif %}
+      </h2>
+      <p class="m4g-consumption__item">{{ v.name }}</p>
+      <p class="m4g-consumption__price">{{ price_fn(v.price_cents) }} €</p>
+      {% if v.status != 'redeemed' %}
+        <p class="m4g-voucher__hint m4g-consumption__hint">Doppio tap per il cameriere</p>
+      {% endif %}
+      <p class="m4g-consumption__error m4g-alert" style="display:none;"></p>
+    </article>
+  {% endfor %}
+  <p style="text-align:center;margin-top:1.5rem;">
+    <a class="m4g-link" href="/m4g/bar">Nuovo ordine</a>
+  </p>
+</div>
+<script src="{{ url_for('static', path='js/m4g-bar.js') }}"></script>
+{% endblock %}
