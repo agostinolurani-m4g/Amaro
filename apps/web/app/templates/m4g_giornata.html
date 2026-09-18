@@ -1,4 +1,5 @@
 {% extends "m4g_base.html" %}
+{% from "m4g_macros.html" import m4g_figure %}
 {% block title %}La giornata — Move for Gaza{% endblock %}
 {% block content %}
 <section class="m4g-hero">
@@ -12,6 +13,14 @@
   </div>
 </section>
 <div class="m4g-wrap m4g-wrap--wide">
+  <section class="m4g-card m4g-card--padded m4g-venue-card">
+    {{ m4g_figure(event.venue_image, "Arci Olmi", "square", "", false, "8rem") }}
+    <div>
+      <h2>Luogo</h2>
+      <p class="m4g-prose">{{ event.location }}</p>
+      <p class="m4g-muted">Campo e circolo Arci Olmi — punto di ritrovo per tutte le attività.</p>
+    </div>
+  </section>
   <section class="m4g-card m4g-card--padded">
     <p class="m4g-prose">{{ event.descrizione_evento }}</p>
   </section>
@@ -31,12 +40,17 @@
   </section>
   <section class="m4g-card m4g-card--padded">
     <h2>Cibo e bar</h2>
-    <p class="m4g-prose">
-      Pranzo e consumazioni si ordinano dalla pagina
-      <a class="m4g-link" href="/m4g/bar">Bar &amp; cucina</a>:
-      carrello, pagamento (carta Nexi per i banner digitali al banco, oppure Satispay/PayPal con ricevuta in cassa).
-    </p>
-    <a class="m4g-btn m4g-btn--primary m4g-btn--inline" href="/m4g/iscrizione">Iscriviti a un'attività</a>
+    <p class="m4g-prose">Cucinano:</p>
+    <ul class="m4g-steps">
+      {% for vendor in vendors %}
+        <li>
+          <strong>{{ vendor.name }}</strong>
+          {% if vendor.placeholder %}<span class="m4g-muted"> (da confermare)</span>{% endif %}
+          — {{ vendor.blurb }}
+        </li>
+      {% endfor %}
+    </ul>
+    <a class="m4g-btn m4g-btn--primary m4g-btn--inline" href="/m4g/bar">Vai al menu</a>
   </section>
 </div>
 {% endblock %}

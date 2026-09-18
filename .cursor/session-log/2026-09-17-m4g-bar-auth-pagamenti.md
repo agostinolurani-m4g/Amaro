@@ -5,7 +5,7 @@
 - **Workspace**: /Users/agostinolurani/Developer/Amaro
 - **Branch**: main
 - **Issue**: —
-- **Commit**: `85c2a2a` Ship the password-gated Move for Gaza site with bar cart, payments, and Chi siamo.
+- **Commit**: `128d404` Ship the password-gated Move for Gaza site; `6d26e10` move-4-gaza live on amaro (push su origin/main come agostinolurani-m4g)
 
 ## Richiesta
 

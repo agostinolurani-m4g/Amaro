@@ -305,7 +305,7 @@ def m4g_menu_redirect() -> RedirectResponse:
 def m4g_giornata_page(request: Request) -> HTMLResponse:
     return templates.TemplateResponse(
         "m4g_giornata.html",
-        {"request": request, "event": M4G_EVENT},
+        {"request": request, "event": M4G_EVENT, "vendors": FOOD_VENDORS},
     )
 
 

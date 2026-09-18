@@ -1,4 +1,5 @@
 {% extends "m4g_base.html" %}
+{% from "m4g_macros.html" import m4g_logo %}
 
 {% block title %}Move for Gaza{% endblock %}
 
@@ -15,6 +16,7 @@
       <div class="m4g-hero__actions">
         <a href="/m4g/iscrizione" class="m4g-btn m4g-btn--primary">Iscriviti all'evento</a>
         <a href="/m4g/donazione" class="m4g-btn m4g-btn--secondary">Dona ora</a>
+        <a href="/m4g/chi-siamo" class="m4g-btn m4g-btn--secondary">Chi siamo</a>
         <a href="/m4g/merch" class="m4g-btn m4g-btn--secondary">Merch</a>
         <a href="/m4g/giornata" class="m4g-btn m4g-btn--secondary">La giornata</a>
         <a href="/m4g/bar" class="m4g-btn m4g-btn--secondary">Bar &amp; cucina</a>
@@ -71,9 +73,16 @@
     </section>
 
     <section class="m4g-card m4g-card--padded m4g-beneficiary-teaser">
-      <h2>A chi doniamo</h2>
-      <p>{{ event.beneficiary.blurb }}</p>
-      <a href="/m4g/chi-siamo" class="m4g-btn m4g-btn--primary m4g-btn--inline">Chi siamo e il beneficiario</a>
+      <div class="m4g-beneficiary-hero">
+        <div class="m4g-beneficiary-hero__logo-wrap">
+          {{ m4g_logo(event.beneficiary.logo_url, event.beneficiary.name) }}
+        </div>
+        <div>
+          <h2>A chi doniamo</h2>
+          <p>{{ event.beneficiary.blurb }}</p>
+          <a href="/m4g/chi-siamo" class="m4g-btn m4g-btn--primary m4g-btn--inline">Chi siamo e il beneficiario</a>
+        </div>
+      </div>
     </section>
 
     <section class="m4g-merch-cta m4g-card m4g-card--padded">

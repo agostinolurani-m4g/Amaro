@@ -16,6 +16,25 @@ def static_m4g(path: str) -> str:
     return f"/static/m4g/{path.lstrip('/')}"
 
 
+def m4g_responsive(
+    slug: str,
+    fallback: str,
+    width: int,
+    height: int,
+    *,
+    sizes: str = "(max-width: 768px) 100vw, 36rem",
+) -> dict[str, str | int]:
+    """Paths for src/srcset; fallback is the original asset under static/m4g/."""
+    return {
+        "src": static_m4g(fallback),
+        "w640": static_m4g(f"opt/{slug}-640.webp"),
+        "w1280": static_m4g(f"opt/{slug}-1280.webp"),
+        "width": width,
+        "height": height,
+        "sizes": sizes,
+    }
+
+
 M4G_EVENT = {
     "title": "Move for Gaza",
     "tagline": "Pedala, gioca, corri — insieme per Gaza",
@@ -26,6 +45,13 @@ M4G_EVENT = {
     "logo_url": static_m4g("M4G-mix.svg"),
     "poster_url": static_m4g("locandina.png"),
     "arci_olmi_url": static_m4g("arci_olmi.jpeg"),
+    "venue_image": m4g_responsive(
+        "arci_olmi",
+        "arci_olmi.jpeg",
+        1500,
+        1500,
+        sizes="(max-width: 768px) 100vw, 20rem",
+    ),
     "beneficiary_name": "Gaza Sunbirds",
     "beneficiary_url": "https://gazasunbirds.org/",
     "limits": {
@@ -159,7 +185,7 @@ M4G_EVENT = {
     "beneficiary": {
         "name": "Gaza Sunbirds",
         "url": "https://gazasunbirds.org/",
-        "logo_url": static_m4g("sunbirds-logo.png"),
+        "logo_url": static_m4g("opt/sunbirds-logo-512.png"),
         "cf": "",
         "address": "Gaza / London (team & fiscal hosts)",
         "blurb": (
@@ -168,10 +194,16 @@ M4G_EVENT = {
             "e per i risultati sportivi internazionali."
         ),
         "images": {
-            "chi": static_m4g("bene_chi.JPG"),
-            "mission": static_m4g("bene_mission.jpg"),
-            "dist": static_m4g("bene_dist.png"),
-            "aid": static_m4g("bene_aid.jpg"),
+            "chi": m4g_responsive("bene_chi", "bene_chi.JPG", 1067, 1600),
+            "mission": m4g_responsive("bene_mission", "bene_mission.jpg", 1600, 900),
+            "dist": m4g_responsive("bene_dist", "bene_dist.png", 456, 768),
+            "aid": m4g_responsive(
+                "bene_aid",
+                "bene_aid.jpg",
+                1600,
+                1200,
+                sizes="100vw",
+            ),
         },
         "links": {
             "mission_url": "https://gazasunbirds.org/about-us/mission/",
@@ -185,12 +217,12 @@ M4G_EVENT = {
         },
     },
     "menu_images": {
-        "cibo": static_m4g("M4G_cibo.png"),
-        "bere": static_m4g("M4G_bere.png"),
+        "cibo": m4g_responsive("m4g_cibo", "M4G_cibo.png", 665, 940, sizes="(max-width: 768px) 50vw, 18rem"),
+        "bere": m4g_responsive("m4g_bere", "M4G_bere.png", 666, 940, sizes="(max-width: 768px) 50vw, 18rem"),
     },
     "merch_images": {
-        "socks": static_m4g("calze_m4g.jpeg"),
-        "tshirt": static_m4g("magliette_m4g.png"),
+        "socks": m4g_responsive("calze_m4g", "calze_m4g.jpeg", 1600, 1200, sizes="(max-width: 768px) 100vw, 22rem"),
+        "tshirt": m4g_responsive("magliette_m4g", "magliette_m4g.png", 2068, 1210, sizes="(max-width: 768px) 100vw, 22rem"),
     },
 }
 

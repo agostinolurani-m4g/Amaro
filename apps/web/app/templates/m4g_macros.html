@@ -1,0 +1,28 @@
+{% macro m4g_figure(img, alt, modifier='', focus='', eager=false, sizes_override='') %}
+<figure class="m4g-figure{% if modifier %} m4g-figure--{{ modifier }}{% endif %}{% if focus %} m4g-figure--focus-{{ focus }}{% endif %}">
+  <img
+    src="{{ img.w640 }}"
+    srcset="{{ img.w640 }} 640w, {{ img.w1280 }} 1280w"
+    sizes="{{ sizes_override or img.sizes }}"
+    alt="{{ alt }}"
+    width="{{ img.width }}"
+    height="{{ img.height }}"
+    class="m4g-figure__img"
+    {% if eager %}fetchpriority="high"{% else %}loading="lazy" decoding="async"{% endif %}
+  />
+</figure>
+{% endmacro %}
+
+{% macro m4g_logo(src, alt, width=512, height=512) %}
+<figure class="m4g-figure m4g-figure--logo">
+  <img
+    src="{{ src }}"
+    alt="{{ alt }}"
+    width="{{ width }}"
+    height="{{ height }}"
+    class="m4g-figure__img"
+    loading="lazy"
+    decoding="async"
+  />
+</figure>
+{% endmacro %}

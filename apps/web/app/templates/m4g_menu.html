@@ -1,12 +1,19 @@
 {% extends "m4g_base.html" %}
+{% from "m4g_macros.html" import m4g_figure %}
 {% block title %}Menu pranzo — Move for Gaza{% endblock %}
 {% block content %}
 <section class="m4g-hero"><div class="m4g-wrap"><p class="m4g-hero__eyebrow">Pranzo sociale</p><h1>Menu</h1><p>Consulta il menu e contribuisci con una donazione.</p></div></section>
 <div class="m4g-wrap m4g-wrap--wide">
   {% if payment_failed %}<div class="m4g-alert">Pagamento non riuscito. Riprova.</div>{% endif %}
   <div class="m4g-menu-images">
-    <figure class="m4g-card m4g-card--padded"><img src="{{ event.menu_images.cibo }}" alt="Menu cibo" /><figcaption>Cibo</figcaption></figure>
-    <figure class="m4g-card m4g-card--padded"><img src="{{ event.menu_images.bere }}" alt="Menu bevande" /><figcaption>Bevande</figcaption></figure>
+    <div class="m4g-card m4g-card--padded">
+      {{ m4g_figure(event.menu_images.cibo, "Menu cibo", "portrait") }}
+      <p class="m4g-muted" style="margin-top:0.5rem;font-weight:600;">Cibo</p>
+    </div>
+    <div class="m4g-card m4g-card--padded">
+      {{ m4g_figure(event.menu_images.bere, "Menu bevande", "portrait") }}
+      <p class="m4g-muted" style="margin-top:0.5rem;font-weight:600;">Bevande</p>
+    </div>
   </div>
   <div class="m4g-card m4g-card--padded">
     <h2>Donazione per il pranzo (Nexi)</h2>

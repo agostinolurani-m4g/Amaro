@@ -1,9 +1,37 @@
 {% extends "m4g_base.html" %}
+{% from "m4g_macros.html" import m4g_logo %}
 {% block title %}Dona — Move for Gaza{% endblock %}
 {% block content %}
-<section class="m4g-hero"><div class="m4g-wrap"><p class="m4g-hero__eyebrow">Solidarietà</p><h1>Sostieni l'evento</h1><p>Donazione libera (min. {{ min_donation }} €) — Nexi, Satispay, PayPal o bonifico.</p></div></section>
+<section class="m4g-hero">
+  <div class="m4g-wrap">
+    <p class="m4g-hero__eyebrow">Solidarietà</p>
+    <h1>Dona ora</h1>
+    <p>Donazione libera (min. {{ min_donation }} €) — Nexi, Satispay, PayPal o bonifico.</p>
+  </div>
+</section>
 <div class="m4g-wrap m4g-wrap--wide">
   {% if payment_failed %}<div class="m4g-alert">Pagamento non riuscito. Riprova.</div>{% endif %}
+
+  <section class="m4g-card m4g-card--padded m4g-beneficiary-hero">
+    <div class="m4g-beneficiary-hero__logo-wrap">
+      {{ m4g_logo(event.beneficiary.logo_url, event.beneficiary.name) }}
+    </div>
+    <div>
+      <h2>Tutto va ai Gaza Sunbirds</h2>
+      <p class="m4g-prose">{{ event.beneficiary.blurb }}</p>
+      <p class="m4g-prose">
+        Ogni euro raccolto — donazioni, iscrizioni, merch e bar — viene inviato
+        <strong>direttamente</strong> ai Gaza Sunbirds, squadra paraciclistica palestinese
+        e rete di mutual aid sul territorio.
+      </p>
+      <p>
+        <a href="{{ event.beneficiary.url }}" class="m4g-link" target="_blank" rel="noreferrer">gazasunbirds.org</a>
+        ·
+        <a href="/m4g/chi-siamo" class="m4g-link">Chi sono e cosa fanno</a>
+      </p>
+    </div>
+  </section>
+
   <div class="m4g-card m4g-card--padded">
     <h2>I tuoi dati</h2>
     <form method="post" action="/m4g/donazione" class="m4g-form" id="m4g-donate-form">

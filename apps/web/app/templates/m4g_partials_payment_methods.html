@@ -9,6 +9,11 @@
       </button>
       <p class="m4g-muted m4g-pay-nexi__hint">Pagamento sicuro · conferma automatica</p>
     </form>
+  {% else %}
+    <p class="m4g-alert">
+      Carta Nexi non configurata in locale: imposta <code>NEXI_MERCHANT_ID</code> e <code>NEXI_API_KEY</code> in
+      <code>apps/web/.env</code>. Puoi usare Satispay, PayPal o bonifico sotto.
+    </p>
   {% endif %}
 
   <div class="m4g-pay-methods__alt">

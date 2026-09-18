@@ -1,4 +1,5 @@
 {% extends "m4g_base.html" %}
+{% from "m4g_macros.html" import m4g_figure %}
 {% block title %}Merch — Move for Gaza{% endblock %}
 {% block content %}
 <section class="m4g-hero"><div class="m4g-wrap m4g-wrap--wide"><p class="m4g-hero__eyebrow">Merch solidale</p><h1>Calze e T-shirt</h1><p>Prezzo unitario {{ unit_price }} € · ricavi a Gaza Sunbirds</p></div></section>
@@ -7,7 +8,7 @@
 
   <div class="m4g-merch-grid">
     <div class="m4g-card m4g-card--padded">
-      <img src="{{ event.merch_images.socks }}" alt="Calze" class="m4g-merch-img" />
+      {{ m4g_figure(event.merch_images.socks, "Calze solidali Move for Gaza", "product") }}
       <h2>Calze solidali</h2>
       <p class="m4g-muted">Modelli 1, 2 e 4 · taglie S/L · OEKO-TEX®</p>
       <form method="post" action="/m4g/merch" class="m4g-form">
@@ -28,7 +29,7 @@
     </div>
 
     <div class="m4g-card m4g-card--padded">
-      <img src="{{ event.merch_images.tshirt }}" alt="T-shirt" class="m4g-merch-img" />
+      {{ m4g_figure(event.merch_images.tshirt, "T-shirt Move for Gaza", "product") }}
       <h2>T-shirt Move4Gaza</h2>
       <p class="m4g-muted">Cotone italiano · taglie unisex</p>
       <form method="post" action="/m4g/merch" class="m4g-form">
