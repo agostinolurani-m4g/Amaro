@@ -162,6 +162,27 @@ a {
   display: block;
 }
 
+.wattlab-meta {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.35rem 1rem;
+  margin: 0 0 1rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.wattlab-meta dt {
+  margin: 0;
+  color: var(--muted, #667085);
+}
+
+.wattlab-meta dd {
+  margin: 0;
+  font-weight: 600;
+}
+
 .card-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));

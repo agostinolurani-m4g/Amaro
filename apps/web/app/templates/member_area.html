@@ -50,6 +50,36 @@
             </div>
           </div>
 
+          {% if wattlab_info %}
+          <div class="card" id="wattlab">
+            <h3>WattLab</h3>
+            <p class="muted">
+              App desktop per allenamenti indoor con il tuo smart trainer.
+              Dopo il download installa WattLab e accedi con le stesse credenziali
+              dell&apos;area tesserati.
+            </p>
+            {% if wattlab_info.available %}
+              <dl class="wattlab-meta">
+                <dt>Versione</dt>
+                <dd>{{ wattlab_info.version }}</dd>
+                <dt>Piattaforma</dt>
+                <dd>Windows</dd>
+                <dt>File</dt>
+                <dd>{{ wattlab_info.filename }}</dd>
+                <dt>Dimensione</dt>
+                <dd>{{ wattlab_info.sizeLabel }}</dd>
+              </dl>
+              <a class="btn btn-primary" href="/area-tesserati/wattlab/download">
+                Scarica WattLab per Windows
+              </a>
+            {% else %}
+              <p class="alert">
+                L&apos;installer sar&agrave; disponibile a breve. Contatta la segreteria se ti serve subito.
+              </p>
+            {% endif %}
+          </div>
+          {% endif %}
+
           <div class="card">
             <h3>Aggiorna i tuoi dati</h3>
             <p class="muted">

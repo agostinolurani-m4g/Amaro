@@ -125,6 +125,10 @@ class Member(Base):
     medical_manual_review_notified_at: Mapped[DateTime | None] = Column(
         DateTime(timezone=True)
     )
+    strava_access_token: Mapped[str | None] = Column(Text)
+    strava_refresh_token: Mapped[str | None] = Column(Text)
+    strava_expires_at: Mapped[int | None] = Column(Integer)
+    strava_athlete_id: Mapped[int | None] = Column(Integer)
     created_at: Mapped[DateTime] = Column(
         DateTime(timezone=True), server_default=func.now()
     )

@@ -15,5 +15,7 @@ services:
         value: sqlite:////data/amaro.db
       - key: UPLOAD_PATH
         value: /data/uploads
+      - key: WATTLAB_RELEASES_DIR
+        value: /data/releases/wattlab
       - key: SESSION_SECRET
         generateValue: true
