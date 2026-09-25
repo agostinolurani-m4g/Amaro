@@ -38,7 +38,7 @@ def m4g_responsive(
 M4G_EVENT = {
     "title": "Move for Gaza",
     "tagline": "Pedala, gioca, corri — insieme per Gaza",
-    "date": "18 ottobre 2025",
+    "date": "17 ottobre 2026",
     "location": "Arci Olmi, via degli Ulivi 2, Milano",
     "contact_email": "amaro.bici@gmail.com",
     "public_site": "https://www.move-4-gaza.com",
@@ -54,6 +54,83 @@ M4G_EVENT = {
     ),
     "beneficiary_name": "Gaza Sunbirds",
     "beneficiary_url": "https://gazasunbirds.org/",
+    "donate_url": os.environ.get("M4G_DONATE_URL", "/m4g/donazione"),
+    "intro": (
+        "Move4Gaza è un evento sportivo non competitivo per raccogliere fondi a sostegno "
+        "degli aiuti umanitari a Gaza. Una giornata di sport, comunità e solidarietà attiva: "
+        "si pedala, si corre, si gioca a calcio, si mangia e si beve insieme, si ascolta. "
+        "Chi non partecipa alle attività sportive può comunque essere presente — o sostenerci "
+        "a distanza con una donazione."
+    ),
+    "beneficiary_story": (
+        "Nati nel 2020 per mettere la bicicletta nelle mani di persone con disabilità, Gaza Sunbirds "
+        "è una rete di atleti, professionisti e volontari che apre un percorso di riabilitazione "
+        "attraverso lo sport per palestinesi amputati o con altre disabilità — che si allenano, "
+        "competono e portano avanti la causa collettiva. Quando il genocidio israeliano è esploso "
+        "nell'ottobre 2023, i loro atleti hanno trasformato le biciclette da corsa in strumenti di "
+        "soccorso, raggiungendo i quartieri devastati dalle bombe con cibo, medicine e speranza."
+    ),
+    "registration_note": (
+        "Anche chi non partecipa alle attività sportive dovrà iscriversi, tramite una donazione "
+        "di 15 €, che è possibile effettuare all'ingresso."
+    ),
+    "photos_2025": [
+        static_m4g("2025/foto-2025-1.jpeg"),
+        static_m4g("2025/foto-2025-2.jpeg"),
+    ],
+    "program": [
+        {
+            "label": "LA MATTINA",
+            "title": "SPORT",
+            "detail": (
+                "Torneo di calcio a 5, corsa non competitiva o giro in bici. "
+                "Aperto a tuttə, nessuna competizione."
+            ),
+        },
+        {
+            "label": "A SEGUIRE",
+            "title": "PRANZO SOLIDALE",
+            "detail": "A cura di Cucina Franca e… (da confermare).",
+        },
+        {
+            "label": "IL POMERIGGIO",
+            "title": "TALK & INTERVENTI",
+            "detail": "Approfondimenti sulla situazione palestinese, con ospiti TBA.",
+        },
+        {
+            "label": "TUTTO IL GIORNO",
+            "title": "BAR & MERCH",
+            "detail": "Cibo, bevande e merch solidale al banco.",
+        },
+    ],
+    "day_timeline": [
+        {
+            "time": "09:00 – 14:00",
+            "title": "SPORT",
+            "detail": (
+                "Torneo di calcio a 5, corsa non competitiva e giro in bici. "
+                "Attività non competitive, aperte a tuttə."
+            ),
+        },
+        {
+            "time": "Ore 13:00 circa",
+            "title": "PRANZO SOCIALE",
+            "detail": (
+                "Pranzo aperto anche a chi non partecipa alle attività sportive. "
+                "Scopri di più su bar e cucina."
+            ),
+            "link": "/m4g/bar",
+            "link_text": "bar e cucina",
+        },
+        {
+            "time": "Dopo pranzo",
+            "title": "TALK & TESTIMONIANZE",
+            "detail": (
+                "Momenti di approfondimento e confronto, con ospiti e testimonianze "
+                "dirette dalla Palestina."
+            ),
+        },
+    ],
     "limits": {
         "soccer_teams_max": 12,
         "run_max": 100,
@@ -168,10 +245,11 @@ M4G_EVENT = {
         },
     ],
     "cause": (
-        "Pedaliamo, giochiamo e corriamo per raccogliere fondi destinati ad aiuti umanitari a Gaza "
-        "tramite l'associazione Gaza Sunbirds. Il ricavato verrà utilizzato per finanziare missioni di "
-        "aiuti umanitari, acquisto di medicinali e attrezzature mediche, supporto alle famiglie colpite "
-        "dai bombardamenti e altre iniziative di mutual aid sul territorio."
+        "Raccogliamo fondi a sostegno di Gaza Sunbirds — ONG e team di atleti paralimpici che ogni "
+        "giorno porta cibo, medicine e sostegno alla popolazione civile. Move4Gaza nasce dal bisogno "
+        "di fare qualcosa di concreto in un momento drammatico, e dalla volontà di dare a chi, come "
+        "noi, vuole cambiare le cose la possibilità di farlo — oggi, e sempre di più in futuro. "
+        "Il 100% del ricavato va a loro."
     ),
     "bike_distances": [
         {"key": "112", "label": "112 km — Perimetro di Gaza in scala reale"},

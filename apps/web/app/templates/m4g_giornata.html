@@ -2,11 +2,11 @@
 {% from "m4g_macros.html" import m4g_figure %}
 {% block title %}La giornata — Move for Gaza{% endblock %}
 {% block content %}
-<section class="m4g-hero">
+<section class="m4g-hero m4g-hero--compact">
   <div class="m4g-wrap">
     <p class="m4g-hero__eyebrow">Programma</p>
-    <h1>Come funziona la giornata</h1>
-    <p class="m4g-chips">
+    <h1>La giornata</h1>
+    <p class="m4g-chips m4g-chips--hero">
       <span>{{ event.date }}</span>
       <span>{{ event.location }}</span>
     </p>
@@ -21,23 +21,33 @@
       <p class="m4g-muted">Campo e circolo Arci Olmi — punto di ritrovo per tutte le attività.</p>
     </div>
   </section>
+
   <section class="m4g-card m4g-card--padded">
-    <p class="m4g-prose">{{ event.descrizione_evento }}</p>
-  </section>
-  <section class="m4g-card m4g-card--padded">
-    <h2>Orari</h2>
-    <ol class="m4g-timeline">
-      {% for slot in event.schedule %}
+    <h2>L'evento si divide in tre momenti principali</h2>
+    <ol class="m4g-timeline m4g-timeline--day">
+      {% for slot in event.day_timeline %}
         <li class="m4g-timeline__item">
           <time class="m4g-timeline__time">{{ slot.time }}</time>
           <div>
             <strong>{{ slot.title }}</strong>
-            <p class="m4g-muted">{{ slot.detail }}</p>
+            <p class="m4g-muted">
+              {{ slot.detail }}
+              {% if slot.link %}
+                <a href="{{ slot.link }}" class="m4g-link">{{ slot.link_text }}</a>
+              {% endif %}
+            </p>
           </div>
         </li>
       {% endfor %}
     </ol>
   </section>
+
+  <section class="m4g-card m4g-card--padded m4g-registration">
+    <p class="m4g-prose"><strong>NB:</strong> {{ event.registration_note }}</p>
+    <p class="m4g-registration__price"><strong>15 €</strong> / pax</p>
+    <a class="m4g-btn m4g-btn--primary m4g-btn--inline" href="/m4g/iscrizione">Vai alle iscrizioni</a>
+  </section>
+
   <section class="m4g-card m4g-card--padded">
     <h2>Cibo e bar</h2>
     <p class="m4g-prose">Cucinano:</p>
