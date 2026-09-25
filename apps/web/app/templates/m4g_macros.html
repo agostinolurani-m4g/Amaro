@@ -13,6 +13,35 @@
 </figure>
 {% endmacro %}
 
+{% macro m4g_photo_carousel(photos, carousel_id='main') %}
+<div class="m4g-carousel" data-m4g-carousel id="m4g-carousel-{{ carousel_id }}">
+  <div class="m4g-carousel__controls">
+    <button type="button" class="m4g-carousel__btn m4g-carousel__btn--prev" aria-label="Foto precedente">‹</button>
+    <button type="button" class="m4g-carousel__btn m4g-carousel__btn--next" aria-label="Foto successiva">›</button>
+  </div>
+  <div class="m4g-carousel__viewport" tabindex="0" aria-roledescription="carousel">
+    <div class="m4g-carousel__track">
+      {% for src in photos %}
+        <figure class="m4g-carousel__slide">
+          <img
+            src="{{ src }}"
+            alt="Move4Gaza 2025, foto {{ loop.index }}"
+            loading="{% if loop.index == 1 %}eager{% else %}lazy{% endif %}"
+            decoding="async"
+            width="1280"
+            height="960"
+          />
+        </figure>
+      {% endfor %}
+    </div>
+  </div>
+  <p class="m4g-carousel__meta m4g-muted">
+    <span data-m4g-carousel-current>1</span> / {{ photos|length }}
+    <span class="m4g-carousel__hint">— scorri, trascina o usa le frecce</span>
+  </p>
+</div>
+{% endmacro %}
+
 {% macro m4g_logo(src, alt, width=512, height=512) %}
 <figure class="m4g-figure m4g-figure--logo">
   <img

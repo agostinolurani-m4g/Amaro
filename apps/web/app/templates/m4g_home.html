@@ -1,5 +1,5 @@
 {% extends "m4g_base.html" %}
-{% from "m4g_macros.html" import m4g_logo %}
+{% from "m4g_macros.html" import m4g_logo, m4g_photo_carousel %}
 
 {% block title %}Move for Gaza{% endblock %}
 
@@ -31,13 +31,7 @@
 
     <section class="m4g-card m4g-card--padded">
       <h2>Foto 2025</h2>
-      <div class="m4g-gallery">
-        {% for src in event.photos_2025 %}
-          <figure class="m4g-gallery__item">
-            <img src="{{ src }}" alt="Move4Gaza 2025" loading="lazy" width="640" height="480" />
-          </figure>
-        {% endfor %}
-      </div>
+      {{ m4g_photo_carousel(event.photos_2025, 'foto-2025') }}
     </section>
 
     <section class="m4g-card m4g-card--padded">
@@ -68,13 +62,6 @@
           </article>
         {% endfor %}
       </div>
-      <div class="m4g-gallery m4g-gallery--program">
-        {% for src in event.photos_2025[:2] %}
-          <figure class="m4g-gallery__item">
-            <img src="{{ src }}" alt="Programma Move4Gaza" loading="lazy" width="640" height="480" />
-          </figure>
-        {% endfor %}
-      </div>
       <p class="m4g-program__more">
         <a href="/m4g/giornata" class="m4g-btn m4g-btn--secondary m4g-btn--inline">Vedi più dettagli sulla giornata →</a>
       </p>
@@ -99,4 +86,5 @@
       </p>
     </section>
   </div>
+  <script src="{{ url_for('static', path='js/m4g-gallery.js') }}" defer></script>
 {% endblock %}
