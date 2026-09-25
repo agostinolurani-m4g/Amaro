@@ -75,8 +75,7 @@ M4G_EVENT = {
         "di 15 €, che è possibile effettuare all'ingresso."
     ),
     "photos_2025": [
-        static_m4g("2025/foto-2025-1.jpeg"),
-        static_m4g("2025/foto-2025-2.jpeg"),
+        static_m4g(f"2025/m4g-edizione-2025-{n:02d}.jpeg") for n in range(1, 30)
     ],
     "program": [
         {

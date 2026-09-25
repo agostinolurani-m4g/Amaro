@@ -69,7 +69,7 @@
         {% endfor %}
       </div>
       <div class="m4g-gallery m4g-gallery--program">
-        {% for src in event.photos_2025 %}
+        {% for src in event.photos_2025[:2] %}
           <figure class="m4g-gallery__item">
             <img src="{{ src }}" alt="Programma Move4Gaza" loading="lazy" width="640" height="480" />
           </figure>
