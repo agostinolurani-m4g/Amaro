@@ -10,6 +10,8 @@ from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
+from .m4g_cms import cms_site_public
+
 M4G_SITE_PASSWORD = os.environ.get("M4G_SITE_PASSWORD", "zipangulo")
 M4G_SESSION_KEY = "m4g_site_unlocked"
 
@@ -36,7 +38,7 @@ def m4g_access_redirect(next_url: str) -> RedirectResponse:
 
 
 async def require_m4g_site_access(request: Request) -> None:
-    if m4g_site_unlocked(request):
+    if cms_site_public() or m4g_site_unlocked(request):
         return
     next_url = request.url.path
     if request.url.query:

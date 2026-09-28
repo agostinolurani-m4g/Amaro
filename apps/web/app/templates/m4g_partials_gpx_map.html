@@ -1,4 +1,90 @@
-{% if gpx_url %}
+{% if bike_routes and bike_routes|length > 0 %}
+<div class="m4g-gpx" id="m4g-gpx-wrap-{{ map_id }}">
+  <div class="m4g-gpx__flag" aria-hidden="true"></div>
+  <div id="m4g-map-{{ map_id }}" class="m4g-gpx__map"></div>
+  <p class="m4g-muted m4g-gpx__meta" id="m4g-map-meta-{{ map_id }}">Caricamento percorso…</p>
+  <a href="{{ bike_routes[0].url }}" class="m4g-link" id="m4g-gpx-download-{{ map_id }}" download>Scarica GPX</a>
+</div>
+<script type="application/json" id="m4g-bike-routes-{{ map_id }}">{{ bike_routes | tojson }}</script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<script src="https://unpkg.com/leaflet-gpx@2.2.0/gpx.js"></script>
+<script>
+(function () {
+  const mapId = "{{ map_id }}";
+  const mapEl = document.getElementById("m4g-map-" + mapId);
+  const metaEl = document.getElementById("m4g-map-meta-" + mapId);
+  const downloadEl = document.getElementById("m4g-gpx-download-" + mapId);
+  const routesJson = document.getElementById("m4g-bike-routes-" + mapId);
+  const selectEl = document.querySelector('select[name="distance"]');
+  if (!mapEl || !routesJson || typeof L === "undefined") return;
+  let routes = [];
+  try { routes = JSON.parse(routesJson.textContent || "[]"); } catch (e) { return; }
+  const byKey = {};
+  routes.forEach((r) => { byKey[r.key] = r; });
+  const map = L.map(mapEl, { scrollWheelZoom: false, zoomControl: true }).setView([45.46, 9.19], 11);
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 18,
+    attribution: "&copy; OpenStreetMap",
+  }).addTo(map);
+  let activeLayers = [];
+  const gpxOpts = {
+    async: true,
+    marker_options: {
+      startIconUrl: false,
+      endIconUrl: false,
+      shadowUrl: false,
+      wptIconUrls: {},
+    },
+  };
+  function clearLayers() {
+    activeLayers.forEach((layer) => map.removeLayer(layer));
+    activeLayers = [];
+  }
+  function loadRoute(key) {
+    const route = byKey[key] || routes[0];
+    if (!route) {
+      if (metaEl) metaEl.textContent = "Nessun percorso disponibile.";
+      return;
+    }
+    if (downloadEl) {
+      downloadEl.href = route.url;
+      downloadEl.textContent = "Scarica GPX — " + route.label;
+    }
+    if (typeof L.GPX === "undefined") {
+      if (metaEl) metaEl.textContent = "Mappa non disponibile; scarica il GPX.";
+      return;
+    }
+    clearLayers();
+    if (metaEl) metaEl.textContent = "Caricamento percorso…";
+    const url = route.url;
+    const outer = new L.GPX(url, Object.assign({ polyline_options: { color: "#000000", weight: 8, opacity: 1, lineCap: "round" } }, gpxOpts));
+    const mid = new L.GPX(url, Object.assign({ polyline_options: { color: "#007A3D", weight: 6, opacity: 1, lineCap: "round" } }, gpxOpts));
+    const inner = new L.GPX(url, Object.assign({ polyline_options: { color: "#CE1126", weight: 3, opacity: 1, lineCap: "round" } }, gpxOpts));
+    activeLayers = [outer, mid, inner];
+    activeLayers.forEach((layer) => layer.addTo(map));
+    inner.on("loaded", function (e) {
+      map.fitBounds(e.target.getBounds(), { padding: [24, 24] });
+      const distKm = (e.target.get_distance() / 1000).toFixed(1);
+      const elev = e.target.get_elevation_gain();
+      if (metaEl) {
+        metaEl.textContent =
+          route.label + " — circa " + distKm + " km" +
+          (elev ? " · dislivello " + Math.round(elev) + " m" : "");
+      }
+    }).on("error", function () {
+      if (metaEl) metaEl.textContent = "Impossibile caricare il tracciato; usa il download GPX.";
+    });
+  }
+  const initialKey = (selectEl && selectEl.value) || (routes[0] && routes[0].key);
+  loadRoute(initialKey);
+  if (selectEl) {
+    selectEl.addEventListener("change", function () {
+      loadRoute(selectEl.value);
+    });
+  }
+})();
+</script>
+{% elif gpx_url %}
 <div class="m4g-gpx">
   <div class="m4g-gpx__flag" aria-hidden="true"></div>
   <div id="m4g-map-{{ map_id }}" class="m4g-gpx__map" data-gpx="{{ gpx_url }}"></div>

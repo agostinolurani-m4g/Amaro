@@ -9,9 +9,15 @@
   {% if payment_failed %}<div class="m4g-alert">Pagamento non riuscito. Riprova.</div>{% endif %}
   <div class="m4g-card m4g-card--padded">
     <p>Donazione obbligatoria: <strong>{{ price }} €</strong>. Il pranzo non è incluso.</p>
-    <p class="m4g-muted"><a href="{{ gpx_112 }}" class="m4g-link">GPX 112 km</a> · <a href="{{ gpx_20 }}" class="m4g-link">GPX 25 km</a></p>
-    {% with gpx_url=gpx_112, map_id="bike112" %}{% include "m4g_partials_gpx_map.html" %}{% endwith %}
-    <form method="post" action="/m4g/bici" class="m4g-form">
+    <label>Percorso
+      <select name="distance" id="bike-distance-select" form="m4g-bike-form">
+        {% for d in bike_distances %}
+        <option value="{{ d.key }}"{% if d.key == '112' %} selected{% endif %}>{{ d.label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    {% with bike_routes=bike_routes, map_id="bike" %}{% include "m4g_partials_gpx_map.html" %}{% endwith %}
+    <form method="post" action="/m4g/bici" class="m4g-form" id="m4g-bike-form">
       <div class="m4g-form__row">
         <label>Nome<input name="first_name" required /></label>
         <label>Cognome<input name="last_name" required /></label>
@@ -20,13 +26,6 @@
         <label>Email<input type="email" name="email" required /></label>
         <label>Telefono<input type="tel" name="phone" /></label>
       </div>
-      <label>Percorso
-        <select name="distance">
-          {% for d in m4g.bike_distances %}
-          <option value="{{ d.key }}">{{ d.label }}</option>
-          {% endfor %}
-        </select>
-      </label>
       <label>Squadra (opz.)<input name="team_name" /></label>
       <label>Livello
         <select name="level">

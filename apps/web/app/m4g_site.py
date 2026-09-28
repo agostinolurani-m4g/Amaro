@@ -22,6 +22,7 @@ from .m4g_common import (
     redeem_consumption_token,
     templates,
 )
+from .m4g_cms import m4g_bike_distances, m4g_bike_routes_for_map, m4g_photos_2025
 from .m4g_config import ACTIVITIES, FOOD_VENDORS, LAST_EDITION, M4G_EVENT, REALTA_ADERENTI
 from .m4g_menu import BAR_MENU, MENU_BY_ID
 from .models import BarOrder, M4gRegistration
@@ -178,6 +179,7 @@ def m4g_home(request: Request, session: Session = Depends(get_session)) -> HTMLR
             "request": request,
             "activities": ACTIVITIES,
             "event": M4G_EVENT,
+            "photos_2025": m4g_photos_2025(),
             "adherents": REALTA_ADERENTI,
             "stats": stats,
             "price_fn": format_price,
@@ -330,8 +332,8 @@ def m4g_bike_form(request: Request) -> HTMLResponse:
             "event": M4G_EVENT,
             "payment_failed": _payment_failed(request),
             "price": format_price(_amount_for_activity("bike")),
-            "gpx_112": M4G_EVENT["gpx"]["bike_112"],
-            "gpx_20": M4G_EVENT["gpx"]["bike_20"],
+            "bike_distances": m4g_bike_distances(),
+            "bike_routes": m4g_bike_routes_for_map(),
         },
     )
 

@@ -185,7 +185,8 @@ M4G_EVENT = {
         "snoda su strade secondarie e piste ciclabili, con alcuni tratti sterrati. Il dislivello è "
         "di circa 300 m. Non è una gara, ma un evento sociale e solidale, si raccomanda di pedalare "
         "in sicurezza. Dopo Pavia segnaliamo scarsità di punti di ristoro da tenere in considerazione. "
-        "Percorso cittadino di 24 km a partire dall'Arci Olmi per i campi del Parco Agricolo Sud."
+        "Percorso medio di circa 64 km e percorso cittadino di 25 km a partire dall'Arci Olmi "
+        "(anche verso il Parco Agricolo Sud)."
     ),
     "descrizione_calcio": (
         "Il torneo di calcio non competitivo a 5 si svolge presso il campo sportivo dell'Arci Olmi "
@@ -225,7 +226,7 @@ M4G_EVENT = {
         {
             "time": "10:00",
             "title": "Ride4Gaza — partenza bici",
-            "detail": "Percorsi da 25 km (cittadino) e 112 km (perimetro Gaza in scala). Ritrovo all'Arci Olmi.",
+            "detail": "Percorsi da 25 km (cittadino), 64 km (medio) e 112 km (perimetro Gaza in scala). Ritrovo all'Arci Olmi.",
         },
         {
             "time": "11:00",
@@ -252,10 +253,12 @@ M4G_EVENT = {
     ),
     "bike_distances": [
         {"key": "112", "label": "112 km — Perimetro di Gaza in scala reale"},
+        {"key": "64", "label": "64 km — Medio"},
         {"key": "20", "label": "25 km — percorso cittadino"},
     ],
     "gpx": {
         "bike_112": static_m4g("routes/rideforgaza112.gpx"),
+        "bike_64": static_m4g("routes/rideforgaza64.gpx"),
         "bike_20": static_m4g("routes/amgaz_bici_short.gpx"),
         "run": static_m4g("routes/amgaz_corsa.gpx"),
     },

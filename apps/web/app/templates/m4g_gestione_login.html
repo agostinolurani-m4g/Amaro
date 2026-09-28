@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="it">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Move for Gaza — Gestione</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='css/m4g-bar.css') }}" />
+  </head>
+  <body class="m4g-body m4g-access">
+    <main class="m4g-access__card">
+      <img src="{{ url_for('static', path='m4g/M4G-mix.svg') }}" alt="Move for Gaza" height="48" />
+      <h1>Gestione contenuti</h1>
+      <p class="m4g-muted">Area riservata agli organizzatori.</p>
+      {% if error == 'bad' %}
+        <p class="m4g-alert">Password non corretta.</p>
+      {% endif %}
+      <form method="post" action="/m4g/gestione/login" class="m4g-form">
+        <label>Password
+          <input type="password" name="password" autocomplete="current-password" required autofocus />
+        </label>
+        <button type="submit" class="m4g-btn m4g-btn--primary" style="width:100%;">Entra</button>
+      </form>
+    </main>
+  </body>
+</html>

@@ -46,6 +46,7 @@ from .acsi import send_documents_manual_review_email
 from .admin import setup_admin
 from .m4g_common import apply_m4g_payment_by_reference, ensure_bar_order_schema
 from .m4g_config import M4G_PUBLIC_HOSTS
+from .m4g_admin import admin_router as m4g_admin_router
 from .m4g_auth import M4gLoginRequired, access_router as m4g_access_router, m4g_access_redirect
 from .m4g_site import router as m4g_router
 from .config import settings
@@ -396,6 +397,7 @@ app.add_middleware(SessionMiddleware, secret_key=settings.session_secret, sessio
 app.include_router(wattlab_router)
 app.include_router(wattlab_strava_router)
 app.include_router(m4g_access_router)
+app.include_router(m4g_admin_router)
 app.include_router(m4g_router)
 setup_admin(app)
 

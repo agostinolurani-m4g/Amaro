@@ -53,6 +53,35 @@ class M4gPageTests(unittest.TestCase):
         self.assertIn("15 €", body)
         self.assertIn("donazione", body.lower())
 
+    def test_bike_page_medio_and_switchable_map(self) -> None:
+        response = self.client.get("/m4g/bici")
+        self.assertEqual(response.status_code, 200)
+        body = response.text
+        self.assertIn("64 km", body)
+        self.assertIn("rideforgaza64.gpx", body)
+        self.assertIn("m4g-bike-routes-bike", body)
+        self.assertIn('"key":"64"', body.replace(" ", ""))
+
+    def test_gestione_requires_admin_login(self) -> None:
+        fresh = TestClient(app)
+        response = fresh.get("/m4g/gestione")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Area riservata agli organizzatori", response.text)
+
+    def test_go_live_skips_site_password_not_gestione(self) -> None:
+        from app.m4g_cms import set_site_public
+
+        set_site_public(True)
+        try:
+            fresh = TestClient(app)
+            home = fresh.get("/m4g/", follow_redirects=False)
+            self.assertEqual(home.status_code, 200)
+            self.assertNotIn("/m4g/access", home.headers.get("location", ""))
+            gestione = fresh.get("/m4g/gestione")
+            self.assertIn("Area riservata agli organizzatori", gestione.text)
+        finally:
+            set_site_public(False)
+
 
 if __name__ == "__main__":
     unittest.main()

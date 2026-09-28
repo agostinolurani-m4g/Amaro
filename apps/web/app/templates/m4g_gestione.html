@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="it">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Move for Gaza — Gestione</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='css/m4g-bar.css') }}" />
+    <style>
+      .m4g-cms-wrap { max-width: 40rem; margin: 2rem auto; padding: 0 1rem; }
+      .m4g-dropzone {
+        border: 2px dashed var(--m4g-border, #ccc);
+        border-radius: 0.5rem;
+        padding: 1.5rem;
+        text-align: center;
+        cursor: pointer;
+        background: rgba(0, 0, 0, 0.02);
+      }
+      .m4g-dropzone.m4g-dropzone--over { border-color: #009739; background: rgba(0, 151, 57, 0.06); }
+      .m4g-cms-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(5rem, 1fr)); gap: 0.5rem; margin-top: 1rem; }
+      .m4g-cms-thumb { position: relative; }
+      .m4g-cms-thumb img { width: 100%; height: 5rem; object-fit: cover; border-radius: 0.25rem; }
+      .m4g-cms-list { list-style: none; padding: 0; margin: 1rem 0 0; }
+      .m4g-cms-list li { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; padding: 0.5rem 0; border-bottom: 1px solid #eee; }
+      .m4g-cms-head { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-bottom: 1.5rem; }
+    </style>
+  </head>
+  <body class="m4g-body">
+    <div class="m4g-cms-wrap">
+      <div class="m4g-cms-head">
+        <h1>Gestione M4G</h1>
+        <form method="post" action="/m4g/gestione/logout">
+          <button type="submit" class="m4g-btn m4g-btn--secondary">Esci</button>
+        </form>
+      </div>
+      {% if message == 'live' %}
+        <p class="m4g-alert" style="background:#e8f5e9;">Sito pubblico attivo: nessuna password per i visitatori.</p>
+      {% elif message == 'preview' %}
+        <p class="m4g-muted">Anteprima protetta: i visitatori devono inserire la password del sito.</p>
+      {% endif %}
+
+      <section class="m4g-card m4g-card--padded" style="margin-bottom:1rem;">
+        <h2>Sito pubblico (go live)</h2>
+        <p class="m4g-muted">Se attivo, il sito evento non chiede più la password. Questa pagina resta sempre protetta.</p>
+        <form method="post" action="/m4g/gestione/site-public" class="m4g-form" style="margin-top:1rem;">
+          <label style="display:flex;align-items:center;gap:0.5rem;">
+            <input type="checkbox" name="enabled" value="1" {% if site_public %}checked{% endif %} />
+            Pubblica il sito senza password
+          </label>
+          <button type="submit" class="m4g-btn m4g-btn--primary m4g-btn--inline">Salva</button>
+        </form>
+        <p class="m4g-muted"><strong>Stato:</strong> {% if site_public %}Live{% else %}Anteprima con password{% endif %}</p>
+      </section>
+
+      <section class="m4g-card m4g-card--padded" style="margin-bottom:1rem;">
+        <h2>Foto galleria</h2>
+        <p class="m4g-muted">Trascina immagini qui: vanno in coda al carosello «Foto 2025» in home.</p>
+        <form method="post" action="/m4g/gestione/upload-media" enctype="multipart/form-data" id="m4g-upload-media">
+          <div class="m4g-dropzone" data-m4g-dropzone data-target="m4g-upload-media" data-input="m4g-media-input">
+            <p>Trascina foto o clicca per scegliere</p>
+            <p class="m4g-muted">JPEG, PNG, WebP, GIF</p>
+            <input type="file" name="files" id="m4g-media-input" accept="image/*" multiple hidden />
+          </div>
+        </form>
+        {% if media_files %}
+          <div class="m4g-cms-grid">
+            {% for name in media_files %}
+              <div class="m4g-cms-thumb">
+                <img src="/m4g/cms/media/{{ name }}" alt="" loading="lazy" />
+                <form method="post" action="/m4g/gestione/delete-media" style="margin-top:0.25rem;">
+                  <input type="hidden" name="stored_name" value="{{ name }}" />
+                  <button type="submit" class="m4g-btn m4g-btn--secondary" style="width:100%;font-size:0.75rem;">Rimuovi</button>
+                </form>
+              </div>
+            {% endfor %}
+          </div>
+        {% endif %}
+      </section>
+
+      <section class="m4g-card m4g-card--padded">
+        <h2>Percorsi GPX extra</h2>
+        <p class="m4g-muted">I tre percorsi base (112, 64, 25 km) restano fissi. Qui aggiungi altri tracciati per il menu bici.</p>
+        <form method="post" action="/m4g/gestione/upload-gpx" enctype="multipart/form-data" id="m4g-upload-gpx">
+          <div class="m4g-dropzone" data-m4g-dropzone data-target="m4g-upload-gpx" data-input="m4g-gpx-input">
+            <p>Trascina file .gpx o clicca</p>
+            <input type="file" name="files" id="m4g-gpx-input" accept=".gpx,application/gpx+xml" multiple hidden />
+          </div>
+        </form>
+        {% if gpx_routes %}
+          <ul class="m4g-cms-list">
+            {% for route in gpx_routes %}
+              <li>
+                <span>{{ route.label }}</span>
+                <form method="post" action="/m4g/gestione/delete-gpx">
+                  <input type="hidden" name="route_key" value="{{ route.key }}" />
+                  <button type="submit" class="m4g-btn m4g-btn--secondary">Rimuovi</button>
+                </form>
+              </li>
+            {% endfor %}
+          </ul>
+        {% endif %}
+      </section>
+    </div>
+    <script>
+    document.querySelectorAll("[data-m4g-dropzone]").forEach((zone) => {
+      const form = document.getElementById(zone.dataset.target);
+      const input = document.getElementById(zone.dataset.input);
+      if (!form || !input) return;
+      zone.addEventListener("click", () => input.click());
+      zone.addEventListener("dragover", (e) => { e.preventDefault(); zone.classList.add("m4g-dropzone--over"); });
+      zone.addEventListener("dragleave", () => zone.classList.remove("m4g-dropzone--over"));
+      zone.addEventListener("drop", (e) => {
+        e.preventDefault();
+        zone.classList.remove("m4g-dropzone--over");
+        if (e.dataTransfer.files.length) {
+          input.files = e.dataTransfer.files;
+          form.submit();
+        }
+      });
+      input.addEventListener("change", () => { if (input.files.length) form.submit(); });
+    });
+    </script>
+  </body>
+</html>
