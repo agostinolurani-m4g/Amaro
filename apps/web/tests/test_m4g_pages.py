@@ -18,7 +18,11 @@ from app.main import app  # noqa: E402
 class M4gPageTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
-        cls.client = TestClient(app)
+        # Starlette 0.50 runs the ASGI lifespan, including create_all, only
+        # inside the TestClient context manager. CI starts from an empty sqlite
+        # file, so checkout writes fail unless startup has run.
+        cls._client = TestClient(app)
+        cls.client = cls._client.__enter__()
         unlock = cls.client.post(
             "/m4g/access",
             data={"password": M4G_TEST_PASSWORD, "next": "/m4g/"},
@@ -28,6 +32,12 @@ class M4gPageTests(unittest.TestCase):
             raise RuntimeError(
                 f"M4G access unlock failed ({unlock.status_code}); check M4G_SITE_PASSWORD"
             )
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        client = getattr(cls, "_client", None)
+        if client is not None:
+            client.__exit__(None, None, None)
 
     def test_home_contains_pdf_sections(self) -> None:
         response = self.client.get("/m4g/")
