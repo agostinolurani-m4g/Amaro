@@ -170,6 +170,7 @@ body.m4g-body {
   right: 0;
   bottom: 0;
   padding: 1rem;
+  padding-bottom: calc(1rem + env(safe-area-inset-bottom));
   background: rgba(255, 255, 255, 0.96);
   border-top: 1px solid #e2e8f0;
   backdrop-filter: blur(8px);
@@ -892,6 +893,7 @@ body.m4g-body {
   border: 1px solid #cbd5e1;
   border-radius: 0.65rem;
   font: inherit;
+  font-size: 16px;
 }
 
 .m4g-form__row {
@@ -986,8 +988,24 @@ body.m4g-body {
 }
 
 .m4g-stats__total {
-  font-size: 1.5rem;
-  margin: 0.5rem 0;
+  margin: 0.2rem 0 0;
+  line-height: 0.9;
+}
+
+.m4g-stats__total strong {
+  display: block;
+  font-family: "Archivo Narrow", "Archivo", sans-serif;
+  font-size: clamp(3.4rem, 16vw, 5.75rem);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+
+.m4g-stats__caption {
+  margin: 0.45rem 0 0;
+  font-size: 0.95rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--m4g-muted);
 }
 
 .m4g-subhead {
@@ -1561,13 +1579,88 @@ body.m4g-body {
   font-size: 0.9rem;
 }
 
-@media (max-width: 520px) {
-  .m4g-form__row {
-    grid-template-columns: 1fr;
+.m4g-body code {
+  word-break: break-all;
+}
+
+@media (max-width: 720px) {
+  .m4g-nav {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.2rem;
+    padding: 0.45rem 0.75rem 0.35rem;
+  }
+
+  .m4g-nav__brand img {
+    height: 30px;
+    max-width: 168px;
   }
 
   .m4g-nav__links {
-    font-size: 0.75rem;
-    gap: 0.35rem 0.65rem;
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    overflow-x: auto;
+    gap: 0.15rem;
+    margin: 0 -0.75rem;
+    padding: 0.15rem 0.75rem 0.35rem;
+    font-size: 0.78rem;
+    letter-spacing: 0.04em;
+    scrollbar-width: none;
+  }
+
+  .m4g-nav__links::-webkit-scrollbar {
+    display: none;
+  }
+
+  .m4g-nav__links a {
+    flex: 0 0 auto;
+    padding: 0.45rem 0.55rem;
+  }
+
+  .m4g-seeds {
+    bottom: auto;
+    height: 38%;
+  }
+
+  .m4g-hero--poster .m4g-hero__actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .m4g-hero .m4g-btn {
+    width: 100%;
+    text-align: center;
+  }
+
+  .m4g-poster-nav {
+    gap: 0.35rem;
+    letter-spacing: 0.04em;
+    font-size: 0.68rem;
+  }
+
+  .m4g-card--padded {
+    padding: 1rem 0.9rem;
+  }
+
+  .m4g-btn--pay,
+  .m4g-pay-methods__copy .m4g-btn,
+  .m4g-iban .m4g-btn {
+    display: block;
+    width: 100%;
+    text-align: center;
+  }
+
+  .m4g-gpx__map {
+    height: 220px;
+  }
+
+  #programma {
+    scroll-margin-top: 7rem;
+  }
+}
+
+@media (max-width: 520px) {
+  .m4g-form__row {
+    grid-template-columns: 1fr;
   }
 }

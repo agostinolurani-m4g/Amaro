@@ -48,6 +48,8 @@ class M4gPageTests(unittest.TestCase):
         self.assertIn("DONA QUI", body)
         self.assertIn("17 ottobre 2026", body)
         self.assertIn("Raccolta di questa edizione", body)
+        self.assertNotIn("iscrizioni pagate", body)
+        self.assertNotIn("bar e cucina", body.lower())
         self.assertIn("Realtà che hanno aderito", body)
         self.assertIn("Amaro", body)
         self.assertIn("Domande frequenti", body)
@@ -120,10 +122,11 @@ class M4gPageTests(unittest.TestCase):
             home = self.client.get("/m4g/")
             self.assertNotIn('href="/m4g/bar"', home.text)
             self.assertNotIn('href="/m4g/merch"', home.text)
+            self.assertNotIn("Raccolta di questa edizione", home.text)
 
             shown = admin.post(
                 "/m4g/gestione/pages",
-                data={"show_bar": "1", "show_merch": "1"},
+                data={"show_bar": "1", "show_merch": "1", "show_total": "1"},
                 follow_redirects=False,
             )
             self.assertIn(shown.status_code, (302, 303))
