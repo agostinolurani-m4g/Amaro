@@ -6,7 +6,14 @@
     <title>Move for Gaza — Gestione</title>
     <link rel="stylesheet" href="{{ url_for('static', path='css/m4g-bar.css') }}" />
     <style>
-      .m4g-cms-wrap { max-width: 40rem; margin: 2rem auto; padding: 0 1rem; }
+      .m4g-cms-wrap { max-width: 52rem; margin: 2rem auto; padding: 0 1rem 3rem; }
+      .m4g-cms-row { display: grid; gap: 0.5rem; margin-bottom: 0.75rem; }
+      .m4g-cms-row--vendor { grid-template-columns: 1.1fr 1.4fr 9rem; }
+      .m4g-cms-row--item { grid-template-columns: 1fr 7rem; }
+      .m4g-cms-section { border: 1px solid #e7e0c8; border-radius: 0.35rem; padding: 0.75rem; margin-bottom: 0.75rem; }
+      @media (max-width: 720px) {
+        .m4g-cms-row--vendor, .m4g-cms-row--item { grid-template-columns: 1fr; }
+      }
       .m4g-dropzone {
         border: 2px dashed var(--m4g-border, #ccc);
         border-radius: 0.5rem;
@@ -36,6 +43,14 @@
         <p class="m4g-alert" style="background:#e8f5e9;">Sito pubblico attivo: nessuna password per i visitatori.</p>
       {% elif message == 'preview' %}
         <p class="m4g-muted">Anteprima protetta: i visitatori devono inserire la password del sito.</p>
+      {% elif message == 'pages' %}
+        <p class="m4g-alert" style="background:#e8f5e9;">Visibilità di bar e merch aggiornata.</p>
+      {% elif message == 'kitchen' %}
+        <p class="m4g-alert" style="background:#e8f5e9;">Chi cucina è aggiornato.</p>
+      {% elif message == 'menu' %}
+        <p class="m4g-alert" style="background:#e8f5e9;">Menu e prezzi aggiornati.</p>
+      {% elif message == 'price' %}
+        <p class="m4g-alert">Un prezzo non è valido. Usa numeri come 4,50.</p>
       {% endif %}
 
       <section class="m4g-card m4g-card--padded" style="margin-bottom:1rem;">
@@ -49,6 +64,105 @@
           <button type="submit" class="m4g-btn m4g-btn--primary m4g-btn--inline">Salva</button>
         </form>
         <p class="m4g-muted"><strong>Stato:</strong> {% if site_public %}Live{% else %}Anteprima con password{% endif %}</p>
+      </section>
+
+      <section class="m4g-card m4g-card--padded" style="margin-bottom:1rem;">
+        <h2>Pagine bar e merch</h2>
+        <p class="m4g-muted">Se spente, spariscono dal menu e l'indirizzo diretto non mostra la pagina. Ordini e pagamenti già fatti restano.</p>
+        <form method="post" action="/m4g/gestione/pages" class="m4g-form" style="margin-top:1rem;">
+          <label style="display:flex;align-items:center;gap:0.5rem;">
+            <input type="checkbox" name="show_bar" value="1" {% if show_bar %}checked{% endif %} />
+            Mostra la pagina Bar &amp; cucina
+          </label>
+          <label style="display:flex;align-items:center;gap:0.5rem;">
+            <input type="checkbox" name="show_merch" value="1" {% if show_merch %}checked{% endif %} />
+            Mostra la pagina Merch
+          </label>
+          <button type="submit" class="m4g-btn m4g-btn--primary m4g-btn--inline">Salva visibilità</button>
+        </form>
+      </section>
+
+      <section class="m4g-card m4g-card--padded" style="margin-bottom:1rem;">
+        <h2>Chi cucina</h2>
+        <p class="m4g-muted">Nome, cosa preparano e se è confermato. Una riga vuota aggiunge una cucina. Svuota il nome per toglierla.</p>
+        <form method="post" action="/m4g/gestione/vendors" class="m4g-form" style="margin-top:1rem;">
+          {% for vendor in vendors %}
+            <div class="m4g-cms-row m4g-cms-row--vendor">
+              <input type="hidden" name="v_id" value="{{ vendor.id }}" />
+              <input name="v_name" value="{{ vendor.name }}" placeholder="Nome cucina" />
+              <input name="v_blurb" value="{{ vendor.blurb }}" placeholder="Cosa preparano" />
+              <select name="v_status">
+                <option value="confirmed" {% if not vendor.placeholder %}selected{% endif %}>Confermato</option>
+                <option value="placeholder" {% if vendor.placeholder %}selected{% endif %}>Da confermare</option>
+              </select>
+            </div>
+          {% endfor %}
+          <div class="m4g-cms-row m4g-cms-row--vendor">
+            <input type="hidden" name="v_id" value="" />
+            <input name="v_name" value="" placeholder="Nuova cucina" />
+            <input name="v_blurb" value="" placeholder="Cosa preparano" />
+            <select name="v_status">
+              <option value="placeholder" selected>Da confermare</option>
+              <option value="confirmed">Confermato</option>
+            </select>
+          </div>
+          <button type="submit" class="m4g-btn m4g-btn--primary m4g-btn--inline">Salva chi cucina</button>
+        </form>
+      </section>
+
+      <section class="m4g-card m4g-card--padded" style="margin-bottom:1rem;">
+        <h2>Menu e prezzi</h2>
+        <p class="m4g-muted">Ogni blocco è una categoria del bar. I prezzi sono in euro. Lascia il nome vuoto per togliere una voce o una categoria senza piatti.</p>
+        <form method="post" action="/m4g/gestione/menu" class="m4g-form" style="margin-top:1rem;">
+          {% for section in menu %}
+            {% set section_index = loop.index0 %}
+            <fieldset class="m4g-cms-section">
+              <div class="m4g-cms-row m4g-cms-row--vendor">
+                <input name="sec_category" value="{{ section.category }}" placeholder="Categoria" />
+                <select name="sec_vendor">
+                  <option value="">Nessuna cucina collegata</option>
+                  {% for vendor in vendors %}
+                    <option value="{{ vendor.id }}" {% if section.vendor_id == vendor.id %}selected{% endif %}>{{ vendor.name }}</option>
+                  {% endfor %}
+                </select>
+                <span class="m4g-muted">prezzo €</span>
+              </div>
+              {% for item in section['items'] %}
+                <div class="m4g-cms-row m4g-cms-row--item">
+                  <input type="hidden" name="item_section" value="{{ section_index }}" />
+                  <input type="hidden" name="item_id" value="{{ item.id }}" />
+                  <input name="item_name" value="{{ item.name }}" placeholder="Piatto o bevanda" />
+                  <input name="item_price" value="{{ ('%0.2f'|format(item.price_cents / 100)).replace('.', ',') }}" inputmode="decimal" />
+                </div>
+              {% endfor %}
+              <div class="m4g-cms-row m4g-cms-row--item">
+                <input type="hidden" name="item_section" value="{{ loop.index0 }}" />
+                <input type="hidden" name="item_id" value="" />
+                <input name="item_name" value="" placeholder="Nuova voce" />
+                <input name="item_price" value="" placeholder="0,00" inputmode="decimal" />
+              </div>
+            </fieldset>
+          {% endfor %}
+          <fieldset class="m4g-cms-section">
+            <div class="m4g-cms-row m4g-cms-row--vendor">
+              <input name="sec_category" value="" placeholder="Nuova categoria" />
+              <select name="sec_vendor">
+                <option value="">Nessuna cucina collegata</option>
+                {% for vendor in vendors %}
+                  <option value="{{ vendor.id }}">{{ vendor.name }}</option>
+                {% endfor %}
+              </select>
+              <span class="m4g-muted">prezzo €</span>
+            </div>
+            <div class="m4g-cms-row m4g-cms-row--item">
+              <input type="hidden" name="item_section" value="{{ menu|length }}" />
+              <input type="hidden" name="item_id" value="" />
+              <input name="item_name" value="" placeholder="Prima voce" />
+              <input name="item_price" value="" placeholder="0,00" inputmode="decimal" />
+            </div>
+          </fieldset>
+          <button type="submit" class="m4g-btn m4g-btn--primary m4g-btn--inline">Salva menu</button>
+        </form>
       </section>
 
       <section class="m4g-card m4g-card--padded" style="margin-bottom:1rem;">

@@ -9,13 +9,22 @@ from .m4g_auth import M4G_SITE_PASSWORD
 from .m4g_cms import (
     add_gpx_file,
     add_media_file,
+    build_menu_from_form,
+    build_vendors_from_form,
     cms_gpx_path,
     cms_media_path,
+    cms_menu,
+    cms_show_bar,
+    cms_show_merch,
     cms_site_public,
+    cms_vendors,
     list_cms_gpx_routes,
     list_cms_media,
     remove_gpx_route,
     remove_media_file,
+    save_menu,
+    save_vendors,
+    set_page_visibility,
     set_site_public,
 )
 from .m4g_common import templates
@@ -84,6 +93,10 @@ def m4g_gestione_page(request: Request) -> HTMLResponse:
             "media_files": list_cms_media(),
             "gpx_routes": list_cms_gpx_routes(),
             "site_public": cms_site_public(),
+            "show_bar": cms_show_bar(),
+            "show_merch": cms_show_merch(),
+            "vendors": cms_vendors(),
+            "menu": cms_menu(),
             "message": request.query_params.get("msg"),
         },
     )
@@ -117,6 +130,65 @@ def m4g_gestione_site_public(
     set_site_public(enabled in ("1", "true", "on", "yes"))
     msg = "live" if cms_site_public() else "preview"
     return RedirectResponse(f"/m4g/gestione?msg={msg}", status_code=302)
+
+
+@admin_router.post("/m4g/gestione/pages")
+def m4g_gestione_pages(
+    request: Request,
+    show_bar: str = Form(""),
+    show_merch: str = Form(""),
+) -> RedirectResponse:
+    denied = _require_admin(request)
+    if denied:
+        return denied
+    set_page_visibility(
+        show_bar=show_bar in ("1", "true", "on", "yes"),
+        show_merch=show_merch in ("1", "true", "on", "yes"),
+    )
+    return RedirectResponse("/m4g/gestione?msg=pages", status_code=302)
+
+
+@admin_router.post("/m4g/gestione/vendors")
+def m4g_gestione_vendors(
+    request: Request,
+    v_id: list[str] = Form(default=[]),
+    v_name: list[str] = Form(default=[]),
+    v_blurb: list[str] = Form(default=[]),
+    v_status: list[str] = Form(default=[]),
+) -> RedirectResponse:
+    denied = _require_admin(request)
+    if denied:
+        return denied
+    save_vendors(build_vendors_from_form(v_id, v_name, v_blurb, v_status))
+    return RedirectResponse("/m4g/gestione?msg=kitchen", status_code=302)
+
+
+@admin_router.post("/m4g/gestione/menu")
+def m4g_gestione_menu(
+    request: Request,
+    sec_category: list[str] = Form(default=[]),
+    sec_vendor: list[str] = Form(default=[]),
+    item_section: list[str] = Form(default=[]),
+    item_id: list[str] = Form(default=[]),
+    item_name: list[str] = Form(default=[]),
+    item_price: list[str] = Form(default=[]),
+) -> RedirectResponse:
+    denied = _require_admin(request)
+    if denied:
+        return denied
+    try:
+        sections = build_menu_from_form(
+            sec_category,
+            sec_vendor,
+            item_section,
+            item_id,
+            item_name,
+            item_price,
+        )
+    except ValueError:
+        return RedirectResponse("/m4g/gestione?msg=price", status_code=302)
+    save_menu(sections)
+    return RedirectResponse("/m4g/gestione?msg=menu", status_code=302)
 
 
 @admin_router.post("/m4g/gestione/upload-media")

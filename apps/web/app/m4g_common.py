@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 
 from .config import settings
 from .database import engine
+from .m4g_cms import cms_show_bar, cms_show_merch
 from .m4g_config import M4G_EVENT
 from .models import BarOrder, M4gRegistration
 from .nexi import NexiXpayClient
@@ -25,6 +26,8 @@ logger = logging.getLogger(__name__)
 BASE_DIR = Path(__file__).resolve().parent
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 templates.env.globals["m4g"] = M4G_EVENT
+templates.env.globals["m4g_show_bar"] = cms_show_bar
+templates.env.globals["m4g_show_merch"] = cms_show_merch
 
 
 def format_price(cents: int) -> str:
