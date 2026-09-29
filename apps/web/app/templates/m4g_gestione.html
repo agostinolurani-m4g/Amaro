@@ -46,7 +46,7 @@
       {% elif message == 'preview' %}
         <p class="m4g-muted">Anteprima protetta: i visitatori devono inserire la password del sito.</p>
       {% elif message == 'pages' %}
-        <p class="m4g-alert" style="background:#e8f5e9;">Visibilità di bar e merch aggiornata.</p>
+        <p class="m4g-alert" style="background:#e8f5e9;">Visibilità aggiornata.</p>
       {% elif message == 'kitchen' %}
         <p class="m4g-alert" style="background:#e8f5e9;">Chi cucina è aggiornato.</p>
       {% elif message == 'menu' %}
@@ -75,8 +75,8 @@
       </section>
 
       <section class="m4g-card m4g-card--padded" style="margin-bottom:1rem;">
-        <h2>Pagine bar e merch</h2>
-        <p class="m4g-muted">Se spente, spariscono dal menu e l'indirizzo diretto non mostra la pagina. Ordini e pagamenti già fatti restano.</p>
+        <h2>Cosa si vede sul sito</h2>
+        <p class="m4g-muted">Bar e merch, se spenti, spariscono dal menu e l'indirizzo diretto non mostra la pagina. Il totale è solo il numero grande in home. Ordini e pagamenti già fatti restano.</p>
         <form method="post" action="/m4g/gestione/pages" class="m4g-form" style="margin-top:1rem;">
           <label style="display:flex;align-items:center;gap:0.5rem;">
             <input type="checkbox" name="show_bar" value="1" {% if show_bar %}checked{% endif %} />
@@ -85,6 +85,10 @@
           <label style="display:flex;align-items:center;gap:0.5rem;">
             <input type="checkbox" name="show_merch" value="1" {% if show_merch %}checked{% endif %} />
             Mostra la pagina Merch
+          </label>
+          <label style="display:flex;align-items:center;gap:0.5rem;">
+            <input type="checkbox" name="show_total" value="1" {% if show_total %}checked{% endif %} />
+            Mostra il totale raccolto in home
           </label>
           <button type="submit" class="m4g-btn m4g-btn--primary m4g-btn--inline">Salva visibilità</button>
         </form>

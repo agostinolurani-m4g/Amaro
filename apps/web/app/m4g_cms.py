@@ -28,6 +28,7 @@ _DEFAULT_STATE: dict[str, Any] = {
     "site_public": False,
     "show_bar": True,
     "show_merch": True,
+    "show_total": True,
     "media": [],
     "gpx_routes": [],
     "vendors": None,
@@ -56,6 +57,7 @@ def _load_state_raw() -> dict[str, Any]:
     out["site_public"] = bool(data.get("site_public", False))
     out["show_bar"] = True if "show_bar" not in data else bool(data.get("show_bar"))
     out["show_merch"] = True if "show_merch" not in data else bool(data.get("show_merch"))
+    out["show_total"] = True if "show_total" not in data else bool(data.get("show_total"))
     vendors = data.get("vendors")
     out["vendors"] = vendors if isinstance(vendors, list) else None
     menu = data.get("menu")
@@ -601,19 +603,25 @@ def cms_show_merch() -> bool:
     return bool(_load_state_raw().get("show_merch", True))
 
 
+def cms_show_total() -> bool:
+    return bool(_load_state_raw().get("show_total", True))
+
+
 def reset_catalog() -> None:
     state = _load_state_raw()
     state["vendors"] = None
     state["menu"] = None
     state["show_bar"] = True
     state["show_merch"] = True
+    state["show_total"] = True
     save_cms_state(state)
 
 
-def set_page_visibility(*, show_bar: bool, show_merch: bool) -> None:
+def set_page_visibility(*, show_bar: bool, show_merch: bool, show_total: bool) -> None:
     state = _load_state_raw()
     state["show_bar"] = show_bar
     state["show_merch"] = show_merch
+    state["show_total"] = show_total
     save_cms_state(state)
 
 

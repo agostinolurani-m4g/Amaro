@@ -18,6 +18,7 @@ from .m4g_cms import (
     cms_merch_items,
     cms_show_bar,
     cms_show_merch,
+    cms_show_total,
     cms_site_public,
     cms_vendors,
     list_cms_media,
@@ -101,6 +102,7 @@ def m4g_gestione_page(request: Request) -> HTMLResponse:
             "site_public": cms_site_public(),
             "show_bar": cms_show_bar(),
             "show_merch": cms_show_merch(),
+            "show_total": cms_show_total(),
             "vendors": cms_vendors(),
             "menu": cms_menu(),
             "message": request.query_params.get("msg"),
@@ -143,6 +145,7 @@ def m4g_gestione_pages(
     request: Request,
     show_bar: str = Form(""),
     show_merch: str = Form(""),
+    show_total: str = Form(""),
 ) -> RedirectResponse:
     denied = _require_admin(request)
     if denied:
@@ -150,6 +153,7 @@ def m4g_gestione_pages(
     set_page_visibility(
         show_bar=show_bar in ("1", "true", "on", "yes"),
         show_merch=show_merch in ("1", "true", "on", "yes"),
+        show_total=show_total in ("1", "true", "on", "yes"),
     )
     return RedirectResponse("/m4g/gestione?msg=pages", status_code=302)
 
