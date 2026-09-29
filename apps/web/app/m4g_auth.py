@@ -30,6 +30,12 @@ def m4g_site_unlocked(request: Request) -> bool:
     return bool(request.session.get(M4G_SESSION_KEY))
 
 
+def m4g_forced_public() -> bool:
+    """Render sets M4G_SITE_PUBLIC=1 so amarobici.it/m4g is the public site."""
+    flag = os.environ.get("M4G_SITE_PUBLIC", "").strip().lower()
+    return flag in {"1", "true", "yes", "on"}
+
+
 def m4g_access_redirect(next_url: str) -> RedirectResponse:
     return RedirectResponse(
         url=f"/m4g/access?next={quote(next_url, safe='/?&=')}",
@@ -38,7 +44,7 @@ def m4g_access_redirect(next_url: str) -> RedirectResponse:
 
 
 async def require_m4g_site_access(request: Request) -> None:
-    if cms_site_public() or m4g_site_unlocked(request):
+    if m4g_forced_public() or cms_site_public() or m4g_site_unlocked(request):
         return
     next_url = request.url.path
     if request.url.query:

@@ -429,12 +429,21 @@ async def wattlab_cors_middleware(request: Request, call_next):
 
 @app.middleware("http")
 async def m4g_public_host_middleware(request: Request, call_next):
-    """Serve Move for Gaza at site root on www.move-4-gaza.com."""
+    """move-4-gaza.com redirects to the canonical site on amarobici.it/m4g."""
     host = (request.headers.get("host") or "").split(":")[0].lower()
-    path = request.url.path
-    if host in M4G_PUBLIC_HOSTS and not path.startswith("/m4g") and not path.startswith("/static"):
-        request.scope["path"] = "/m4g" + ("" if path == "/" else path)
-    return await call_next(request)
+    if host not in M4G_PUBLIC_HOSTS:
+        return await call_next(request)
+    path = request.url.path or "/"
+    if path == "/m4g" or path.startswith("/m4g/"):
+        target_path = path
+    elif path == "/":
+        target_path = "/m4g/"
+    else:
+        target_path = "/m4g" + path
+    target = f"https://www.amarobici.it{target_path}"
+    if request.url.query:
+        target = f"{target}?{request.url.query}"
+    return RedirectResponse(target, status_code=301)
 
 
 UPLOADS_DIR = (BASE_DIR / settings.uploads_path).resolve()

@@ -18,7 +18,11 @@ from app.main import app  # noqa: E402
 class M4gPageTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
-        cls.client = TestClient(app)
+        # Starlette 0.50 runs the ASGI lifespan, including create_all, only
+        # inside the TestClient context manager. CI starts from an empty sqlite
+        # file, so checkout writes fail unless startup has run.
+        cls._client = TestClient(app)
+        cls.client = cls._client.__enter__()
         unlock = cls.client.post(
             "/m4g/access",
             data={"password": M4G_TEST_PASSWORD, "next": "/m4g/"},
@@ -29,6 +33,12 @@ class M4gPageTests(unittest.TestCase):
                 f"M4G access unlock failed ({unlock.status_code}); check M4G_SITE_PASSWORD"
             )
 
+    @classmethod
+    def tearDownClass(cls) -> None:
+        client = getattr(cls, "_client", None)
+        if client is not None:
+            client.__exit__(None, None, None)
+
     def test_home_contains_pdf_sections(self) -> None:
         response = self.client.get("/m4g/")
         self.assertEqual(response.status_code, 200)
@@ -37,6 +47,30 @@ class M4gPageTests(unittest.TestCase):
         self.assertIn("Il programma della giornata", body)
         self.assertIn("DONA QUI", body)
         self.assertIn("17 ottobre 2026", body)
+        self.assertIn("Raccolta di questa edizione", body)
+        self.assertIn("Realtà che hanno aderito", body)
+        self.assertIn("Amaro", body)
+        self.assertIn("Domande frequenti", body)
+        self.assertIn("Nexi", body)
+
+    def test_move4gaza_host_redirects_to_amarobici(self) -> None:
+        root = self.client.get(
+            "/",
+            headers={"host": "www.move-4-gaza.com"},
+            follow_redirects=False,
+        )
+        self.assertEqual(root.status_code, 301)
+        self.assertEqual(root.headers["location"], "https://www.amarobici.it/m4g/")
+        bike = self.client.get(
+            "/bici?from=poster",
+            headers={"host": "move-4-gaza.com"},
+            follow_redirects=False,
+        )
+        self.assertEqual(bike.status_code, 301)
+        self.assertEqual(
+            bike.headers["location"],
+            "https://www.amarobici.it/m4g/bici?from=poster",
+        )
 
     def test_giornata_page(self) -> None:
         response = self.client.get("/m4g/giornata")
@@ -61,6 +95,75 @@ class M4gPageTests(unittest.TestCase):
         self.assertIn("rideforgaza64.gpx", body)
         self.assertIn("m4g-bike-routes-bike", body)
         self.assertIn('"key":"64"', body.replace(" ", ""))
+
+    def test_gestione_menu_prices_and_page_flags(self) -> None:
+        from app.m4g_cms import reset_catalog
+
+        admin = TestClient(app)
+        login = admin.post(
+            "/m4g/gestione/login",
+            data={"password": M4G_TEST_PASSWORD},
+            follow_redirects=False,
+        )
+        self.assertIn(login.status_code, (302, 303))
+        try:
+            hidden = admin.post(
+                "/m4g/gestione/pages",
+                data={},
+                follow_redirects=False,
+            )
+            self.assertIn(hidden.status_code, (302, 303))
+            bar = self.client.get("/m4g/bar")
+            merch = self.client.get("/m4g/merch")
+            self.assertEqual(bar.status_code, 404)
+            self.assertEqual(merch.status_code, 404)
+            home = self.client.get("/m4g/")
+            self.assertNotIn('href="/m4g/bar"', home.text)
+            self.assertNotIn('href="/m4g/merch"', home.text)
+
+            shown = admin.post(
+                "/m4g/gestione/pages",
+                data={"show_bar": "1", "show_merch": "1"},
+                follow_redirects=False,
+            )
+            self.assertIn(shown.status_code, (302, 303))
+            kitchen = admin.post(
+                "/m4g/gestione/vendors",
+                data={
+                    "v_id": "cucina-test",
+                    "v_name": "Cucina Test",
+                    "v_blurb": "Primi del giorno",
+                    "v_status": "confirmed",
+                },
+                follow_redirects=False,
+            )
+            self.assertIn(kitchen.status_code, (302, 303))
+            menu = admin.post(
+                "/m4g/gestione/menu",
+                data={
+                    "sec_category": "Pranzo — Cucina Test",
+                    "sec_vendor": "cucina-test",
+                    "item_section": "0",
+                    "item_id": "piatto-test",
+                    "item_name": "Lasagna solidale",
+                    "item_price": "8,50",
+                },
+                follow_redirects=False,
+            )
+            self.assertIn(menu.status_code, (302, 303))
+            page = self.client.get("/m4g/bar")
+            self.assertEqual(page.status_code, 200)
+            self.assertIn("Lasagna solidale", page.text)
+            self.assertIn("8.50", page.text)
+            self.assertIn("Cucina Test", page.text)
+            checkout = self.client.post(
+                "/m4g/bar/checkout",
+                data={"cart_json": '[{"id":"piatto-test","quantity":2}]'},
+            )
+            self.assertEqual(checkout.status_code, 200)
+            self.assertIn("17.00", checkout.text)
+        finally:
+            reset_catalog()
 
     def test_gestione_requires_admin_login(self) -> None:
         fresh = TestClient(app)

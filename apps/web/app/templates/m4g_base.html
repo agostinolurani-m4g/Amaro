@@ -16,8 +16,12 @@
       <nav class="m4g-nav__links" aria-label="Navigazione principale">
         <a href="/m4g/giornata">La giornata</a>
         <a href="/m4g/iscrizione">Iscrizione</a>
+        {% if m4g_show_bar() %}
         <a href="/m4g/bar">Bar &amp; cucina</a>
+        {% endif %}
+        {% if m4g_show_merch() %}
         <a href="/m4g/merch">Merch</a>
+        {% endif %}
         <a href="/m4g/donazione">Dona</a>
         <a href="/m4g/chi-siamo">Chi siamo</a>
       </nav>

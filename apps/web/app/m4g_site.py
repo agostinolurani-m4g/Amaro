@@ -23,8 +23,8 @@ from .m4g_common import (
     templates,
 )
 from .m4g_cms import m4g_bike_distances, m4g_bike_routes_for_map, m4g_photos_2025
-from .m4g_config import ACTIVITIES, FOOD_VENDORS, LAST_EDITION, M4G_EVENT, REALTA_ADERENTI
-from .m4g_menu import BAR_MENU, MENU_BY_ID
+from .m4g_cms import cms_menu, cms_menu_by_id, cms_show_bar, cms_show_merch, cms_vendors
+from .m4g_config import ACTIVITIES, LAST_EDITION, M4G_EVENT, REALTA_ADERENTI
 from .models import BarOrder, M4gRegistration
 
 logger = logging.getLogger(__name__)
@@ -245,6 +245,8 @@ async def m4g_donate_submit(
 
 @router.get("/m4g/merch", response_class=HTMLResponse)
 def m4g_merch_form(request: Request) -> HTMLResponse:
+    if not cms_show_merch():
+        raise HTTPException(status_code=404, detail="Pagina non disponibile")
     unit = int(M4G_EVENT["pricing"]["merch_unit_cents"])
     return templates.TemplateResponse(
         "m4g_merch.html",
@@ -272,6 +274,8 @@ async def m4g_merch_submit(
     model: str = Form(""),
     notes: str = Form(""),
 ) -> HTMLResponse:
+    if not cms_show_merch():
+        raise HTTPException(status_code=404, detail="Pagina non disponibile")
     if item not in ("socks", "tshirt"):
         raise HTTPException(status_code=400, detail="Articolo non valido")
     if not first_name.strip() or not last_name.strip() or not email.strip():
@@ -307,7 +311,7 @@ def m4g_menu_redirect() -> RedirectResponse:
 def m4g_giornata_page(request: Request) -> HTMLResponse:
     return templates.TemplateResponse(
         "m4g_giornata.html",
-        {"request": request, "event": M4G_EVENT, "vendors": FOOD_VENDORS},
+        {"request": request, "event": M4G_EVENT, "vendors": cms_vendors()},
     )
 
 
@@ -548,7 +552,7 @@ def _parse_cart_json(cart_json: str) -> list[dict[str, Any]]:
         if not isinstance(entry, dict):
             continue
         item_id = str(entry.get("id", "")).strip()
-        catalog = MENU_BY_ID.get(item_id)
+        catalog = cms_menu_by_id().get(item_id)
         if not catalog:
             raise HTTPException(status_code=400, detail=f"Articolo non valido: {item_id}")
         quantity = int(entry.get("quantity", 0))
@@ -569,13 +573,15 @@ def _parse_cart_json(cart_json: str) -> list[dict[str, Any]]:
 
 @router.get("/m4g/bar", response_class=HTMLResponse)
 def bar_menu_page(request: Request) -> HTMLResponse:
+    if not cms_show_bar():
+        raise HTTPException(status_code=404, detail="Pagina non disponibile")
     return templates.TemplateResponse(
         "m4g_bar_menu.html",
         {
             "request": request,
-            "menu": BAR_MENU,
+            "menu": cms_menu(),
             "event": M4G_EVENT,
-            "vendors": FOOD_VENDORS,
+            "vendors": cms_vendors(),
             "payment_failed": _payment_failed(request),
             "price_fn": format_price,
         },
@@ -588,6 +594,8 @@ def bar_checkout_page(
     cart_json: str = Form("[]"),
     session: Session = Depends(get_session),
 ) -> HTMLResponse:
+    if not cms_show_bar():
+        raise HTTPException(status_code=404, detail="Pagina non disponibile")
     items = _parse_cart_json(cart_json)
     amount_cents = sum(item["price_cents"] * item["quantity"] for item in items)
     reference = build_payment_reference("BAR")
@@ -630,6 +638,8 @@ def bar_checkout_page(
 
 @router.get("/m4g/bar/qr", response_class=HTMLResponse)
 def bar_qr_page(request: Request) -> HTMLResponse:
+    if not cms_show_bar():
+        raise HTTPException(status_code=404, detail="Pagina non disponibile")
     base = str(request.base_url).rstrip("/")
     bar_url = f"{base}/m4g/bar"
     qr_url = (
