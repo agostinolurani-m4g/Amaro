@@ -32,6 +32,8 @@ _DEFAULT_STATE: dict[str, Any] = {
     "gpx_routes": [],
     "vendors": None,
     "menu": None,
+    "route_overrides": {},
+    "merch_items": {},
 }
 
 
@@ -59,6 +61,8 @@ def _load_state_raw() -> dict[str, Any]:
     menu = data.get("menu")
     out["menu"] = menu if isinstance(menu, list) else None
     out["media"] = [str(x) for x in (data.get("media") or []) if x]
+    out["route_overrides"] = _clean_route_overrides(data.get("route_overrides"))
+    out["merch_items"] = _clean_merch_items(data.get("merch_items"))
     routes = data.get("gpx_routes") or []
     cleaned: list[dict[str, str]] = []
     if isinstance(routes, list):
@@ -109,39 +113,196 @@ def m4g_photos_2025() -> list[str]:
     return base
 
 
-def _gpx_url_for_key(key: str) -> str | None:
-    mapping = {
-        "112": M4G_EVENT["gpx"]["bike_112"],
-        "64": M4G_EVENT["gpx"]["bike_64"],
-        "20": M4G_EVENT["gpx"]["bike_20"],
-    }
-    if key in mapping:
-        return mapping[key]
-    state = _load_state_raw()
-    for route in state.get("gpx_routes", []):
-        if route["key"] == key:
-            path = M4G_ROUTES_DIR / route["filename"]
-            if path.is_file():
-                return cms_gpx_url(route["filename"])
+def _default_route_slots() -> list[dict[str, str]]:
+    labels = {item["key"]: item["label"] for item in M4G_EVENT["bike_distances"]}
+    gpx = M4G_EVENT["gpx"]
+    return [
+        {
+            "key": "112",
+            "kind": "bike",
+            "admin_label": "Bici — 112 km",
+            "title": labels["112"],
+            "copy": M4G_EVENT["descrizione_bici"],
+            "default_gpx": gpx["bike_112"],
+        },
+        {
+            "key": "64",
+            "kind": "bike",
+            "admin_label": "Bici — 64 km",
+            "title": labels["64"],
+            "copy": "Percorso medio di circa 64 km, partenza e arrivo all'Arci Olmi.",
+            "default_gpx": gpx["bike_64"],
+        },
+        {
+            "key": "20",
+            "kind": "bike",
+            "admin_label": "Bici — 25 km cittadino",
+            "title": labels["20"],
+            "copy": (
+                "Percorso cittadino di 25 km a partire dall'Arci Olmi, "
+                "anche verso il Parco Agricolo Sud."
+            ),
+            "default_gpx": gpx["bike_20"],
+        },
+        {
+            "key": "run",
+            "kind": "run",
+            "admin_label": "Corsa",
+            "title": "Corsa — 7 km, 14 km o staffetta",
+            "copy": M4G_EVENT["descrizione_corsa"],
+            "default_gpx": gpx["run"],
+        },
+    ]
+
+
+def _slot_by_key(key: str) -> dict[str, str] | None:
+    for slot in _default_route_slots():
+        if slot["key"] == key:
+            return slot
     return None
 
 
+def _clean_route_overrides(raw: Any) -> dict[str, dict[str, str]]:
+    if not isinstance(raw, dict):
+        return {}
+    allowed = {slot["key"] for slot in _default_route_slots()}
+    cleaned: dict[str, dict[str, str]] = {}
+    for key, item in raw.items():
+        if key not in allowed or not isinstance(item, dict):
+            continue
+        entry: dict[str, str] = {}
+        title = str(item.get("title") or "").strip()
+        copy = str(item.get("copy") or "").strip()
+        filename = Path(str(item.get("gpx_filename") or "")).name
+        if title:
+            entry["title"] = title[:160]
+        if copy:
+            entry["copy"] = copy[:4000]
+        if filename and filename != ".":
+            entry["gpx_filename"] = filename
+        if entry:
+            cleaned[str(key)] = entry
+    return cleaned
+
+
+def _merch_defaults() -> dict[str, dict[str, Any]]:
+    images = M4G_EVENT["merch_images"]
+    return {
+        "socks": {
+            "title": "Calze solidali",
+            "blurb": "Modelli 1, 2 e 4 · taglie S/L · OEKO-TEX®",
+            "figure": images["socks"],
+        },
+        "tshirt": {
+            "title": "T-shirt Move4Gaza",
+            "blurb": "Cotone italiano · taglie unisex",
+            "figure": images["tshirt"],
+        },
+    }
+
+
+def _clean_merch_items(raw: Any) -> dict[str, dict[str, str]]:
+    if not isinstance(raw, dict):
+        return {}
+    cleaned: dict[str, dict[str, str]] = {}
+    for key in _merch_defaults():
+        item = raw.get(key)
+        if not isinstance(item, dict):
+            continue
+        entry: dict[str, str] = {}
+        title = str(item.get("title") or "").strip()
+        blurb = str(item.get("blurb") or "").strip()
+        image = Path(str(item.get("image") or "")).name
+        if title:
+            entry["title"] = title[:120]
+        if blurb:
+            entry["blurb"] = blurb[:500]
+        if image and image != ".":
+            entry["image"] = image
+        if entry:
+            cleaned[key] = entry
+    return cleaned
+
+
+def _uploaded_figure(filename: str, fallback: dict[str, Any]) -> dict[str, Any]:
+    url = cms_media_url(filename)
+    return {
+        "src": url,
+        "w640": url,
+        "w1280": url,
+        "width": fallback["width"],
+        "height": fallback["height"],
+        "sizes": fallback["sizes"],
+    }
+
+
+def managed_routes() -> list[dict[str, Any]]:
+    overrides = _load_state_raw().get("route_overrides") or {}
+    rows: list[dict[str, Any]] = []
+    for slot in _default_route_slots():
+        over = overrides.get(slot["key"]) or {}
+        filename = str(over.get("gpx_filename") or "")
+        custom = bool(filename and (M4G_ROUTES_DIR / filename).is_file())
+        rows.append(
+            {
+                "key": slot["key"],
+                "kind": slot["kind"],
+                "admin_label": slot["admin_label"],
+                "title": str(over.get("title") or slot["title"]),
+                "copy": str(over.get("copy") or slot["copy"]),
+                "url": cms_gpx_url(filename) if custom else slot["default_gpx"],
+                "custom_gpx": custom,
+            }
+        )
+    return rows
+
+
+def cms_run_route() -> dict[str, Any]:
+    for row in managed_routes():
+        if row["kind"] == "run":
+            return row
+    raise RuntimeError("Percorso corsa mancante")
+
+
 def m4g_bike_distances() -> list[dict[str, str]]:
-    distances = list(M4G_EVENT["bike_distances"])
-    state = _load_state_raw()
-    for route in state.get("gpx_routes", []):
-        if (M4G_ROUTES_DIR / route["filename"]).is_file():
-            distances.append({"key": route["key"], "label": route["label"]})
-    return distances
+    return [
+        {"key": row["key"], "label": row["title"]}
+        for row in managed_routes()
+        if row["kind"] == "bike"
+    ]
 
 
 def m4g_bike_routes_for_map() -> list[dict[str, str]]:
-    rows: list[dict[str, str]] = []
-    for dist in m4g_bike_distances():
-        url = _gpx_url_for_key(dist["key"])
-        if url:
-            rows.append({"key": dist["key"], "label": dist["label"], "url": url})
-    return rows
+    return [
+        {
+            "key": row["key"],
+            "label": row["title"],
+            "url": row["url"],
+            "copy": row["copy"],
+        }
+        for row in managed_routes()
+        if row["kind"] == "bike" and row["url"]
+    ]
+
+
+def cms_merch_item(slot: str) -> dict[str, Any]:
+    defaults = _merch_defaults()[slot]
+    stored = (_load_state_raw().get("merch_items") or {}).get(slot) or {}
+    image_name = str(stored.get("image") or "")
+    custom = bool(image_name and (M4G_MEDIA_DIR / image_name).is_file())
+    figure = _uploaded_figure(image_name, defaults["figure"]) if custom else defaults["figure"]
+    return {
+        "slot": slot,
+        "title": str(stored.get("title") or defaults["title"]),
+        "blurb": str(stored.get("blurb") or defaults["blurb"]),
+        "image": figure,
+        "preview": figure["w640"],
+        "custom_image": custom,
+    }
+
+
+def cms_merch_items() -> list[dict[str, Any]]:
+    return [cms_merch_item(slot) for slot in ("socks", "tshirt")]
 
 
 def _safe_stored_name(original: str, prefix: str, default_ext: str) -> str:
@@ -265,6 +426,171 @@ def list_cms_gpx_routes() -> list[dict[str, str]]:
         for r in state.get("gpx_routes", [])
         if (M4G_ROUTES_DIR / r["filename"]).is_file()
     ]
+
+
+def _store_image(filename: str, data: bytes, prefix: str) -> str:
+    ext = Path(filename).suffix.lower()
+    if ext not in MEDIA_EXTENSIONS:
+        raise ValueError("Formato immagine non supportato")
+    if len(data) > 12 * 1024 * 1024:
+        raise ValueError("File troppo grande (max 12 MB)")
+    stored = _safe_stored_name(filename, prefix, ext)
+    _ensure_dirs()
+    (M4G_MEDIA_DIR / stored).write_bytes(data)
+    return stored
+
+
+def _validate_gpx(filename: str, data: bytes) -> None:
+    if not filename.lower().endswith(".gpx"):
+        raise ValueError("Serve un file .gpx")
+    if len(data) > 15 * 1024 * 1024:
+        raise ValueError("GPX troppo grande (max 15 MB)")
+    if b"<gpx" not in data[:50000].lower():
+        raise ValueError("Il file non sembra un GPX valido")
+
+
+def save_merch_item(slot: str, title: str, blurb: str) -> None:
+    if slot not in _merch_defaults():
+        raise ValueError("Prodotto merch sconosciuto")
+    defaults = _merch_defaults()[slot]
+    state = _load_state_raw()
+    items = dict(state.get("merch_items") or {})
+    current = dict(items.get(slot) or {})
+    title = title.strip()
+    blurb = blurb.strip()
+    if title and title != defaults["title"]:
+        current["title"] = title[:120]
+    else:
+        current.pop("title", None)
+    if blurb and blurb != defaults["blurb"]:
+        current["blurb"] = blurb[:500]
+    else:
+        current.pop("blurb", None)
+    if current:
+        items[slot] = current
+    else:
+        items.pop(slot, None)
+    state["merch_items"] = items
+    save_cms_state(state)
+
+
+def set_merch_image(slot: str, filename: str, data: bytes) -> None:
+    if slot not in _merch_defaults():
+        raise ValueError("Prodotto merch sconosciuto")
+    stored = _store_image(filename, data, f"merch-{slot}")
+    state = _load_state_raw()
+    items = dict(state.get("merch_items") or {})
+    current = dict(items.get(slot) or {})
+    old = str(current.get("image") or "")
+    current["image"] = stored
+    items[slot] = current
+    state["merch_items"] = items
+    save_cms_state(state)
+    if old and old != stored:
+        path = M4G_MEDIA_DIR / old
+        if path.is_file():
+            path.unlink()
+
+
+def clear_merch_image(slot: str) -> None:
+    if slot not in _merch_defaults():
+        return
+    state = _load_state_raw()
+    items = dict(state.get("merch_items") or {})
+    current = dict(items.get(slot) or {})
+    old = str(current.pop("image", "") or "")
+    if current:
+        items[slot] = current
+    else:
+        items.pop(slot, None)
+    state["merch_items"] = items
+    save_cms_state(state)
+    if old:
+        path = M4G_MEDIA_DIR / old
+        if path.is_file():
+            path.unlink()
+
+
+def save_route_fields(route_key: str, title: str, copy: str) -> None:
+    slot = _slot_by_key(route_key)
+    if slot is None:
+        raise ValueError("Percorso sconosciuto")
+    state = _load_state_raw()
+    overrides = dict(state.get("route_overrides") or {})
+    current = dict(overrides.get(route_key) or {})
+    title = title.strip()
+    copy = copy.strip()
+    if title and title != slot["title"]:
+        current["title"] = title[:160]
+    else:
+        current.pop("title", None)
+    if copy and copy != slot["copy"]:
+        current["copy"] = copy[:4000]
+    else:
+        current.pop("copy", None)
+    if current:
+        overrides[route_key] = current
+    else:
+        overrides.pop(route_key, None)
+    state["route_overrides"] = overrides
+    save_cms_state(state)
+
+
+def set_route_gpx(route_key: str, filename: str, data: bytes) -> None:
+    if _slot_by_key(route_key) is None:
+        raise ValueError("Percorso sconosciuto")
+    _validate_gpx(filename, data)
+    stored = _safe_stored_name(filename, f"route-{route_key}", ".gpx")
+    _ensure_dirs()
+    (M4G_ROUTES_DIR / stored).write_bytes(data)
+    state = _load_state_raw()
+    overrides = dict(state.get("route_overrides") or {})
+    current = dict(overrides.get(route_key) or {})
+    old = str(current.get("gpx_filename") or "")
+    current["gpx_filename"] = stored
+    overrides[route_key] = current
+    state["route_overrides"] = overrides
+    save_cms_state(state)
+    if old and old != stored:
+        path = M4G_ROUTES_DIR / old
+        if path.is_file():
+            path.unlink()
+
+
+def clear_route_gpx(route_key: str) -> None:
+    if _slot_by_key(route_key) is None:
+        return
+    state = _load_state_raw()
+    overrides = dict(state.get("route_overrides") or {})
+    current = dict(overrides.get(route_key) or {})
+    old = str(current.pop("gpx_filename", "") or "")
+    if current:
+        overrides[route_key] = current
+    else:
+        overrides.pop(route_key, None)
+    state["route_overrides"] = overrides
+    save_cms_state(state)
+    if old:
+        path = M4G_ROUTES_DIR / old
+        if path.is_file():
+            path.unlink()
+
+
+def reset_page_content() -> None:
+    state = _load_state_raw()
+    for item in (state.get("route_overrides") or {}).values():
+        filename = str(item.get("gpx_filename") or "")
+        path = M4G_ROUTES_DIR / filename
+        if filename and path.is_file():
+            path.unlink()
+    for item in (state.get("merch_items") or {}).values():
+        filename = str(item.get("image") or "")
+        path = M4G_MEDIA_DIR / filename
+        if filename and path.is_file():
+            path.unlink()
+    state["route_overrides"] = {}
+    state["merch_items"] = {}
+    save_cms_state(state)
 
 
 def cms_show_bar() -> bool:

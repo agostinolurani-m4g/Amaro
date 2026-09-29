@@ -7,23 +7,28 @@ from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 
 from .m4g_auth import M4G_SITE_PASSWORD
 from .m4g_cms import (
-    add_gpx_file,
     add_media_file,
     build_menu_from_form,
     build_vendors_from_form,
     cms_gpx_path,
     cms_media_path,
+    clear_merch_image,
+    clear_route_gpx,
     cms_menu,
+    cms_merch_items,
     cms_show_bar,
     cms_show_merch,
     cms_site_public,
     cms_vendors,
-    list_cms_gpx_routes,
     list_cms_media,
-    remove_gpx_route,
+    managed_routes,
     remove_media_file,
     save_menu,
+    save_merch_item,
+    save_route_fields,
     save_vendors,
+    set_merch_image,
+    set_route_gpx,
     set_page_visibility,
     set_site_public,
 )
@@ -91,7 +96,8 @@ def m4g_gestione_page(request: Request) -> HTMLResponse:
         {
             "request": request,
             "media_files": list_cms_media(),
-            "gpx_routes": list_cms_gpx_routes(),
+            "routes": managed_routes(),
+            "merch_items": cms_merch_items(),
             "site_public": cms_site_public(),
             "show_bar": cms_show_bar(),
             "show_merch": cms_show_merch(),
@@ -228,38 +234,65 @@ def m4g_gestione_delete_media(
     return RedirectResponse("/m4g/gestione?msg=deleted-media", status_code=302)
 
 
-@admin_router.post("/m4g/gestione/upload-gpx")
-async def m4g_gestione_upload_gpx(
+@admin_router.post("/m4g/gestione/merch")
+async def m4g_gestione_merch(
     request: Request,
-    files: list[UploadFile] = File(default=[]),
+    slot: str = Form(""),
+    title: str = Form(""),
+    blurb: str = Form(""),
+    photo: UploadFile | None = File(None),
 ) -> RedirectResponse:
     denied = _require_admin(request)
     if denied:
         return denied
-    uploaded = 0
-    for upload in files:
-        if not upload.filename:
-            continue
-        data = await upload.read()
-        try:
-            add_gpx_file(upload.filename, data)
-            uploaded += 1
-        except ValueError:
-            continue
-    return RedirectResponse(
-        f"/m4g/gestione?msg=gpx-{uploaded}",
-        status_code=302,
-    )
+    try:
+        save_merch_item(slot, title, blurb)
+        if photo is not None and photo.filename:
+            set_merch_image(slot, photo.filename, await photo.read())
+    except ValueError:
+        return RedirectResponse("/m4g/gestione?msg=upload", status_code=302)
+    return RedirectResponse("/m4g/gestione?msg=merch", status_code=302)
 
 
-@admin_router.post("/m4g/gestione/delete-gpx")
-def m4g_gestione_delete_gpx(
+@admin_router.post("/m4g/gestione/merch-photo-reset")
+def m4g_gestione_merch_photo_reset(
+    request: Request,
+    slot: str = Form(""),
+) -> RedirectResponse:
+    denied = _require_admin(request)
+    if denied:
+        return denied
+    clear_merch_image(slot)
+    return RedirectResponse("/m4g/gestione?msg=merch", status_code=302)
+
+
+@admin_router.post("/m4g/gestione/route")
+async def m4g_gestione_route(
+    request: Request,
+    route_key: str = Form(""),
+    title: str = Form(""),
+    copy: str = Form(""),
+    gpx: UploadFile | None = File(None),
+) -> RedirectResponse:
+    denied = _require_admin(request)
+    if denied:
+        return denied
+    try:
+        save_route_fields(route_key, title, copy)
+        if gpx is not None and gpx.filename:
+            set_route_gpx(route_key, gpx.filename, await gpx.read())
+    except ValueError:
+        return RedirectResponse("/m4g/gestione?msg=upload", status_code=302)
+    return RedirectResponse("/m4g/gestione?msg=route", status_code=302)
+
+
+@admin_router.post("/m4g/gestione/route-gpx-reset")
+def m4g_gestione_route_gpx_reset(
     request: Request,
     route_key: str = Form(""),
 ) -> RedirectResponse:
     denied = _require_admin(request)
     if denied:
         return denied
-    if route_key:
-        remove_gpx_route(route_key)
-    return RedirectResponse("/m4g/gestione?msg=deleted-gpx", status_code=302)
+    clear_route_gpx(route_key)
+    return RedirectResponse("/m4g/gestione?msg=route", status_code=302)

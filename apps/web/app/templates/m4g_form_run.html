@@ -4,7 +4,7 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
 {% endblock %}
 {% block content %}
-<section class="m4g-hero"><div class="m4g-wrap"><p class="m4g-hero__eyebrow">Run for Gaza</p><h1>Iscrizione corsa</h1><p>{{ m4g.descrizione_corsa }}</p></div></section>
+<section class="m4g-hero"><div class="m4g-wrap"><p class="m4g-hero__eyebrow">Run for Gaza</p><h1>Iscrizione corsa</h1><p class="m4g-route-copy">{{ run_route['copy'] }}</p></div></section>
 <div class="m4g-wrap">
   {% if payment_failed %}<div class="m4g-alert">Pagamento non riuscito. Riprova.</div>{% endif %}
   <div class="m4g-card m4g-card--padded">
@@ -13,8 +13,8 @@
       <div class="m4g-alert">Posti corsa esauriti.</div>
     {% else %}
     <p>Donazione: <strong>{{ price }} €</strong></p>
-    <p class="m4g-muted"><a href="{{ gpx_run }}" class="m4g-link">Scarica GPX corsa</a></p>
-    {% with gpx_url=gpx_run, map_id="run" %}{% include "m4g_partials_gpx_map.html" %}{% endwith %}
+    <p><strong>{{ run_route.title }}</strong></p>
+    {% with gpx_url=run_route.url, map_id="run", gpx_label=run_route.title %}{% include "m4g_partials_gpx_map.html" %}{% endwith %}
     <form method="post" action="/m4g/corsa" class="m4g-form">
       <label>Nome e cognome<input name="name" required /></label>
       <label>Email<input type="email" name="email" required /></label>

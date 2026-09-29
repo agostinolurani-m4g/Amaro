@@ -165,6 +165,72 @@ class M4gPageTests(unittest.TestCase):
         finally:
             reset_catalog()
 
+    def test_gestione_merch_photos_and_route_fields(self) -> None:
+        from app.m4g_cms import reset_page_content
+
+        admin = TestClient(app)
+        login = admin.post(
+            "/m4g/gestione/login",
+            data={"password": M4G_TEST_PASSWORD},
+            follow_redirects=False,
+        )
+        self.assertIn(login.status_code, (302, 303))
+        gpx = (
+            b'<?xml version="1.0" encoding="UTF-8"?>'
+            b'<gpx version="1.1"><trk><name>Medio</name><trkseg>'
+            b'<trkpt lat="45.46" lon="9.19"></trkpt></trkseg></trk></gpx>'
+        )
+        try:
+            merch = admin.post(
+                "/m4g/gestione/merch",
+                data={
+                    "slot": "socks",
+                    "title": "Calze test",
+                    "blurb": "Lana del test",
+                },
+                files={"photo": ("calze.png", b"\x89PNG\r\n\x1a\n", "image/png")},
+            )
+            self.assertEqual(merch.status_code, 200)
+            page = self.client.get("/m4g/merch")
+            self.assertEqual(page.status_code, 200)
+            self.assertIn("Calze test", page.text)
+            self.assertIn("Lana del test", page.text)
+            self.assertIn("/m4g/cms/media/", page.text)
+            self.assertIn("T-shirt Move4Gaza", page.text)
+
+            route = admin.post(
+                "/m4g/gestione/route",
+                data={
+                    "route_key": "64",
+                    "title": "Medio test 64",
+                    "copy": "Copy del medio",
+                },
+                files={"gpx": ("medio.gpx", gpx, "application/gpx+xml")},
+            )
+            self.assertEqual(route.status_code, 200)
+            bike = self.client.get("/m4g/bici")
+            self.assertEqual(bike.status_code, 200)
+            self.assertIn("Medio test 64", bike.text)
+            self.assertIn("Copy del medio", bike.text)
+            self.assertIn("/m4g/cms/routes/", bike.text)
+            self.assertIn("rideforgaza112.gpx", bike.text)
+
+            run_edit = admin.post(
+                "/m4g/gestione/route",
+                data={
+                    "route_key": "run",
+                    "title": "Corsa di prova",
+                    "copy": "Testo corsa di prova",
+                },
+            )
+            self.assertEqual(run_edit.status_code, 200)
+            run_page = self.client.get("/m4g/corsa")
+            self.assertIn("Testo corsa di prova", run_page.text)
+            self.assertIn("Corsa di prova", run_page.text)
+            self.assertIn("amgaz_corsa.gpx", run_page.text)
+        finally:
+            reset_page_content()
+
     def test_gestione_requires_admin_login(self) -> None:
         fresh = TestClient(app)
         response = fresh.get("/m4g/gestione")
