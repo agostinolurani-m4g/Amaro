@@ -34,19 +34,13 @@
   </section>
 
   <div class="m4g-wrap m4g-wrap--wide">
+    {% if m4g_show_total() %}
     <section class="m4g-stats m4g-card m4g-card--padded">
       <h2>Raccolta di questa edizione</h2>
-      <p class="m4g-stats__total"><strong>{{ price_fn(stats.total_cents) }} €</strong> confermati sul sito</p>
-      <div class="m4g-numbers">
-        <article><strong>{{ stats.paid_registrations }}</strong><span>iscrizioni pagate</span></article>
-        <article><strong>{{ price_fn(stats.registration_cents) }} €</strong><span>iscrizioni, donazioni, merch</span></article>
-        <article><strong>{{ price_fn(stats.bar_cents) }} €</strong><span>bar e cucina</span></article>
-      </div>
-      <p class="m4g-muted">
-        Somma dei pagamenti Nexi andati a buon fine. Satispay, PayPal e bonifici si aggiungono quando li registriamo.
-        Nel 2025 ne abbiamo raccolti 26.000 € — <a href="/m4g/chi-siamo" class="m4g-link">chi siamo</a>.
-      </p>
+      <p class="m4g-stats__total"><strong>{{ price_fn(stats.total_cents) }} €</strong></p>
+      <p class="m4g-stats__caption">confermati sul sito</p>
     </section>
+    {% endif %}
 
     <section class="m4g-intro m4g-card m4g-card--padded">
       <h2>Cos'è Move4Gaza</h2>
