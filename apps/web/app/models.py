@@ -236,6 +236,8 @@ class BarOrder(Base):
     items_json: Mapped[str] = Column(Text, nullable=False)
     amount_cents: Mapped[int] = Column(Integer, nullable=False)
     payment_status: Mapped[str] = Column(String(20), default="pending")
+    payment_method: Mapped[str | None] = Column(String(20))
+    short_code: Mapped[str | None] = Column(String(12))
     voucher_token: Mapped[str | None] = Column(String(80), unique=True)
     voucher_status: Mapped[str] = Column(String(20), default="none")
     consumption_tokens_json: Mapped[str | None] = Column(Text)

@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import secrets
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -155,6 +155,100 @@ def alt_payment_context(
 
 VOUCHER_STATUS_VALID = "valid"
 VOUCHER_STATUS_REDEEMED = "redeemed"
+
+BAR_SHORT_CODE_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ"
+AWAITING_CHECK_MAX_HOURS = 3
+
+
+def generate_bar_short_code(session: Session) -> str:
+    for _ in range(40):
+        code = "".join(
+            secrets.choice(BAR_SHORT_CODE_ALPHABET) for _ in range(5)
+        )
+        existing = (
+            session.query(BarOrder)
+            .filter(
+                BarOrder.short_code == code,
+                BarOrder.payment_status.in_(
+                    ("pending", "awaiting_check", "paid")
+                ),
+            )
+            .first()
+        )
+        if not existing:
+            return code
+    raise RuntimeError("Impossibile generare codice ordine bar")
+
+
+def expire_stale_bar_orders(session: Session) -> None:
+    cutoff = datetime.utcnow() - timedelta(hours=AWAITING_CHECK_MAX_HOURS)
+    changed = False
+    for order in session.query(BarOrder).filter(
+        BarOrder.payment_status == "awaiting_check"
+    ):
+        created = order.created_at
+        if created is None:
+            continue
+        created_naive = (
+            created.replace(tzinfo=None) if getattr(created, "tzinfo", None) else created
+        )
+        if created_naive < cutoff:
+            order.payment_status = "expired"
+            changed = True
+    if changed:
+        session.commit()
+
+
+def reject_bar_order(order: BarOrder, session: Session) -> None:
+    if order.payment_status == "awaiting_check":
+        order.payment_status = "rejected"
+        session.commit()
+
+
+def bar_orders_awaiting_check(session: Session) -> list[BarOrder]:
+    expire_stale_bar_orders(session)
+    return (
+        session.query(BarOrder)
+        .filter(BarOrder.payment_status == "awaiting_check")
+        .order_by(BarOrder.created_at.desc())
+        .all()
+    )
+
+
+def bar_order_valid_voucher_count(order: BarOrder) -> int:
+    vouchers = load_consumption_vouchers(order)
+    return sum(1 for v in vouchers if v.get("status") == VOUCHER_STATUS_VALID)
+
+
+def bar_orders_eligible(session: Session) -> list[tuple[BarOrder, int]]:
+    rows: list[tuple[BarOrder, int]] = []
+    for order in (
+        session.query(BarOrder)
+        .filter(BarOrder.payment_status == "paid")
+        .order_by(BarOrder.paid_at.desc())
+    ):
+        remaining = bar_order_valid_voucher_count(order)
+        if remaining > 0:
+            rows.append((order, remaining))
+    return rows
+
+
+def pending_m4g_registrations(
+    session: Session, query: str = "", limit: int = 40
+) -> list[M4gRegistration]:
+    q = session.query(M4gRegistration).filter(
+        M4gRegistration.payment_status == "pending"
+    )
+    needle = query.strip().lower()
+    if needle:
+        like = f"%{needle}%"
+        q = q.filter(
+            (M4gRegistration.reference.ilike(like))
+            | (M4gRegistration.first_name.ilike(like))
+            | (M4gRegistration.last_name.ilike(like))
+            | (M4gRegistration.email.ilike(like))
+        )
+    return q.order_by(M4gRegistration.created_at.desc()).limit(limit).all()
 
 
 def build_consumption_vouchers(order: BarOrder) -> list[dict[str, Any]]:
@@ -357,6 +451,8 @@ def ensure_bar_order_schema() -> None:
         "paid_at": "DATETIME",
         "redeemed_at": "DATETIME",
         "consumption_tokens_json": "TEXT",
+        "payment_method": "TEXT",
+        "short_code": "TEXT",
     }
     with engine.begin() as conn:
         for column, ddl in required_columns.items():

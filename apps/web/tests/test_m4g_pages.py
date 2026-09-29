@@ -255,5 +255,167 @@ class M4gPageTests(unittest.TestCase):
             set_site_public(False)
 
 
+    def test_giornata_hides_food_section_when_bar_off(self) -> None:
+        from app.m4g_cms import set_page_visibility
+
+        admin = TestClient(app)
+        admin.post(
+            "/m4g/gestione/login",
+            data={"password": M4G_TEST_PASSWORD},
+            follow_redirects=False,
+        )
+        try:
+            admin.post(
+                "/m4g/gestione/pages",
+                data={"show_merch": "1", "show_total": "1"},
+                follow_redirects=False,
+            )
+            page = self.client.get("/m4g/giornata")
+            self.assertEqual(page.status_code, 200)
+            self.assertNotIn("Cibo e bar", page.text)
+        finally:
+            set_page_visibility(show_bar=True, show_merch=True, show_total=True)
+
+    def test_gpx_download_attachment(self) -> None:
+        response = self.client.get("/m4g/gpx/64.gpx")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("attachment", response.headers.get("content-disposition", ""))
+        self.assertIn(b"<gpx", response.content[:5000].lower())
+        missing = self.client.get("/m4g/gpx/unknown.gpx")
+        self.assertEqual(missing.status_code, 404)
+
+    def test_bar_manual_payment_flow(self) -> None:
+        from app import m4g_auth
+        from app.m4g_cms import reset_catalog
+
+        admin = TestClient(app)
+        admin.post(
+            "/m4g/gestione/login",
+            data={"password": m4g_auth.M4G_ADMIN_PASSWORD},
+            follow_redirects=False,
+        )
+        try:
+            admin.post(
+                "/m4g/gestione/pages",
+                data={"show_bar": "1", "show_merch": "1", "show_total": "1"},
+                follow_redirects=False,
+            )
+            checkout = self.client.post(
+                "/m4g/bar/checkout",
+                data={"cart_json": '[{"id":"acqua","quantity":1}]'},
+            )
+            self.assertEqual(checkout.status_code, 200)
+            self.assertIn("Ho pagato con Satispay", checkout.text)
+            ref_start = checkout.text.find('action="/m4g/bar/')
+            self.assertNotEqual(ref_start, -1)
+            import re
+
+            match = re.search(r'/m4g/bar/(BAR[A-F0-9]+)/manual', checkout.text)
+            self.assertIsNotNone(match)
+            reference = match.group(1)
+            code_match = re.search(
+                r'class="m4g-pay-code">([A-Z0-9]{5})</code>', checkout.text
+            )
+            self.assertIsNotNone(code_match)
+            short_code = code_match.group(1)
+            manual = self.client.post(
+                f"/m4g/bar/{reference}/manual",
+                data={"method": "satispay"},
+                follow_redirects=False,
+            )
+            self.assertIn(manual.status_code, (302, 303))
+            pending = self.client.get(f"/m4g/ordine/{reference}/consumi")
+            self.assertEqual(pending.status_code, 200)
+            self.assertIn("In verifica", pending.text)
+            self.assertIn(short_code, pending.text)
+            paid = admin.post(
+                "/m4g/gestione/bar-paid",
+                data={"reference": reference},
+                follow_redirects=False,
+            )
+            self.assertIn(paid.status_code, (302, 303))
+            consumi = self.client.get(f"/m4g/ordine/{reference}/consumi")
+            self.assertIn("Da ritirare", consumi.text)
+            token_match = re.search(r'data-token="([^"]+)"', consumi.text)
+            self.assertIsNotNone(token_match)
+            token = token_match.group(1)
+            redeem = self.client.post(
+                f"/m4g/ordine/{reference}/consumo/{token}/redeem"
+            )
+            self.assertEqual(redeem.status_code, 200)
+            cassa = admin.get("/m4g/gestione/cassa")
+            self.assertEqual(cassa.status_code, 200)
+            self.assertNotIn(short_code, cassa.text.split("Da verificare")[1].split("Eligible")[0])
+        finally:
+            reset_catalog()
+
+    def test_vendor_logo_upload(self) -> None:
+        from app.m4g_cms import reset_catalog
+
+        admin = TestClient(app)
+        admin.post(
+            "/m4g/gestione/login",
+            data={"password": M4G_TEST_PASSWORD},
+            follow_redirects=False,
+        )
+        try:
+            logo = admin.post(
+                "/m4g/gestione/vendor-logo",
+                data={"vendor_id": "cucina-franca"},
+                files={"logo": ("logo.png", b"\x89PNG\r\n\x1a\n", "image/png")},
+            )
+            self.assertEqual(logo.status_code, 200)
+            bar = self.client.get("/m4g/bar")
+            self.assertIn("/m4g/cms/media/", bar.text)
+            reset_resp = admin.post(
+                "/m4g/gestione/vendor-logo-reset",
+                data={"vendor_id": "cucina-franca"},
+            )
+            self.assertEqual(reset_resp.status_code, 200)
+        finally:
+            reset_catalog()
+
+    def test_admin_password_separate_from_site_preview(self) -> None:
+        from app import m4g_auth
+
+        old_admin = m4g_auth.M4G_ADMIN_PASSWORD
+        try:
+            m4g_auth.M4G_ADMIN_PASSWORD = "gestionale-separato"
+            admin = TestClient(app)
+            bad = admin.post(
+                "/m4g/gestione/login",
+                data={"password": M4G_TEST_PASSWORD},
+                follow_redirects=False,
+            )
+            self.assertEqual(bad.status_code, 302)
+            self.assertIn("error=bad", bad.headers.get("location", ""))
+            good = admin.post(
+                "/m4g/gestione/login",
+                data={"password": "gestionale-separato"},
+                follow_redirects=False,
+            )
+            self.assertEqual(good.status_code, 302)
+            self.assertIn("/m4g/gestione", good.headers.get("location", ""))
+        finally:
+            m4g_auth.M4G_ADMIN_PASSWORD = old_admin
+
+    def test_csv_exports_require_admin(self) -> None:
+        fresh = TestClient(app)
+        reg = fresh.get("/m4g/gestione/export/iscrizioni.csv", follow_redirects=False)
+        self.assertEqual(reg.status_code, 302)
+        admin = TestClient(app)
+        admin.post(
+            "/m4g/gestione/login",
+            data={"password": M4G_TEST_PASSWORD},
+            follow_redirects=False,
+        )
+        reg_ok = admin.get("/m4g/gestione/export/iscrizioni.csv")
+        self.assertEqual(reg_ok.status_code, 200)
+        self.assertIn("reference", reg_ok.text)
+        bar_ok = admin.get("/m4g/gestione/export/bar.csv")
+        self.assertEqual(bar_ok.status_code, 200)
+        self.assertIn("short_code", bar_ok.text)
+
+
 if __name__ == "__main__":
     unittest.main()

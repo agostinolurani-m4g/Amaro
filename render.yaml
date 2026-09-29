@@ -21,3 +21,5 @@ services:
         generateValue: true
       - key: M4G_SITE_PUBLIC
         value: "1"
+      - key: M4G_ADMIN_PASSWORD
+        generateValue: true

@@ -14,7 +14,7 @@
     {% else %}
     <p>Donazione: <strong>{{ price }} €</strong></p>
     <p><strong>{{ run_route.title }}</strong></p>
-    {% with gpx_url=run_route.url, map_id="run", gpx_label=run_route.title %}{% include "m4g_partials_gpx_map.html" %}{% endwith %}
+    {% with gpx_url=run_route.url, gpx_download_url=run_route.download_url, map_id="run", gpx_label=run_route.title %}{% include "m4g_partials_gpx_map.html" %}{% endwith %}
     <form method="post" action="/m4g/corsa" class="m4g-form">
       <label>Nome e cognome<input name="name" required /></label>
       <label>Email<input type="email" name="email" required /></label>

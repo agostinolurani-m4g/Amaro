@@ -6,7 +6,7 @@ from typing import Any
 from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request, status
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
 from .database import get_session
@@ -20,6 +20,8 @@ from .m4g_common import (
     parse_payload,
     prepare_nexi_payment,
     redeem_consumption_token,
+    expire_stale_bar_orders,
+    generate_bar_short_code,
     templates,
 )
 from .m4g_cms import m4g_bike_distances, m4g_bike_routes_for_map, m4g_photos_2025
@@ -31,6 +33,7 @@ from .m4g_cms import (
     cms_show_bar,
     cms_show_merch,
     cms_vendors,
+    route_gpx_file_path,
 )
 from .m4g_config import ACTIVITIES, LAST_EDITION, M4G_EVENT, REALTA_ADERENTI
 from .models import BarOrder, M4gRegistration
@@ -609,12 +612,14 @@ def bar_checkout_page(
     items = _parse_cart_json(cart_json)
     amount_cents = sum(item["price_cents"] * item["quantity"] for item in items)
     reference = build_payment_reference("BAR")
+    short_code = generate_bar_short_code(session)
     order = BarOrder(
         reference=reference,
         items_json=json.dumps(items, ensure_ascii=False),
         amount_cents=amount_cents,
         payment_status="pending",
         voucher_status="none",
+        short_code=short_code,
     )
     session.add(order)
     session.commit()
@@ -638,11 +643,49 @@ def bar_checkout_page(
             "items": items,
             "total": format_price(amount_cents),
             "reference": reference,
+            "short_code": short_code,
             "payment": payment,
             "price_fn": format_price,
             "bar_order_note": True,
             **alt,
         },
+    )
+
+
+@router.get("/m4g/gpx/{route_key}.gpx")
+def m4g_download_gpx(route_key: str) -> FileResponse:
+    path = route_gpx_file_path(route_key)
+    if path is None:
+        raise HTTPException(status_code=404, detail="GPX non trovato")
+    filename = f"move4gaza-{route_key}.gpx"
+    return FileResponse(
+        path,
+        media_type="application/gpx+xml",
+        filename=filename,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.post("/m4g/bar/{reference}/manual")
+def bar_manual_payment_confirm(
+    reference: str,
+    method: str = Form(""),
+    session: Session = Depends(get_session),
+) -> RedirectResponse:
+    if not cms_show_bar():
+        raise HTTPException(status_code=404, detail="Pagina non disponibile")
+    order = session.query(BarOrder).filter_by(reference=reference).first()
+    if not order or order.payment_status != "pending":
+        raise HTTPException(status_code=400, detail="Ordine non valido")
+    clean = method.strip().lower()
+    if clean not in ("satispay", "paypal"):
+        raise HTTPException(status_code=400, detail="Metodo non valido")
+    order.payment_method = clean
+    order.payment_status = "awaiting_check"
+    session.commit()
+    return RedirectResponse(
+        f"/m4g/ordine/{order.reference}/consumi",
+        status_code=302,
     )
 
 
@@ -669,7 +712,26 @@ def bar_order_consumptions_page(
     session: Session = Depends(get_session),
 ) -> HTMLResponse:
     order = session.query(BarOrder).filter_by(reference=reference).first()
-    if not order or order.payment_status != "paid":
+    if not order:
+        raise HTTPException(status_code=404, detail="Ordine non trovato")
+    if order.payment_status == "awaiting_check":
+        try:
+            items = json.loads(order.items_json or "[]")
+        except json.JSONDecodeError:
+            items = []
+        return templates.TemplateResponse(
+            "m4g_bar_consumptions.html",
+            {
+                "request": request,
+                "order": order,
+                "vouchers": [],
+                "items": items,
+                "pending": True,
+                "short_code": order.short_code or "",
+                "price_fn": format_price,
+            },
+        )
+    if order.payment_status != "paid":
         raise HTTPException(status_code=404, detail="Ordine non trovato")
     vouchers = load_consumption_vouchers(order)
     if not vouchers:
@@ -680,9 +742,29 @@ def bar_order_consumptions_page(
             "request": request,
             "order": order,
             "vouchers": vouchers,
+            "items": [],
+            "pending": False,
+            "short_code": order.short_code or "",
             "price_fn": format_price,
         },
     )
+
+
+@router.get("/m4g/ordine/{reference}/stato")
+def bar_order_status(
+    reference: str,
+    session: Session = Depends(get_session),
+) -> JSONResponse:
+    order = session.query(BarOrder).filter_by(reference=reference).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Ordine non trovato")
+    if order.payment_status == "awaiting_check":
+        expire_stale_bar_orders(session)
+        session.refresh(order)
+    payload: dict[str, Any] = {"payment_status": order.payment_status}
+    if order.payment_status == "paid":
+        payload["consumi_url"] = f"/m4g/ordine/{order.reference}/consumi"
+    return JSONResponse(payload)
 
 
 @router.get("/m4g/voucher/{token}", response_class=HTMLResponse)

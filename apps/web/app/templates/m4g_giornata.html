@@ -32,7 +32,7 @@
             <strong>{{ slot.title }}</strong>
             <p class="m4g-muted">
               {{ slot.detail }}
-              {% if slot.link %}
+              {% if slot.link and (slot.link != '/m4g/bar' or m4g_show_bar()) %}
                 <a href="{{ slot.link }}" class="m4g-link">{{ slot.link_text }}</a>
               {% endif %}
             </p>
@@ -48,21 +48,26 @@
     <a class="m4g-btn m4g-btn--primary m4g-btn--inline" href="/m4g/iscrizione">Vai alle iscrizioni</a>
   </section>
 
+  {% if m4g_show_bar() %}
   <section class="m4g-card m4g-card--padded">
     <h2>Cibo e bar</h2>
     <p class="m4g-prose">Cucinano:</p>
-    <ul class="m4g-steps">
+    <ul class="m4g-steps m4g-vendor-list">
       {% for vendor in vendors %}
-        <li>
-          <strong>{{ vendor.name }}</strong>
-          {% if vendor.placeholder %}<span class="m4g-muted"> (da confermare)</span>{% endif %}
-          — {{ vendor.blurb }}
+        <li class="m4g-vendor-list__item">
+          {% if vendor.logo_url %}
+            <img class="m4g-vendor-logo" src="{{ vendor.logo_url }}" alt="" width="64" height="64" loading="lazy" />
+          {% endif %}
+          <div>
+            <strong>{{ vendor.name }}</strong>
+            {% if vendor.placeholder %}<span class="m4g-muted"> (da confermare)</span>{% endif %}
+            — {{ vendor.blurb }}
+          </div>
         </li>
       {% endfor %}
     </ul>
-    {% if m4g_show_bar() %}
     <a class="m4g-btn m4g-btn--primary m4g-btn--inline" href="/m4g/bar">Vai al menu</a>
-    {% endif %}
   </section>
+  {% endif %}
 </div>
 {% endblock %}

@@ -3,7 +3,7 @@
   <div class="m4g-gpx__flag" aria-hidden="true"></div>
   <div id="m4g-map-{{ map_id }}" class="m4g-gpx__map"></div>
   <p class="m4g-muted m4g-gpx__meta" id="m4g-map-meta-{{ map_id }}">Caricamento percorso…</p>
-  <a href="{{ bike_routes[0].url }}" class="m4g-link" id="m4g-gpx-download-{{ map_id }}" download>Scarica GPX</a>
+  <a href="{{ bike_routes[0].download_url or bike_routes[0].url }}" class="m4g-link" id="m4g-gpx-download-{{ map_id }}" download>Scarica GPX</a>
 </div>
 <script type="application/json" id="m4g-bike-routes-{{ map_id }}">{{ bike_routes | tojson }}</script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
@@ -48,7 +48,7 @@
       return;
     }
     if (downloadEl) {
-      downloadEl.href = route.url;
+      downloadEl.href = route.download_url || route.url;
       downloadEl.textContent = "Scarica GPX — " + route.label;
     }
     if (copyEl) copyEl.textContent = route.copy || "";
@@ -91,7 +91,7 @@
   <div class="m4g-gpx__flag" aria-hidden="true"></div>
   <div id="m4g-map-{{ map_id }}" class="m4g-gpx__map" data-gpx="{{ gpx_url }}"></div>
   <p class="m4g-muted m4g-gpx__meta" id="m4g-map-meta-{{ map_id }}">Caricamento percorso…</p>
-  <a href="{{ gpx_url }}" class="m4g-link" download>{% if gpx_label %}Scarica GPX — {{ gpx_label }}{% else %}Scarica GPX{% endif %}</a>
+  <a href="{{ gpx_download_url or gpx_url }}" class="m4g-link" download>{% if gpx_label %}Scarica GPX — {{ gpx_label }}{% else %}Scarica GPX{% endif %}</a>
 </div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 <script src="https://unpkg.com/leaflet-gpx@2.2.0/gpx.js"></script>

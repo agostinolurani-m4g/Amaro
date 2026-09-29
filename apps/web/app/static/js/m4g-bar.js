@@ -104,4 +104,20 @@
     bindDoubleTapRedeem(card, `/m4g/ordine/${encodeURIComponent(ref)}/consumo/${encodeURIComponent(token)}/redeem`);
   });
 
+  const pendingRoot = document.querySelector('[data-m4g-pending-order]');
+  if (pendingRoot) {
+    const ref = pendingRoot.dataset.m4gPendingOrder;
+    const poll = () => {
+      fetch(`/m4g/ordine/${encodeURIComponent(ref)}/stato`, { headers: { Accept: 'application/json' } })
+        .then((r) => r.json())
+        .then((data) => {
+          if (data.payment_status === 'paid') {
+            window.location.reload();
+          }
+        })
+        .catch(() => {});
+    };
+    setInterval(poll, 10000);
+    poll();
+  }
 })();

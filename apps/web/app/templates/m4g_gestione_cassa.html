@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="it">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Cassa bar — Move for Gaza</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='css/m4g-bar.css') }}" />
+    <style>
+      .m4g-cms-wrap { max-width: 40rem; margin: 0 auto; padding: 1rem 1rem 4rem; }
+      .m4g-cassa-card {
+        border: 1px solid #e7e0c8;
+        border-radius: 0.5rem;
+        padding: 1rem;
+        margin-bottom: 1rem;
+        background: #fff;
+      }
+      .m4g-cassa-card__meta { font-size: 0.9rem; color: #555; margin: 0.35rem 0; }
+      .m4g-cassa-code { font-size: 1.5rem; letter-spacing: 0.12em; font-weight: 700; }
+      .m4g-cassa-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.75rem; }
+      .m4g-cassa-actions .m4g-btn { flex: 1 1 8rem; min-height: 3rem; font-size: 1rem; }
+      .m4g-cms-head { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-bottom: 1rem; }
+    </style>
+  </head>
+  <body class="m4g-body">
+    <div class="m4g-cms-wrap">
+      <div class="m4g-cms-head">
+        <div>
+          <h1 style="margin:0;">Cassa bar</h1>
+          <p class="m4g-muted"><a class="m4g-link" href="/m4g/gestione">← Gestione</a></p>
+        </div>
+      </div>
+      {% if message == 'paid' %}
+        <p class="m4g-alert" style="background:#e8f5e9;">Pagamento confermato — banner attivi.</p>
+      {% elif message == 'rejected' %}
+        <p class="m4g-alert">Ordine rifiutato.</p>
+      {% endif %}
+
+      <h2>Da verificare</h2>
+      <p class="m4g-muted">Cerca il codice su Satispay/PayPal, poi conferma o rifiuta.</p>
+      {% if not awaiting %}
+        <p class="m4g-muted">Nessun ordine in attesa.</p>
+      {% endif %}
+      {% for order in awaiting %}
+        <article class="m4g-cassa-card">
+          <p class="m4g-cassa-code">{{ order.short_code or '—' }}</p>
+          <p class="m4g-cassa-card__meta">
+            {{ price_fn(order.amount_cents) }} € · {{ order.payment_method or '?' }} · {{ order.reference }}
+          </p>
+          <p class="m4g-cassa-card__meta">{{ order.items_json }}</p>
+          <div class="m4g-cassa-actions">
+            <form method="post" action="/m4g/gestione/bar-paid">
+              <input type="hidden" name="reference" value="{{ order.reference }}" />
+              <button type="submit" class="m4g-btn m4g-btn--primary">Pagato</button>
+            </form>
+            <form method="post" action="/m4g/gestione/bar-reject">
+              <input type="hidden" name="reference" value="{{ order.reference }}" />
+              <button type="submit" class="m4g-btn m4g-btn--secondary">Rifiuta</button>
+            </form>
+          </div>
+        </article>
+      {% endfor %}
+
+      <h2 style="margin-top:2rem;">Eligible (banner da ritirare)</h2>
+      {% if not eligible %}
+        <p class="m4g-muted">Nessun ordine con banner validi.</p>
+      {% endif %}
+      {% for order, remaining in eligible %}
+        <article class="m4g-cassa-card">
+          <p class="m4g-cassa-code">{{ order.short_code or order.reference }}</p>
+          <p class="m4g-cassa-card__meta">
+            {{ remaining }} banner · {{ price_fn(order.amount_cents) }} €
+          </p>
+        </article>
+      {% endfor %}
+    </div>
+  </body>
+</html>

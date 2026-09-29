@@ -13,6 +13,7 @@ from fastapi.templating import Jinja2Templates
 from .m4g_cms import cms_site_public
 
 M4G_SITE_PASSWORD = os.environ.get("M4G_SITE_PASSWORD", "zipangulo")
+M4G_ADMIN_PASSWORD = os.environ.get("M4G_ADMIN_PASSWORD", "").strip() or M4G_SITE_PASSWORD
 M4G_SESSION_KEY = "m4g_site_unlocked"
 
 BASE_DIR = Path(__file__).resolve().parent

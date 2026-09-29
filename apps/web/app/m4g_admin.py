@@ -2,14 +2,21 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, File, Form, Request, UploadFile
-from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
+import csv
+import io
+from collections import Counter
 
-from .m4g_auth import M4G_SITE_PASSWORD
+from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, StreamingResponse
+from sqlalchemy.orm import Session
+
+from . import m4g_auth
+from .database import get_session
 from .m4g_cms import (
     add_media_file,
     build_menu_from_form,
     build_vendors_from_form,
+    clear_vendor_logo,
     cms_gpx_path,
     cms_media_path,
     clear_merch_image,
@@ -30,14 +37,56 @@ from .m4g_cms import (
     save_vendors,
     set_merch_image,
     set_route_gpx,
+    set_vendor_logo,
     set_page_visibility,
     set_site_public,
 )
-from .m4g_common import templates
+from .m4g_common import (
+    bar_orders_awaiting_check,
+    bar_orders_eligible,
+    compute_fundraising_stats,
+    format_price,
+    mark_bar_order_paid,
+    mark_registration_paid,
+    pending_m4g_registrations,
+    reject_bar_order,
+    templates,
+)
+from .models import BarOrder, M4gRegistration
 
 M4G_ADMIN_SESSION_KEY = "m4g_admin_unlocked"
 
 admin_router = APIRouter(tags=["m4g-admin"])
+
+M4G_ACTIVITIES = ("bike", "soccer", "run", "entrance", "donation", "merch")
+
+
+def _admin_dashboard(session: Session) -> dict:
+    stats = compute_fundraising_stats(session)
+    awaiting = bar_orders_awaiting_check(session)
+    eligible = bar_orders_eligible(session)
+    reg_counts: dict[str, dict[str, int]] = {}
+    for activity in M4G_ACTIVITIES:
+        reg_counts[activity] = {
+            "paid": session.query(M4gRegistration)
+            .filter_by(activity=activity, payment_status="paid")
+            .count(),
+            "pending": session.query(M4gRegistration)
+            .filter_by(activity=activity, payment_status="pending")
+            .count(),
+        }
+    bar_status = Counter(
+        row[0]
+        for row in session.query(BarOrder.payment_status).all()
+    )
+    return {
+        "stats": stats,
+        "awaiting_count": len(awaiting),
+        "eligible_count": len(eligible),
+        "reg_counts": reg_counts,
+        "bar_status": dict(bar_status),
+        "price_fn": format_price,
+    }
 
 
 def m4g_admin_unlocked(request: Request) -> bool:
@@ -83,7 +132,10 @@ def m4g_serve_cms_gpx(filename: str) -> FileResponse:
 
 
 @admin_router.get("/m4g/gestione", response_class=HTMLResponse)
-def m4g_gestione_page(request: Request) -> HTMLResponse:
+def m4g_gestione_page(
+    request: Request,
+    session: Session = Depends(get_session),
+) -> HTMLResponse:
     if not m4g_admin_unlocked(request):
         return templates.TemplateResponse(
             "m4g_gestione_login.html",
@@ -92,6 +144,7 @@ def m4g_gestione_page(request: Request) -> HTMLResponse:
                 "error": request.query_params.get("error"),
             },
         )
+    reg_q = request.query_params.get("reg_q", "")
     return templates.TemplateResponse(
         "m4g_gestione.html",
         {
@@ -106,6 +159,9 @@ def m4g_gestione_page(request: Request) -> HTMLResponse:
             "vendors": cms_vendors(),
             "menu": cms_menu(),
             "message": request.query_params.get("msg"),
+            "pending_regs": pending_m4g_registrations(session, reg_q),
+            "reg_q": reg_q,
+            **_admin_dashboard(session),
         },
     )
 
@@ -115,7 +171,7 @@ def m4g_gestione_login(
     request: Request,
     password: str = Form(""),
 ) -> RedirectResponse:
-    if password.strip() == M4G_SITE_PASSWORD:
+    if password.strip() == m4g_auth.M4G_ADMIN_PASSWORD:
         request.session[M4G_ADMIN_SESSION_KEY] = True
         return RedirectResponse("/m4g/gestione", status_code=302)
     return RedirectResponse("/m4g/gestione?error=bad", status_code=302)
@@ -300,3 +356,188 @@ def m4g_gestione_route_gpx_reset(
         return denied
     clear_route_gpx(route_key)
     return RedirectResponse("/m4g/gestione?msg=route", status_code=302)
+
+
+@admin_router.get("/m4g/gestione/cassa", response_class=HTMLResponse, response_model=None)
+def m4g_gestione_cassa(
+    request: Request,
+    session: Session = Depends(get_session),
+) -> RedirectResponse | HTMLResponse:
+    denied = _require_admin(request)
+    if denied:
+        return denied
+    awaiting = bar_orders_awaiting_check(session)
+    eligible = bar_orders_eligible(session)
+    return templates.TemplateResponse(
+        "m4g_gestione_cassa.html",
+        {
+            "request": request,
+            "awaiting": awaiting,
+            "eligible": eligible,
+            "price_fn": format_price,
+            "message": request.query_params.get("msg"),
+        },
+    )
+
+
+@admin_router.post("/m4g/gestione/bar-paid")
+def m4g_gestione_bar_paid(
+    request: Request,
+    reference: str = Form(""),
+    session: Session = Depends(get_session),
+) -> RedirectResponse:
+    denied = _require_admin(request)
+    if denied:
+        return denied
+    order = session.query(BarOrder).filter_by(reference=reference.strip()).first()
+    if order and order.payment_status == "awaiting_check":
+        mark_bar_order_paid(order, session)
+    return RedirectResponse("/m4g/gestione/cassa?msg=paid", status_code=302)
+
+
+@admin_router.post("/m4g/gestione/bar-reject")
+def m4g_gestione_bar_reject(
+    request: Request,
+    reference: str = Form(""),
+    session: Session = Depends(get_session),
+) -> RedirectResponse:
+    denied = _require_admin(request)
+    if denied:
+        return denied
+    order = session.query(BarOrder).filter_by(reference=reference.strip()).first()
+    if order:
+        reject_bar_order(order, session)
+    return RedirectResponse("/m4g/gestione/cassa?msg=rejected", status_code=302)
+
+
+@admin_router.post("/m4g/gestione/registration-paid")
+def m4g_gestione_registration_paid(
+    request: Request,
+    reference: str = Form(""),
+    session: Session = Depends(get_session),
+) -> RedirectResponse:
+    denied = _require_admin(request)
+    if denied:
+        return denied
+    reg = session.query(M4gRegistration).filter_by(reference=reference.strip()).first()
+    if reg and reg.payment_status == "pending":
+        mark_registration_paid(reg, session)
+    return RedirectResponse("/m4g/gestione?msg=reg-paid", status_code=302)
+
+
+@admin_router.post("/m4g/gestione/vendor-logo")
+async def m4g_gestione_vendor_logo(
+    request: Request,
+    vendor_id: str = Form(""),
+    logo: UploadFile | None = File(None),
+) -> RedirectResponse:
+    denied = _require_admin(request)
+    if denied:
+        return denied
+    if logo is None or not logo.filename:
+        return RedirectResponse("/m4g/gestione?msg=upload", status_code=302)
+    try:
+        set_vendor_logo(vendor_id, logo.filename, await logo.read())
+    except ValueError:
+        return RedirectResponse("/m4g/gestione?msg=upload", status_code=302)
+    return RedirectResponse("/m4g/gestione?msg=logo", status_code=302)
+
+
+@admin_router.post("/m4g/gestione/vendor-logo-reset")
+def m4g_gestione_vendor_logo_reset(
+    request: Request,
+    vendor_id: str = Form(""),
+) -> RedirectResponse:
+    denied = _require_admin(request)
+    if denied:
+        return denied
+    clear_vendor_logo(vendor_id)
+    return RedirectResponse("/m4g/gestione?msg=logo", status_code=302)
+
+
+@admin_router.get("/m4g/gestione/export/iscrizioni.csv", response_model=None)
+def m4g_export_registrations(
+    request: Request,
+    session: Session = Depends(get_session),
+) -> RedirectResponse | StreamingResponse:
+    denied = _require_admin(request)
+    if denied:
+        return denied
+    buffer = io.StringIO()
+    writer = csv.writer(buffer)
+    writer.writerow(
+        [
+            "reference",
+            "activity",
+            "first_name",
+            "last_name",
+            "email",
+            "phone",
+            "amount_eur",
+            "payment_status",
+            "created_at",
+        ]
+    )
+    for reg in session.query(M4gRegistration).order_by(M4gRegistration.id):
+        writer.writerow(
+            [
+                reg.reference,
+                reg.activity,
+                reg.first_name or "",
+                reg.last_name or "",
+                reg.email or "",
+                reg.phone or "",
+                f"{(reg.amount_cents or 0) / 100:.2f}",
+                reg.payment_status,
+                reg.created_at,
+            ]
+        )
+    buffer.seek(0)
+    return StreamingResponse(
+        iter([buffer.getvalue()]),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="m4g-iscrizioni.csv"'},
+    )
+
+
+@admin_router.get("/m4g/gestione/export/bar.csv", response_model=None)
+def m4g_export_bar(
+    request: Request,
+    session: Session = Depends(get_session),
+) -> RedirectResponse | StreamingResponse:
+    denied = _require_admin(request)
+    if denied:
+        return denied
+    buffer = io.StringIO()
+    writer = csv.writer(buffer)
+    writer.writerow(
+        [
+            "reference",
+            "short_code",
+            "amount_eur",
+            "payment_method",
+            "payment_status",
+            "items_json",
+            "created_at",
+            "paid_at",
+        ]
+    )
+    for order in session.query(BarOrder).order_by(BarOrder.id):
+        writer.writerow(
+            [
+                order.reference,
+                order.short_code or "",
+                f"{(order.amount_cents or 0) / 100:.2f}",
+                order.payment_method or "",
+                order.payment_status,
+                order.items_json,
+                order.created_at,
+                order.paid_at,
+            ]
+        )
+    buffer.seek(0)
+    return StreamingResponse(
+        iter([buffer.getvalue()]),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="m4g-bar.csv"'},
+    )

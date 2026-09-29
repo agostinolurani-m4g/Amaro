@@ -371,6 +371,37 @@ body.m4g-body {
   font-size: 1.05rem;
 }
 
+.m4g-vendor-logo {
+  width: 4rem;
+  height: 4rem;
+  object-fit: contain;
+  border-radius: 0.5rem;
+  background: #fff;
+  padding: 0.25rem;
+  margin-bottom: 0.5rem;
+  display: block;
+}
+
+.m4g-vendor-list__item {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+}
+
+.m4g-consumption--pending {
+  background: #cbd5e1;
+  color: var(--m4g-ink);
+}
+
+.m4g-pay-code {
+  font-size: 1.15rem;
+  letter-spacing: 0.08em;
+}
+
+.m4g-pay-manual__confirm {
+  margin-top: 0.75rem;
+}
+
 .m4g-consumptions {
   display: grid;
   gap: 1rem;

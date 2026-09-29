@@ -31,6 +31,32 @@
       .m4g-cms-preview { max-width: 16rem; margin: 0.5rem 0 1rem; }
       .m4g-cms-preview img { width: 100%; height: auto; border-radius: 0.25rem; display: block; }
       .m4g-cms-head { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-bottom: 1.5rem; }
+      .m4g-cms-nav {
+        position: sticky;
+        top: 0;
+        z-index: 5;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.35rem;
+        padding: 0.5rem 0 1rem;
+        background: var(--m4g-bg, #faf8f2);
+        border-bottom: 1px solid #e7e0c8;
+        margin-bottom: 1rem;
+      }
+      .m4g-cms-nav a {
+        font-size: 0.8rem;
+        padding: 0.35rem 0.55rem;
+        border-radius: 999px;
+        background: #fff;
+        border: 1px solid #e7e0c8;
+        text-decoration: none;
+        color: inherit;
+      }
+      .m4g-cms-dash { display: grid; gap: 0.5rem; }
+      @media (min-width: 640px) {
+        .m4g-cms-dash { grid-template-columns: 1fr 1fr; }
+      }
+      .m4g-cms-vendor-logo { width: 3rem; height: 3rem; object-fit: contain; border-radius: 0.25rem; background: #fff; }
     </style>
   </head>
   <body class="m4g-body">
@@ -59,7 +85,42 @@
         <p class="m4g-alert" style="background:#e8f5e9;">Percorso aggiornato.</p>
       {% elif message == 'upload' %}
         <p class="m4g-alert">File non valido. Le foto sono JPEG, PNG, WebP o GIF. Il tracciato deve essere un .gpx.</p>
+      {% elif message == 'logo' %}
+        <p class="m4g-alert" style="background:#e8f5e9;">Logo cucina aggiornato.</p>
+      {% elif message == 'reg-paid' %}
+        <p class="m4g-alert" style="background:#e8f5e9;">Iscrizione segnata come pagata.</p>
       {% endif %}
+
+      <nav class="m4g-cms-nav" aria-label="Sezioni gestionale">
+        <a href="#cms-stato">Stato</a>
+        <a href="/m4g/gestione/cassa">Cassa</a>
+        <a href="#cms-pagine">Pagine</a>
+        <a href="#cms-cucine">Cucine</a>
+        <a href="#cms-menu">Menu</a>
+        <a href="#cms-merch">Merch</a>
+        <a href="#cms-foto">Foto</a>
+        <a href="#cms-percorsi">Percorsi</a>
+        <a href="#cms-iscrizioni">Iscrizioni</a>
+      </nav>
+
+      <section id="cms-stato" class="m4g-card m4g-card--padded" style="margin-bottom:1rem;">
+        <h2>Stato evento</h2>
+        <div class="m4g-cms-dash">
+          <p><strong>Totale raccolto:</strong> {{ price_fn(stats.total_cents) }} €</p>
+          <p><strong>Bar in verifica:</strong> {{ awaiting_count }} · <strong>Eligible:</strong> {{ eligible_count }}</p>
+          <p><a class="m4g-link" href="/m4g/gestione/cassa">Apri cassa bar →</a></p>
+          <p>
+            <a class="m4g-link" href="/m4g/gestione/export/iscrizioni.csv">Export iscrizioni CSV</a>
+            ·
+            <a class="m4g-link" href="/m4g/gestione/export/bar.csv">Export bar CSV</a>
+          </p>
+        </div>
+        <ul class="m4g-muted" style="font-size:0.9rem;padding-left:1.1rem;">
+          {% for act, counts in reg_counts.items() %}
+            <li>{{ act }}: {{ counts.paid }} pagati, {{ counts.pending }} in attesa</li>
+          {% endfor %}
+        </ul>
+      </section>
 
       <section class="m4g-card m4g-card--padded" style="margin-bottom:1rem;">
         <h2>Sito pubblico (go live)</h2>
@@ -74,7 +135,7 @@
         <p class="m4g-muted"><strong>Stato:</strong> {% if site_public %}Live{% else %}Anteprima con password{% endif %}</p>
       </section>
 
-      <section class="m4g-card m4g-card--padded" style="margin-bottom:1rem;">
+      <section id="cms-pagine" class="m4g-card m4g-card--padded" style="margin-bottom:1rem;">
         <h2>Cosa si vede sul sito</h2>
         <p class="m4g-muted">Bar e merch, se spenti, spariscono dal menu e l'indirizzo diretto non mostra la pagina. Il totale è solo il numero grande in home. Ordini e pagamenti già fatti restano.</p>
         <form method="post" action="/m4g/gestione/pages" class="m4g-form" style="margin-top:1rem;">
@@ -94,7 +155,7 @@
         </form>
       </section>
 
-      <section class="m4g-card m4g-card--padded" style="margin-bottom:1rem;">
+      <section id="cms-merch" class="m4g-card m4g-card--padded" style="margin-bottom:1rem;">
         <h2>Merch — foto e testi</h2>
         <p class="m4g-muted">Ogni foto va sul suo riquadro della pagina merch: calze a sinistra, maglietta a destra. Titolo e testo sono quelli sotto la foto.</p>
         {% for item in merch_items %}
@@ -120,9 +181,28 @@
         {% endfor %}
       </section>
 
-      <section class="m4g-card m4g-card--padded" style="margin-bottom:1rem;">
+      <section id="cms-cucine" class="m4g-card m4g-card--padded" style="margin-bottom:1rem;">
         <h2>Chi cucina</h2>
-        <p class="m4g-muted">Nome, cosa preparano e se è confermato. Una riga vuota aggiunge una cucina. Svuota il nome per toglierla.</p>
+        <p class="m4g-muted">Nome, cosa preparano, logo e se è confermato.</p>
+        {% for vendor in vendors %}
+          <div class="m4g-cms-section" style="margin-bottom:0.75rem;">
+            <p><strong>{{ vendor.name }}</strong></p>
+            {% if vendor.logo_url %}
+              <img class="m4g-cms-vendor-logo" src="{{ vendor.logo_url }}" alt="" />
+            {% endif %}
+            <form method="post" action="/m4g/gestione/vendor-logo" enctype="multipart/form-data" class="m4g-form" style="margin-top:0.5rem;">
+              <input type="hidden" name="vendor_id" value="{{ vendor.id }}" />
+              <label>Logo<input type="file" name="logo" accept="image/jpeg,image/png,image/webp,image/gif" /></label>
+              <button type="submit" class="m4g-btn m4g-btn--secondary m4g-btn--inline">Carica logo</button>
+            </form>
+            {% if vendor.logo_url %}
+              <form method="post" action="/m4g/gestione/vendor-logo-reset" style="margin-top:0.35rem;">
+                <input type="hidden" name="vendor_id" value="{{ vendor.id }}" />
+                <button type="submit" class="m4g-btn m4g-btn--secondary">Rimuovi logo</button>
+              </form>
+            {% endif %}
+          </div>
+        {% endfor %}
         <form method="post" action="/m4g/gestione/vendors" class="m4g-form" style="margin-top:1rem;">
           {% for vendor in vendors %}
             <div class="m4g-cms-row m4g-cms-row--vendor">
@@ -148,7 +228,7 @@
         </form>
       </section>
 
-      <section class="m4g-card m4g-card--padded" style="margin-bottom:1rem;">
+      <section id="cms-menu" class="m4g-card m4g-card--padded" style="margin-bottom:1rem;">
         <h2>Menu e prezzi</h2>
         <p class="m4g-muted">Ogni blocco è una categoria del bar. I prezzi sono in euro. Lascia il nome vuoto per togliere una voce o una categoria senza piatti.</p>
         <form method="post" action="/m4g/gestione/menu" class="m4g-form" style="margin-top:1rem;">
@@ -203,7 +283,7 @@
         </form>
       </section>
 
-      <section class="m4g-card m4g-card--padded" style="margin-bottom:1rem;">
+      <section id="cms-foto" class="m4g-card m4g-card--padded" style="margin-bottom:1rem;">
         <h2>Foto galleria</h2>
         <p class="m4g-muted">Trascina immagini qui: vanno in coda al carosello «Foto 2025» in home.</p>
         <form method="post" action="/m4g/gestione/upload-media" enctype="multipart/form-data" id="m4g-upload-media">
@@ -228,7 +308,7 @@
         {% endif %}
       </section>
 
-      <section class="m4g-card m4g-card--padded">
+      <section id="cms-percorsi" class="m4g-card m4g-card--padded">
         <h2>Percorsi</h2>
         <p class="m4g-muted">Ogni scheda è un percorso della pagina. Titolo, testo e GPX valgono solo per quello: se carichi un file, sostituisce il tracciato di quel percorso, non ne aggiunge un altro.</p>
         {% for route in routes %}
@@ -250,6 +330,32 @@
             {% endif %}
           </fieldset>
         {% endfor %}
+      </section>
+
+      <section id="cms-iscrizioni" class="m4g-card m4g-card--padded" style="margin-top:1rem;">
+        <h2>Iscrizioni in attesa</h2>
+        <p class="m4g-muted">Per pagamenti Satispay, PayPal o bonifico con codice riferimento.</p>
+        <form method="get" action="/m4g/gestione" class="m4g-form" style="margin:0.75rem 0;">
+          <label>Cerca<input name="reg_q" value="{{ reg_q }}" placeholder="Codice, nome, email" /></label>
+          <button type="submit" class="m4g-btn m4g-btn--secondary m4g-btn--inline">Cerca</button>
+        </form>
+        {% if not pending_regs %}
+          <p class="m4g-muted">Nessuna iscrizione in attesa.</p>
+        {% endif %}
+        <ul class="m4g-cms-list">
+          {% for reg in pending_regs %}
+            <li>
+              <span>
+                <strong>{{ reg.reference }}</strong> · {{ reg.activity }} ·
+                {{ reg.first_name }} {{ reg.last_name }} · {{ price_fn(reg.amount_cents) }} €
+              </span>
+              <form method="post" action="/m4g/gestione/registration-paid">
+                <input type="hidden" name="reference" value="{{ reg.reference }}" />
+                <button type="submit" class="m4g-btn m4g-btn--primary">Segna pagato</button>
+              </form>
+            </li>
+          {% endfor %}
+        </ul>
       </section>
     </div>
     <script>

@@ -253,6 +253,7 @@ def managed_routes() -> list[dict[str, Any]]:
                 "title": str(over.get("title") or slot["title"]),
                 "copy": str(over.get("copy") or slot["copy"]),
                 "url": cms_gpx_url(filename) if custom else slot["default_gpx"],
+                "download_url": f"/m4g/gpx/{slot['key']}.gpx",
                 "custom_gpx": custom,
             }
         )
@@ -280,11 +281,29 @@ def m4g_bike_routes_for_map() -> list[dict[str, str]]:
             "key": row["key"],
             "label": row["title"],
             "url": row["url"],
+            "download_url": row["download_url"],
             "copy": row["copy"],
         }
         for row in managed_routes()
         if row["kind"] == "bike" and row["url"]
     ]
+
+
+def route_gpx_file_path(route_key: str) -> Path | None:
+    slot = _slot_by_key(route_key)
+    if slot is None:
+        return None
+    overrides = _load_state_raw().get("route_overrides") or {}
+    over = overrides.get(route_key) or {}
+    filename = str(over.get("gpx_filename") or "")
+    if filename and (M4G_ROUTES_DIR / filename).is_file():
+        return M4G_ROUTES_DIR / filename
+    default = str(slot["default_gpx"])
+    if not default.startswith("/static/"):
+        return None
+    rel = default[len("/static/") :].lstrip("/")
+    path = (BASE_DIR / "static" / rel).resolve()
+    return path if path.is_file() else None
 
 
 def cms_merch_item(slot: str) -> dict[str, Any]:
@@ -650,37 +669,116 @@ def _default_vendors() -> list[dict[str, Any]]:
             "name": str(vendor["name"]),
             "blurb": str(vendor.get("blurb") or ""),
             "placeholder": bool(vendor.get("placeholder")),
+            "logo": "",
         }
         for vendor in FOOD_VENDORS
     ]
 
 
+def _ensure_vendors_in_state() -> list[dict[str, Any]]:
+    state = _load_state_raw()
+    if not isinstance(state.get("vendors"), list):
+        state["vendors"] = _default_vendors()
+        save_cms_state(state)
+    return list(state["vendors"])
+
+
+def _vendor_logo_url(logo_name: str) -> str | None:
+    safe = Path(logo_name).name
+    if safe and (M4G_MEDIA_DIR / safe).is_file():
+        return cms_media_url(safe)
+    return None
+
+
 def cms_vendors() -> list[dict[str, Any]]:
     stored = _load_state_raw().get("vendors")
     if not isinstance(stored, list):
-        return _default_vendors()
-    cleaned: list[dict[str, Any]] = []
-    for item in stored:
-        if not isinstance(item, dict):
-            continue
-        name = str(item.get("name") or "").strip()
-        if not name:
-            continue
-        cleaned.append(
-            {
-                "id": str(item.get("id") or _slug(name)),
-                "name": name,
-                "blurb": str(item.get("blurb") or "").strip(),
-                "placeholder": bool(item.get("placeholder")),
-            }
-        )
-    return cleaned
+        base = _default_vendors()
+    else:
+        base = []
+        for item in stored:
+            if not isinstance(item, dict):
+                continue
+            name = str(item.get("name") or "").strip()
+            if not name:
+                continue
+            logo = Path(str(item.get("logo") or "")).name
+            base.append(
+                {
+                    "id": str(item.get("id") or _slug(name)),
+                    "name": name,
+                    "blurb": str(item.get("blurb") or "").strip(),
+                    "placeholder": bool(item.get("placeholder")),
+                    "logo": logo if logo != "." else "",
+                    "logo_url": _vendor_logo_url(logo),
+                }
+            )
+    for row in base:
+        if "logo_url" not in row:
+            row["logo_url"] = _vendor_logo_url(str(row.get("logo") or ""))
+    return base
 
 
 def save_vendors(vendors: list[dict[str, Any]]) -> None:
     state = _load_state_raw()
+    cleaned: list[dict[str, Any]] = []
+    for vendor in vendors:
+        row: dict[str, Any] = {
+            "id": vendor["id"],
+            "name": vendor["name"],
+            "blurb": vendor.get("blurb") or "",
+            "placeholder": bool(vendor.get("placeholder")),
+        }
+        logo = Path(str(vendor.get("logo") or "")).name
+        if logo and logo != ".":
+            row["logo"] = logo
+        cleaned.append(row)
+    state["vendors"] = cleaned
+    save_cms_state(state)
+
+
+def set_vendor_logo(vendor_id: str, filename: str, data: bytes) -> None:
+    ext = Path(filename).suffix.lower()
+    if ext not in MEDIA_EXTENSIONS:
+        raise ValueError("Formato immagine non supportato")
+    if len(data) > 12 * 1024 * 1024:
+        raise ValueError("File troppo grande (max 12 MB)")
+    vendors = _ensure_vendors_in_state()
+    target = None
+    for vendor in vendors:
+        if str(vendor.get("id")) == vendor_id:
+            target = vendor
+            break
+    if target is None:
+        raise ValueError("Cucina sconosciuta")
+    old = Path(str(target.get("logo") or "")).name
+    stored = _safe_stored_name(filename, f"vendor-{vendor_id}", ext)
+    _ensure_dirs()
+    (M4G_MEDIA_DIR / stored).write_bytes(data)
+    target["logo"] = stored
+    state = _load_state_raw()
     state["vendors"] = vendors
     save_cms_state(state)
+    if old and old != stored:
+        old_path = M4G_MEDIA_DIR / old
+        if old_path.is_file():
+            old_path.unlink()
+
+
+def clear_vendor_logo(vendor_id: str) -> None:
+    vendors = _ensure_vendors_in_state()
+    for vendor in vendors:
+        if str(vendor.get("id")) != vendor_id:
+            continue
+        old = Path(str(vendor.pop("logo", "") or "")).name
+        state = _load_state_raw()
+        state["vendors"] = vendors
+        save_cms_state(state)
+        if old:
+            old_path = M4G_MEDIA_DIR / old
+            if old_path.is_file():
+                old_path.unlink()
+        return
 
 
 def _default_menu() -> list[dict[str, Any]]:
@@ -770,12 +868,27 @@ def euro_to_cents(raw: str) -> int:
     return cents
 
 
+def _vendor_logos_map() -> dict[str, str]:
+    stored = _load_state_raw().get("vendors")
+    if not isinstance(stored, list):
+        return {}
+    logos: dict[str, str] = {}
+    for item in stored:
+        if not isinstance(item, dict):
+            continue
+        logo = Path(str(item.get("logo") or "")).name
+        if logo and logo != ".":
+            logos[str(item.get("id"))] = logo
+    return logos
+
+
 def build_vendors_from_form(
     ids: list[str],
     names: list[str],
     blurbs: list[str],
     statuses: list[str],
 ) -> list[dict[str, Any]]:
+    logos = _vendor_logos_map()
     used: set[str] = set()
     vendors: list[dict[str, Any]] = []
     for index, name in enumerate(names):
@@ -788,14 +901,16 @@ def build_vendors_from_form(
             used.add(wanted)
         blurb = blurbs[index].strip() if index < len(blurbs) else ""
         status = statuses[index] if index < len(statuses) else "placeholder"
-        vendors.append(
-            {
-                "id": vendor_id,
-                "name": clean_name,
-                "blurb": blurb,
-                "placeholder": status != "confirmed",
-            }
-        )
+        entry: dict[str, Any] = {
+            "id": vendor_id,
+            "name": clean_name,
+            "blurb": blurb,
+            "placeholder": status != "confirmed",
+        }
+        logo_key = wanted or vendor_id
+        if logos.get(logo_key):
+            entry["logo"] = logos[logo_key]
+        vendors.append(entry)
     return vendors
 
 

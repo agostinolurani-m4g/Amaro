@@ -7,44 +7,76 @@
       <button class="m4g-btn m4g-btn--primary m4g-btn--nexi" type="submit">
         Paga con carta — Nexi / XPay
       </button>
-      <p class="m4g-muted m4g-pay-nexi__hint">Pagamento sicuro · conferma automatica</p>
+      <p class="m4g-muted m4g-pay-nexi__hint">Pagamento sicuro · conferma automatica{% if bar_order_note %} · banner subito dopo il pagamento{% endif %}</p>
     </form>
   {% else %}
     <p class="m4g-alert">
       Carta Nexi non configurata in locale: imposta <code>NEXI_MERCHANT_ID</code> e <code>NEXI_API_KEY</code> in
-      <code>apps/web/.env</code>. Puoi usare Satispay, PayPal o bonifico sotto.
+      <code>apps/web/.env</code>.
+      {% if not bar_order_note %}Puoi usare Satispay, PayPal o bonifico sotto.{% endif %}
     </p>
   {% endif %}
 
-  <div class="m4g-pay-methods__alt">
-    <h3>Satispay</h3>
-    <p class="m4g-muted">Paga <strong>{{ amount_label }} €</strong> sulla colletta Move4gaza e, se puoi, metti in nota il codice <code>{{ reference }}</code>.</p>
-    {% if satispay_url %}
-      <p class="m4g-pay-methods__links">
-        <a class="m4g-btn m4g-btn--satispay m4g-btn--pay" href="{{ satispay_url }}" target="_blank" rel="noreferrer">Paga con Satispay</a>
+  {% if bar_order_note and short_code %}
+    <div class="m4g-pay-methods__alt m4g-pay-manual">
+      <h3>Satispay o PayPal</h3>
+      <p class="m4g-muted">
+        Paga <strong>{{ amount_label }} €</strong>, scrivi il codice
+        <code class="m4g-pay-code">{{ short_code }}</code> nella nota del pagamento, poi conferma qui sotto.
       </p>
-    {% else %}
-      <p class="m4g-muted">Apri l'app Satispay, cerca <strong>{{ m4g.payments.iban_owner }}</strong> e invia {{ amount_label }} €.</p>
-    {% endif %}
-    <p class="m4g-pay-methods__copy">
-      <button type="button" class="m4g-btn m4g-btn--secondary m4g-btn--inline" onclick="navigator.clipboard.writeText('{{ amount_label }}'.replace('.', ',')).then(()=>alert('Importo copiato'))">Copia importo</button>
-      <button type="button" class="m4g-btn m4g-btn--secondary m4g-btn--inline" onclick="navigator.clipboard.writeText('{{ reference }}').then(()=>alert('Codice copiato'))">Copia codice</button>
-    </p>
-  </div>
+      <p class="m4g-pay-methods__copy">
+        <button type="button" class="m4g-btn m4g-btn--secondary m4g-btn--inline" onclick="navigator.clipboard.writeText('{{ short_code }}').then(()=>alert('Codice copiato'))">Copia codice</button>
+        <button type="button" class="m4g-btn m4g-btn--secondary m4g-btn--inline" onclick="navigator.clipboard.writeText('{{ amount_label }}'.replace('.', ',')).then(()=>alert('Importo copiato'))">Copia importo</button>
+      </p>
+      {% if satispay_url %}
+        <p class="m4g-pay-methods__links">
+          <a class="m4g-btn m4g-btn--satispay m4g-btn--pay" href="{{ satispay_url }}" target="_blank" rel="noreferrer">Apri Satispay</a>
+        </p>
+      {% endif %}
+      <p class="m4g-pay-methods__links">
+        <a class="m4g-btn m4g-btn--paypal m4g-btn--pay" href="{{ paypal_url }}" target="_blank" rel="noreferrer">Apri PayPal</a>
+      </p>
+      <form method="post" action="/m4g/bar/{{ reference }}/manual" class="m4g-form m4g-pay-manual__confirm">
+        <input type="hidden" name="method" value="satispay" />
+        <button type="submit" class="m4g-btn m4g-btn--primary m4g-btn--inline">Ho pagato con Satispay</button>
+      </form>
+      <form method="post" action="/m4g/bar/{{ reference }}/manual" class="m4g-form">
+        <input type="hidden" name="method" value="paypal" />
+        <button type="submit" class="m4g-btn m4g-btn--secondary m4g-btn--inline">Ho pagato con PayPal</button>
+      </form>
+      <p class="m4g-muted">Lo staff verifica il pagamento: finché non conferma, i banner restano in attesa.</p>
+    </div>
+  {% elif not bar_order_note %}
+    <div class="m4g-pay-methods__alt">
+      <h3>Satispay</h3>
+      <p class="m4g-muted">Paga <strong>{{ amount_label }} €</strong> sulla colletta Move4gaza e, se puoi, metti in nota il codice <code>{{ reference }}</code>.</p>
+      {% if satispay_url %}
+        <p class="m4g-pay-methods__links">
+          <a class="m4g-btn m4g-btn--satispay m4g-btn--pay" href="{{ satispay_url }}" target="_blank" rel="noreferrer">Paga con Satispay</a>
+        </p>
+      {% else %}
+        <p class="m4g-muted">Apri l'app Satispay, cerca <strong>{{ m4g.payments.iban_owner }}</strong> e invia {{ amount_label }} €.</p>
+      {% endif %}
+      <p class="m4g-pay-methods__copy">
+        <button type="button" class="m4g-btn m4g-btn--secondary m4g-btn--inline" onclick="navigator.clipboard.writeText('{{ amount_label }}'.replace('.', ',')).then(()=>alert('Importo copiato'))">Copia importo</button>
+        <button type="button" class="m4g-btn m4g-btn--secondary m4g-btn--inline" onclick="navigator.clipboard.writeText('{{ reference }}').then(()=>alert('Codice copiato'))">Copia codice</button>
+      </p>
+    </div>
 
-  <div class="m4g-pay-methods__alt">
-    <h3>PayPal</h3>
-    <p class="m4g-muted">Apre il <a class="m4g-link" href="{{ paypal_url }}" target="_blank" rel="noreferrer">PayPal Pool Move4Gaza</a>. Versa <strong>{{ amount_label }} €</strong> e indica il codice <code>{{ reference }}</code>.</p>
-    <p class="m4g-pay-methods__links">
-      <a class="m4g-btn m4g-btn--paypal m4g-btn--pay" href="{{ paypal_url }}" target="_blank" rel="noreferrer">Paga con PayPal</a>
-    </p>
-  </div>
+    <div class="m4g-pay-methods__alt">
+      <h3>PayPal</h3>
+      <p class="m4g-muted">Apre il <a class="m4g-link" href="{{ paypal_url }}" target="_blank" rel="noreferrer">PayPal Pool Move4Gaza</a>. Versa <strong>{{ amount_label }} €</strong> e indica il codice <code>{{ reference }}</code>.</p>
+      <p class="m4g-pay-methods__links">
+        <a class="m4g-btn m4g-btn--paypal m4g-btn--pay" href="{{ paypal_url }}" target="_blank" rel="noreferrer">Paga con PayPal</a>
+      </p>
+    </div>
 
-  <div class="m4g-iban m4g-pay-methods__iban">
-    <h3>Bonifico</h3>
-    <p class="m4g-muted">Causale: «Move4Gaza {{ reference }}».</p>
-    <p><strong>Intestatario:</strong> {{ m4g.payments.iban_owner }}</p>
-    <p><strong>IBAN:</strong> <code>{{ m4g.payments.iban }}</code></p>
-    <button type="button" class="m4g-btn m4g-btn--secondary m4g-btn--inline" onclick="navigator.clipboard.writeText('{{ m4g.payments.iban }}').then(()=>alert('IBAN copiato'))">Copia IBAN</button>
-  </div>
+    <div class="m4g-iban m4g-pay-methods__iban">
+      <h3>Bonifico</h3>
+      <p class="m4g-muted">Causale: «Move4Gaza {{ reference }}».</p>
+      <p><strong>Intestatario:</strong> {{ m4g.payments.iban_owner }}</p>
+      <p><strong>IBAN:</strong> <code>{{ m4g.payments.iban }}</code></p>
+      <button type="button" class="m4g-btn m4g-btn--secondary m4g-btn--inline" onclick="navigator.clipboard.writeText('{{ m4g.payments.iban }}').then(()=>alert('IBAN copiato'))">Copia IBAN</button>
+    </div>
+  {% endif %}
 </div>

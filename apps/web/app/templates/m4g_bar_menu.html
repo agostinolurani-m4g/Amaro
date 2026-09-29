@@ -21,6 +21,9 @@
       <div class="m4g-vendors__grid">
         {% for vendor in vendors %}
           <article class="m4g-vendor">
+            {% if vendor.logo_url %}
+              <img class="m4g-vendor-logo" src="{{ vendor.logo_url }}" alt="" width="72" height="72" loading="lazy" />
+            {% endif %}
             <h3>{{ vendor.name }}{% if vendor.placeholder %} <span class="m4g-muted">(da confermare)</span>{% endif %}</h3>
             <p class="m4g-muted">{{ vendor.blurb }}</p>
           </article>
