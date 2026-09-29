@@ -132,7 +132,11 @@ def _default_route_slots() -> list[dict[str, str]]:
             "kind": "bike",
             "admin_label": "Bici — 64 km",
             "title": labels["64"],
-            "copy": "Percorso medio di circa 64 km, partenza e arrivo all'Arci Olmi.",
+            "copy": (
+                "Partenza e arrivo all'Arci Olmi. Percorso di circa 64 km, come il perimetro interno "
+                "alla Striscia di Gaza che restringe il territorio accessibile al popolo palestinese. "
+                "È presente un tratto gravel, percorribile facilmente anche in bici da strada."
+            ),
             "default_gpx": gpx["bike_64"],
         },
         {
