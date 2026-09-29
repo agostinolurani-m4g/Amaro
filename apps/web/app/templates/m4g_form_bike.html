@@ -1,10 +1,10 @@
 {% extends "m4g_base.html" %}
-{% block title %}Ride4Gaza — Bici{% endblock %}
+{% block title %}Ride for Gaza — Bici{% endblock %}
 {% block head_extra %}
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
 {% endblock %}
 {% block content %}
-<section class="m4g-hero"><div class="m4g-wrap"><p class="m4g-hero__eyebrow">Ride4Gaza</p><h1>Iscrizione bici</h1><p>{{ m4g.descrizione_bici }}</p></div></section>
+<section class="m4g-hero"><div class="m4g-wrap"><p class="m4g-hero__eyebrow">Ride for Gaza</p><h1>Iscrizione bici</h1><p>{{ m4g.descrizione_bici }}</p></div></section>
 <div class="m4g-wrap">
   {% if payment_failed %}<div class="m4g-alert">Pagamento non riuscito. Riprova.</div>{% endif %}
   <div class="m4g-card m4g-card--padded">

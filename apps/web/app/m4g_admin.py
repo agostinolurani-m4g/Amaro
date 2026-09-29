@@ -68,7 +68,7 @@ def m4g_serve_cms_gpx(filename: str) -> FileResponse:
 
 
 @admin_router.get("/m4g/gestione", response_class=HTMLResponse)
-def m4g_gestione_page(request: Request) -> HTMLResponse | RedirectResponse:
+def m4g_gestione_page(request: Request) -> HTMLResponse:
     if not m4g_admin_unlocked(request):
         return templates.TemplateResponse(
             "m4g_gestione_login.html",

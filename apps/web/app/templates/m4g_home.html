@@ -4,19 +4,30 @@
 {% block title %}Move for Gaza{% endblock %}
 
 {% block content %}
-  <section class="m4g-hero m4g-hero--home m4g-hero--compact">
+  <section class="m4g-hero m4g-hero--home m4g-hero--poster">
+    <div class="m4g-seeds" aria-hidden="true"></div>
+    <nav class="m4g-poster-nav" aria-label="Attività">
+      <a href="/m4g/bici">Ride for Gaza</a>
+      <a href="/m4g/corsa">Run for Gaza</a>
+      <a href="/m4g/calcio">Play for Gaza</a>
+    </nav>
     <div class="m4g-wrap m4g-wrap--wide">
-      <p class="m4g-hero__eyebrow">Evento solidale</p>
-      <h1>{{ event.title }}</h1>
-      <p class="m4g-chips m4g-chips--hero">
-        <span>{{ event.date }}</span>
-        <span>{{ event.location }}</span>
-      </p>
+      <img class="m4g-wordmark" src="{{ m4g.logo_url }}" alt="" width="1017" height="147" />
+      <h1 class="m4g-sr">{{ event.title }}</h1>
+      <p class="m4g-hero__eyebrow">Sab. {{ event.date }} · Arci Olmi</p>
+      <p class="m4g-hero__place">Via degli Ulivi 2, Milano</p>
+      <p class="m4g-hero__lede">Evento di raccolta fondi per Gaza Sunbirds. Sport, comunità e solidarietà attiva.</p>
       <div class="m4g-hero__actions m4g-hero__actions--compact">
         <a href="/m4g/iscrizione" class="m4g-btn m4g-btn--primary">Iscriviti all'evento</a>
         <a href="/m4g/giornata" class="m4g-btn m4g-btn--secondary">La giornata</a>
         <a href="/m4g/bar" class="m4g-btn m4g-btn--secondary">Bar &amp; cucina</a>
       </div>
+    </div>
+    <div class="m4g-rind" aria-hidden="true">
+      <svg viewBox="0 0 1440 90" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+        <path fill="var(--m4g-cream)" d="M0 46c120 28 240-28 360 0s240 28 360 0 240-28 360 0 240 28 360 0v44H0Z"/>
+        <path fill="var(--m4g-green)" d="M0 64c120 22 240-22 360 0s240 22 360 0 240-22 360 0 240 22 360 0v26H0Z"/>
+      </svg>
     </div>
   </section>
 
@@ -73,7 +84,7 @@
       <p class="m4g-prose">{{ event.registration_note }}</p>
       <div class="m4g-grid">
         {% for act in activities %}
-          <a href="{{ act.path }}" class="m4g-activity-card">
+          <a href="{{ act.path }}" class="m4g-activity-card m4g-activity-card--{{ act.key }}">
             <h3>{{ act.title }}</h3>
             <p>{{ act.subtitle }}</p>
             <span class="m4g-activity-card__price">{{ act.price_label }}</span>
