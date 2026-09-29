@@ -28,6 +28,8 @@
       .m4g-cms-thumb img { width: 100%; height: 5rem; object-fit: cover; border-radius: 0.25rem; }
       .m4g-cms-list { list-style: none; padding: 0; margin: 1rem 0 0; }
       .m4g-cms-list li { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; padding: 0.5rem 0; border-bottom: 1px solid #eee; }
+      .m4g-cms-preview { max-width: 16rem; margin: 0.5rem 0 1rem; }
+      .m4g-cms-preview img { width: 100%; height: auto; border-radius: 0.25rem; display: block; }
       .m4g-cms-head { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-bottom: 1.5rem; }
     </style>
   </head>
@@ -51,6 +53,12 @@
         <p class="m4g-alert" style="background:#e8f5e9;">Menu e prezzi aggiornati.</p>
       {% elif message == 'price' %}
         <p class="m4g-alert">Un prezzo non è valido. Usa numeri come 4,50.</p>
+      {% elif message == 'merch' %}
+        <p class="m4g-alert" style="background:#e8f5e9;">Foto e testi del merch aggiornati.</p>
+      {% elif message == 'route' %}
+        <p class="m4g-alert" style="background:#e8f5e9;">Percorso aggiornato.</p>
+      {% elif message == 'upload' %}
+        <p class="m4g-alert">File non valido. Le foto sono JPEG, PNG, WebP o GIF. Il tracciato deve essere un .gpx.</p>
       {% endif %}
 
       <section class="m4g-card m4g-card--padded" style="margin-bottom:1rem;">
@@ -80,6 +88,32 @@
           </label>
           <button type="submit" class="m4g-btn m4g-btn--primary m4g-btn--inline">Salva visibilità</button>
         </form>
+      </section>
+
+      <section class="m4g-card m4g-card--padded" style="margin-bottom:1rem;">
+        <h2>Merch — foto e testi</h2>
+        <p class="m4g-muted">Ogni foto va sul suo riquadro della pagina merch: calze a sinistra, maglietta a destra. Titolo e testo sono quelli sotto la foto.</p>
+        {% for item in merch_items %}
+          <fieldset class="m4g-cms-section">
+            <h3>{% if item.slot == 'socks' %}Calze{% else %}Maglietta{% endif %}</h3>
+            <div class="m4g-cms-preview">
+              <img src="{{ item.preview }}" alt="" />
+            </div>
+            <form method="post" action="/m4g/gestione/merch" enctype="multipart/form-data" class="m4g-form">
+              <input type="hidden" name="slot" value="{{ item.slot }}" />
+              <label>Titolo<input name="title" value="{{ item.title }}" /></label>
+              <label>Testo sotto la foto<textarea name="blurb" rows="2">{{ item.blurb }}</textarea></label>
+              <label>Nuova foto per questo riquadro<input type="file" name="photo" accept="image/jpeg,image/png,image/webp,image/gif" /></label>
+              <button type="submit" class="m4g-btn m4g-btn--primary m4g-btn--inline">Salva {% if item.slot == 'socks' %}calze{% else %}maglietta{% endif %}</button>
+            </form>
+            {% if item.custom_image %}
+              <form method="post" action="/m4g/gestione/merch-photo-reset" style="margin-top:0.5rem;">
+                <input type="hidden" name="slot" value="{{ item.slot }}" />
+                <button type="submit" class="m4g-btn m4g-btn--secondary">Torna alla foto originale</button>
+              </form>
+            {% endif %}
+          </fieldset>
+        {% endfor %}
       </section>
 
       <section class="m4g-card m4g-card--padded" style="margin-bottom:1rem;">
@@ -191,27 +225,27 @@
       </section>
 
       <section class="m4g-card m4g-card--padded">
-        <h2>Percorsi GPX extra</h2>
-        <p class="m4g-muted">I tre percorsi base (112, 64, 25 km) restano fissi. Qui aggiungi altri tracciati per il menu bici.</p>
-        <form method="post" action="/m4g/gestione/upload-gpx" enctype="multipart/form-data" id="m4g-upload-gpx">
-          <div class="m4g-dropzone" data-m4g-dropzone data-target="m4g-upload-gpx" data-input="m4g-gpx-input">
-            <p>Trascina file .gpx o clicca</p>
-            <input type="file" name="files" id="m4g-gpx-input" accept=".gpx,application/gpx+xml" multiple hidden />
-          </div>
-        </form>
-        {% if gpx_routes %}
-          <ul class="m4g-cms-list">
-            {% for route in gpx_routes %}
-              <li>
-                <span>{{ route.label }}</span>
-                <form method="post" action="/m4g/gestione/delete-gpx">
-                  <input type="hidden" name="route_key" value="{{ route.key }}" />
-                  <button type="submit" class="m4g-btn m4g-btn--secondary">Rimuovi</button>
-                </form>
-              </li>
-            {% endfor %}
-          </ul>
-        {% endif %}
+        <h2>Percorsi</h2>
+        <p class="m4g-muted">Ogni scheda è un percorso della pagina. Titolo, testo e GPX valgono solo per quello: se carichi un file, sostituisce il tracciato di quel percorso, non ne aggiunge un altro.</p>
+        {% for route in routes %}
+          <fieldset class="m4g-cms-section">
+            <h3>{{ route.admin_label }}</h3>
+            <form method="post" action="/m4g/gestione/route" enctype="multipart/form-data" class="m4g-form">
+              <input type="hidden" name="route_key" value="{{ route.key }}" />
+              <label>Titolo<input name="title" value="{{ route.title }}" /></label>
+              <label>Testo<textarea name="copy" rows="5">{{ route['copy'] }}</textarea></label>
+              <p class="m4g-muted">GPX in uso: <a href="{{ route.url }}">scarica</a> · {% if route.custom_gpx %}file caricato da qui{% else %}tracciato originale{% endif %}</p>
+              <label>Sostituisci il GPX di questo percorso<input type="file" name="gpx" accept=".gpx,application/gpx+xml" /></label>
+              <button type="submit" class="m4g-btn m4g-btn--primary m4g-btn--inline">Salva {{ route.admin_label }}</button>
+            </form>
+            {% if route.custom_gpx %}
+              <form method="post" action="/m4g/gestione/route-gpx-reset" style="margin-top:0.5rem;">
+                <input type="hidden" name="route_key" value="{{ route.key }}" />
+                <button type="submit" class="m4g-btn m4g-btn--secondary">Torna al GPX originale</button>
+              </form>
+            {% endif %}
+          </fieldset>
+        {% endfor %}
       </section>
     </div>
     <script>

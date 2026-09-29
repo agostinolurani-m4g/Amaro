@@ -8,9 +8,9 @@
 
   <div class="m4g-merch-grid">
     <div class="m4g-card m4g-card--padded">
-      {{ m4g_figure(event.merch_images.socks, "Calze solidali Move for Gaza", "product") }}
-      <h2>Calze solidali</h2>
-      <p class="m4g-muted">Modelli 1, 2 e 4 · taglie S/L · OEKO-TEX®</p>
+      {{ m4g_figure(merch_socks.image, merch_socks.title, "product") }}
+      <h2>{{ merch_socks.title }}</h2>
+      <p class="m4g-muted">{{ merch_socks.blurb }}</p>
       <form method="post" action="/m4g/merch" class="m4g-form">
         <input type="hidden" name="item" value="socks" />
         <div class="m4g-form__row">
@@ -29,9 +29,9 @@
     </div>
 
     <div class="m4g-card m4g-card--padded">
-      {{ m4g_figure(event.merch_images.tshirt, "T-shirt Move for Gaza", "product") }}
-      <h2>T-shirt Move4Gaza</h2>
-      <p class="m4g-muted">Cotone italiano · taglie unisex</p>
+      {{ m4g_figure(merch_tshirt.image, merch_tshirt.title, "product") }}
+      <h2>{{ merch_tshirt.title }}</h2>
+      <p class="m4g-muted">{{ merch_tshirt.blurb }}</p>
       <form method="post" action="/m4g/merch" class="m4g-form">
         <input type="hidden" name="item" value="tshirt" />
         <div class="m4g-form__row">

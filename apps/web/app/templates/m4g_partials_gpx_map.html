@@ -14,6 +14,7 @@
   const mapEl = document.getElementById("m4g-map-" + mapId);
   const metaEl = document.getElementById("m4g-map-meta-" + mapId);
   const downloadEl = document.getElementById("m4g-gpx-download-" + mapId);
+  const copyEl = document.getElementById("m4g-route-copy-" + mapId);
   const routesJson = document.getElementById("m4g-bike-routes-" + mapId);
   const selectEl = document.querySelector('select[name="distance"]');
   if (!mapEl || !routesJson || typeof L === "undefined") return;
@@ -50,6 +51,7 @@
       downloadEl.href = route.url;
       downloadEl.textContent = "Scarica GPX — " + route.label;
     }
+    if (copyEl) copyEl.textContent = route.copy || "";
     if (typeof L.GPX === "undefined") {
       if (metaEl) metaEl.textContent = "Mappa non disponibile; scarica il GPX.";
       return;
@@ -89,7 +91,7 @@
   <div class="m4g-gpx__flag" aria-hidden="true"></div>
   <div id="m4g-map-{{ map_id }}" class="m4g-gpx__map" data-gpx="{{ gpx_url }}"></div>
   <p class="m4g-muted m4g-gpx__meta" id="m4g-map-meta-{{ map_id }}">Caricamento percorso…</p>
-  <a href="{{ gpx_url }}" class="m4g-link" download>Scarica GPX</a>
+  <a href="{{ gpx_url }}" class="m4g-link" download>{% if gpx_label %}Scarica GPX — {{ gpx_label }}{% else %}Scarica GPX{% endif %}</a>
 </div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 <script src="https://unpkg.com/leaflet-gpx@2.2.0/gpx.js"></script>

@@ -23,7 +23,15 @@ from .m4g_common import (
     templates,
 )
 from .m4g_cms import m4g_bike_distances, m4g_bike_routes_for_map, m4g_photos_2025
-from .m4g_cms import cms_menu, cms_menu_by_id, cms_show_bar, cms_show_merch, cms_vendors
+from .m4g_cms import (
+    cms_menu,
+    cms_menu_by_id,
+    cms_merch_item,
+    cms_run_route,
+    cms_show_bar,
+    cms_show_merch,
+    cms_vendors,
+)
 from .m4g_config import ACTIVITIES, LAST_EDITION, M4G_EVENT, REALTA_ADERENTI
 from .models import BarOrder, M4gRegistration
 
@@ -256,6 +264,8 @@ def m4g_merch_form(request: Request) -> HTMLResponse:
             "payment_failed": _payment_failed(request),
             "unit_price": format_price(unit),
             "unit_cents": unit,
+            "merch_socks": cms_merch_item("socks"),
+            "merch_tshirt": cms_merch_item("tshirt"),
         },
     )
 
@@ -439,7 +449,7 @@ def m4g_run_form(request: Request, session: Session = Depends(get_session)) -> H
             "run_full": _run_full(session),
             "run_count": _run_count(session),
             "price": format_price(_amount_for_activity("run")),
-            "gpx_run": M4G_EVENT["gpx"]["run"],
+            "run_route": cms_run_route(),
         },
     )
 

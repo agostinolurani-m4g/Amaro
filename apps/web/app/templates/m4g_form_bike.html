@@ -4,7 +4,7 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
 {% endblock %}
 {% block content %}
-<section class="m4g-hero"><div class="m4g-wrap"><p class="m4g-hero__eyebrow">Ride for Gaza</p><h1>Iscrizione bici</h1><p>{{ m4g.descrizione_bici }}</p></div></section>
+<section class="m4g-hero"><div class="m4g-wrap"><p class="m4g-hero__eyebrow">Ride for Gaza</p><h1>Iscrizione bici</h1></div></section>
 <div class="m4g-wrap">
   {% if payment_failed %}<div class="m4g-alert">Pagamento non riuscito. Riprova.</div>{% endif %}
   <div class="m4g-card m4g-card--padded">
@@ -16,6 +16,8 @@
         {% endfor %}
       </select>
     </label>
+    {% set initial = bike_routes | selectattr('key', 'equalto', '112') | list | first %}
+    <p class="m4g-route-copy" id="m4g-route-copy-bike">{{ initial['copy'] if initial else '' }}</p>
     {% with bike_routes=bike_routes, map_id="bike" %}{% include "m4g_partials_gpx_map.html" %}{% endwith %}
     <form method="post" action="/m4g/bici" class="m4g-form" id="m4g-bike-form">
       <div class="m4g-form__row">

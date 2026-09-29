@@ -1058,6 +1058,10 @@ body.m4g-body {
   line-height: 1.5;
 }
 
+.m4g-route-copy {
+  white-space: pre-line;
+}
+
 .m4g-gpx {
   position: relative;
   z-index: 0;
