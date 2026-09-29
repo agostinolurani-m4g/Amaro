@@ -42,7 +42,7 @@ M4G_EVENT = {
     "location": "Arci Olmi, via degli Ulivi 2, Milano",
     "contact_email": "amaro.bici@gmail.com",
     "public_site": "https://www.move-4-gaza.com",
-    "logo_url": static_m4g("M4G-mix.svg"),
+    "logo_url": static_m4g("move4gaza-wordmark.png"),
     "poster_url": static_m4g("locandina.png"),
     "arci_olmi_url": static_m4g("arci_olmi.jpeg"),
     "venue_image": m4g_responsive(
@@ -220,17 +220,17 @@ M4G_EVENT = {
         },
         {
             "time": "09:30",
-            "title": "Play4Gaza — calcio",
+            "title": "Play for Gaza — calcio",
             "detail": "Torneo 5vs5 non competitivo; partite da 20 minuti fino a circa le 13:00.",
         },
         {
             "time": "10:00",
-            "title": "Ride4Gaza — partenza bici",
+            "title": "Ride for Gaza — partenza bici",
             "detail": "Percorsi da 25 km (cittadino), 64 km (medio) e 112 km (perimetro Gaza in scala). Ritrovo all'Arci Olmi.",
         },
         {
             "time": "11:00",
-            "title": "Run4Gaza — corsa",
+            "title": "Run for Gaza — corsa",
             "detail": "Corsa/staffetta ~7 km, partenza e arrivo all'Arci Olmi.",
         },
         {
@@ -359,28 +359,28 @@ REALTA_ADERENTI = [
 ACTIVITIES = [
     {
         "key": "bike",
-        "title": "Ride4Gaza",
+        "title": "Ride for Gaza",
         "subtitle": "Giro ciclistico solidale",
         "path": "/m4g/bici",
         "price_label": "15 €",
     },
     {
         "key": "soccer",
-        "title": "Play4Gaza",
+        "title": "Play for Gaza",
         "subtitle": "Torneo calcio a 5",
         "path": "/m4g/calcio",
         "price_label": "75 € / squadra",
     },
     {
         "key": "run",
-        "title": "Run4Gaza",
+        "title": "Run for Gaza",
         "subtitle": "Corsa o staffetta",
         "path": "/m4g/corsa",
         "price_label": "15 €",
     },
     {
         "key": "entrance",
-        "title": "Support4Gaza",
+        "title": "Food, drink & talk",
         "subtitle": "Ingresso senza sport",
         "path": "/m4g/ingresso",
         "price_label": "15 €",

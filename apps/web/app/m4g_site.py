@@ -44,10 +44,10 @@ def _amount_for_activity(activity: str) -> int:
 
 def _activity_label(activity: str) -> str:
     labels = {
-        "bike": "Ride4Gaza — Bici",
-        "soccer": "Play4Gaza — Calcio",
-        "run": "Run4Gaza — Corsa",
-        "entrance": "Support4Gaza — Ingresso",
+        "bike": "Ride for Gaza — Bici",
+        "soccer": "Play for Gaza — Calcio",
+        "run": "Run for Gaza — Corsa",
+        "entrance": "Food, drink & talk — Ingresso",
         "donation": "Move for Gaza — Donazione",
         "merch": "Move for Gaza — Merch",
     }

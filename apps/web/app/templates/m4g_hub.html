@@ -19,7 +19,7 @@
 
     <section class="m4g-grid">
       {% for act in activities %}
-        <a href="{{ act.path }}" class="m4g-activity-card">
+        <a href="{{ act.path }}" class="m4g-activity-card m4g-activity-card--{{ act.key }}">
           <h3>{{ act.title }}</h3>
           <p>{{ act.subtitle }}</p>
           <span class="m4g-activity-card__price">Da {{ act.price_label }}</span>
