@@ -8,7 +8,7 @@
 <div class="m4g-wrap">
   {% if payment_failed %}<div class="m4g-alert">Pagamento non riuscito. Riprova.</div>{% endif %}
   <div class="m4g-card m4g-card--padded">
-    <p>Iscritti: {{ run_count }} / {{ m4g.limits.run_max }}</p>
+    <p>Iscrizioni: {{ run_count }} / {{ m4g.limits.run_max }}</p>
     {% if run_full %}
       <div class="m4g-alert">Posti corsa esauriti.</div>
     {% else %}

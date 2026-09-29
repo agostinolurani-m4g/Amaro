@@ -52,6 +52,9 @@ class M4gPageTests(unittest.TestCase):
         self.assertNotIn("bar e cucina", body.lower())
         self.assertIn("Realtà che hanno aderito", body)
         self.assertIn("Amaro", body)
+        self.assertIn("Il Forno di Lambrate", body)
+        self.assertIn("Le Polveri", body)
+        self.assertIn("Partizan Bonola", body)
         self.assertIn("Domande frequenti", body)
         self.assertIn("Nexi", body)
 
@@ -238,7 +241,7 @@ class M4gPageTests(unittest.TestCase):
         fresh = TestClient(app)
         response = fresh.get("/m4g/gestione")
         self.assertEqual(response.status_code, 200)
-        self.assertIn("Area riservata agli organizzatori", response.text)
+        self.assertIn("Area riservata all'organizzazione", response.text)
 
     def test_go_live_skips_site_password_not_gestione(self) -> None:
         from app.m4g_cms import set_site_public
@@ -250,7 +253,7 @@ class M4gPageTests(unittest.TestCase):
             self.assertEqual(home.status_code, 200)
             self.assertNotIn("/m4g/access", home.headers.get("location", ""))
             gestione = fresh.get("/m4g/gestione")
-            self.assertIn("Area riservata agli organizzatori", gestione.text)
+            self.assertIn("Area riservata all'organizzazione", gestione.text)
         finally:
             set_site_public(False)
 
@@ -273,6 +276,27 @@ class M4gPageTests(unittest.TestCase):
             page = self.client.get("/m4g/giornata")
             self.assertEqual(page.status_code, 200)
             self.assertNotIn("Cibo e bar", page.text)
+        finally:
+            set_page_visibility(show_bar=True, show_merch=True, show_total=True)
+
+    def test_home_hides_total_when_off(self) -> None:
+        from app.m4g_cms import set_page_visibility
+
+        admin = TestClient(app)
+        admin.post(
+            "/m4g/gestione/login",
+            data={"password": M4G_TEST_PASSWORD},
+            follow_redirects=False,
+        )
+        try:
+            admin.post(
+                "/m4g/gestione/pages",
+                data={"show_bar": "1", "show_merch": "1"},
+                follow_redirects=False,
+            )
+            page = self.client.get("/m4g/")
+            self.assertEqual(page.status_code, 200)
+            self.assertNotIn("Raccolta di questa edizione", page.text)
         finally:
             set_page_visibility(show_bar=True, show_merch=True, show_total=True)
 

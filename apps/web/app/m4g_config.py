@@ -63,16 +63,16 @@ M4G_EVENT = {
         "a distanza con una donazione."
     ),
     "beneficiary_story": (
-        "Nati nel 2020 per mettere la bicicletta nelle mani di persone con disabilità, Gaza Sunbirds "
-        "è una rete di atleti, professionisti e volontari che apre un percorso di riabilitazione "
-        "attraverso lo sport per palestinesi amputati o con altre disabilità — che si allenano, "
+        "Dal 2020 Gaza Sunbirds mette la bicicletta nelle mani di persone con disabilità: "
+        "è una rete di atletə, professionistə e volontariə che apre un percorso di riabilitazione "
+        "attraverso lo sport per palestinesi amputatə o con altre disabilità — che si allenano, "
         "competono e portano avanti la causa collettiva. Quando il genocidio israeliano è esploso "
-        "nell'ottobre 2023, i loro atleti hanno trasformato le biciclette da corsa in strumenti di "
+        "nell'ottobre 2023, lə loro atletə hanno trasformato le biciclette da corsa in strumenti di "
         "soccorso, raggiungendo i quartieri devastati dalle bombe con cibo, medicine e speranza."
     ),
     "registration_note": (
         "Anche chi non partecipa alle attività sportive dovrà iscriversi, tramite una donazione "
-        "di 15 €, che è possibile effettuare all'ingresso."
+        "di 15 €, che è possibile effettuare anche all'ingresso."
     ),
     "photos_2025": [
         static_m4g(f"2025/m4g-edizione-2025-{n:02d}.jpeg") for n in range(1, 30)
@@ -89,7 +89,7 @@ M4G_EVENT = {
         {
             "label": "A SEGUIRE",
             "title": "PRANZO SOLIDALE",
-            "detail": "A cura di Cucina Franca e… (da confermare).",
+            "detail": "",
         },
         {
             "label": "IL POMERIGGIO",
@@ -125,8 +125,7 @@ M4G_EVENT = {
             "time": "Dopo pranzo",
             "title": "TALK & TESTIMONIANZE",
             "detail": (
-                "Momenti di approfondimento e confronto, con ospiti e testimonianze "
-                "dirette dalla Palestina."
+                "Momenti di approfondimento e confronto, con ospiti e testimonianze."
             ),
         },
     ],
@@ -166,8 +165,7 @@ M4G_EVENT = {
         "(7 km) con possibilità di fare staffetta (7 + 7) aperta a tuttə e giro ciclistico a sud "
         "di Milano (115 km) presso il campo sportivo dell'Arci Olmi. Dopo un pranzo sociale "
         "(verso le 14:00) aperto anche a chi non partecipa agli eventi sportivi, il pomeriggio "
-        "è dedicato a momenti di approfondimento e confronto con ospiti e testimonianze dirette "
-        "dalla Palestina."
+        "è dedicato a momenti di approfondimento e confronto con ospiti e testimonianze."
     ),
     "descrizione_evento_perche": (
         "La Move4Gaza è un evento sportivo non competitivo per raccogliere fondi a sostegno degli "
@@ -200,7 +198,7 @@ M4G_EVENT = {
     "descrizione_corsa": (
         "La corsa non competitiva di circa 7 km si svolge su un percorso cittadino che parte e arriva "
         "all'Arci Olmi di Milano. Il percorso è adatto a tuttə, con la possibilità di fare una staffetta "
-        "in due persone (7 + 7) e per i più carichi 14 in solitaria. La donazione minima è di 15 € a "
+        "in due persone (7 + 7) e per chi è più caricə 14 in solitaria. La donazione minima è di 15 € a "
         "persona, chi vuole può donare di più. La corsa inizia alle 11:00, seguita dal pranzo sociale "
         "(non incluso nella donazione). Durante la corsa non sono previsti punti di ristoro e assistenza "
         "medica, il tracciato gps è scaricabile e il tracciato sarà segnato."
@@ -210,7 +208,7 @@ M4G_EVENT = {
         "L'ingresso dà accesso alle attività della giornata (sport e momenti di confronto). "
         "Cibo e bevande si ordinano e pagano separatamente dal bar/cucina. "
         "Durante la giornata sono previsti momenti di approfondimento e confronto con "
-        "ospiti e testimonianze dirette dalla Palestina."
+        "ospiti e testimonianze."
     ),
     "schedule": [
         {
@@ -245,7 +243,7 @@ M4G_EVENT = {
         },
     ],
     "cause": (
-        "Raccogliamo fondi a sostegno di Gaza Sunbirds — ONG e team di atleti paralimpici che ogni "
+        "Raccogliamo fondi a sostegno di Gaza Sunbirds — ONG e team di atletə paralimpicə che ogni "
         "giorno porta cibo, medicine e sostegno alla popolazione civile. Move4Gaza nasce dal bisogno "
         "di fare qualcosa di concreto in un momento drammatico, e dalla volontà di dare a chi, come "
         "noi, vuole cambiare le cose la possibilità di farlo — oggi, e sempre di più in futuro. "
@@ -269,10 +267,14 @@ M4G_EVENT = {
         "cf": "",
         "address": "Gaza / London (team & fiscal hosts)",
         "blurb": (
-            "I Gaza Sunbirds sono la squadra paraciclistica della Palestina e, negli ultimi 22 mesi, "
-            "hanno ottenuto riconoscimento a livello globale per le loro coraggiose missioni di soccorso "
+            "Gaza Sunbirds è la squadra paraciclistica della Palestina e, negli ultimi 22 mesi, "
+            "ha ottenuto riconoscimento a livello globale per le sue coraggiose missioni di soccorso "
             "e per i risultati sportivi internazionali."
         ),
+        "video": {
+            "src": static_m4g("video/sunbirds-hd.mp4"),
+            "poster": static_m4g("opt/bene_aid-1280.webp"),
+        },
         "images": {
             "chi": m4g_responsive("bene_chi", "bene_chi.JPG", 1067, 1600),
             "mission": m4g_responsive("bene_mission", "bene_mission.jpg", 1600, 900),
@@ -337,11 +339,14 @@ REALTA_ADERENTI = [
     "Fulgenzio Tacconi",
     "GGGG Bicis",
     "Giovani Palestinesi Milano",
+    "Il Forno di Lambrate",
+    "Le Polveri",
     "Maledette Biciclette Milanesi",
     "Maloha Trail",
     "Maradonne",
     "Milano Bicycle Coalition",
     "Patatrack.cc",
+    "Partizan Bonola",
     "Pink Wave Cycling Team",
     "Prima Traccia",
     "Popolare Ciclistica",
@@ -380,7 +385,7 @@ ACTIVITIES = [
     },
     {
         "key": "entrance",
-        "title": "Food, drink & talk",
+        "title": "Giornata Solidale",
         "subtitle": "Cibo, drink, merch e talk dalle 11:30",
         "path": "/m4g/ingresso",
         "price_label": "15 €",
@@ -407,11 +412,9 @@ LAST_EDITION = {
     "meeting_title": "Il pomeriggio dopo lo sport",
     "meeting_text": (
         "Dopo il pranzo, il campo dell'Arci Olmi si è trasformato in un'assemblea aperta. "
-        "Abbiamo ascoltato testimonianze dirette dalla Palestina, il racconto delle missioni "
+        "Abbiamo ascoltato testimonianze, il racconto delle missioni "
         "di mutual aid dei Gaza Sunbirds e un confronto su cosa significa, da Milano, non "
         "fermarsi alla donazione: costruire reti, ripetere l'appuntamento, tenere viva "
-        "l'attenzione quando le telecamere si spengono. Non era un talk da palco: era un "
-        "cerchio di persone stanche, sudate e ancora presenti. Da lì è nata l'idea di "
-        "rifare Move for Gaza, più chiara e più grande."
+        "l'attenzione quando le telecamere si spengono."
     ),
 }

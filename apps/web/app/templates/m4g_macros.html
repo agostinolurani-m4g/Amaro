@@ -42,6 +42,48 @@
 </div>
 {% endmacro %}
 
+{% macro m4g_video_banner(video, caption, link_url, link_label='Guarda su gazasunbirds.org') %}
+{% if video and video.src %}
+<div class="m4g-video-banner" data-m4g-video-banner>
+  <div class="m4g-video-banner__media">
+    <button type="button" class="m4g-video-banner__sound" data-m4g-video-sound aria-pressed="false">
+      Attiva audio
+    </button>
+    <video
+      class="m4g-video-banner__video"
+      autoplay
+      muted
+      loop
+      playsinline
+      preload="metadata"
+      {% if video.poster %}poster="{{ video.poster }}"{% endif %}
+      aria-label="{{ caption }}"
+    >
+      <source src="{{ video.src }}" type="video/mp4" />
+    </video>
+    {% if video.poster %}
+    <img
+      class="m4g-video-banner__still"
+      src="{{ video.poster }}"
+      alt=""
+      width="1280"
+      height="960"
+      loading="lazy"
+      decoding="async"
+    />
+    {% endif %}
+    <div class="m4g-video-banner__shade" aria-hidden="true"></div>
+    <div class="m4g-video-banner__label">
+      {% if caption %}<p class="m4g-video-banner__title">{{ caption }}</p>{% endif %}
+      {% if link_url %}
+      <a href="{{ link_url }}" class="m4g-video-banner__link" target="_blank" rel="noreferrer">{{ link_label }}</a>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endmacro %}
+
 {% macro m4g_logo(src, alt, width=512, height=512) %}
 <figure class="m4g-figure m4g-figure--logo">
   <img

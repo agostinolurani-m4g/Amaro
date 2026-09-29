@@ -58,7 +58,7 @@ def _activity_label(activity: str) -> str:
         "bike": "Ride for Gaza — Bici",
         "soccer": "Play for Gaza — Calcio",
         "run": "Run for Gaza — Corsa",
-        "entrance": "Food, drink & talk — Ingresso",
+        "entrance": "Giornata Solidale — Ingresso",
         "donation": "Move for Gaza — Donazione",
         "merch": "Move for Gaza — Merch",
     }

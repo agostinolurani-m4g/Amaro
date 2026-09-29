@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Archivo+Narrow:wght@600;700&family=Archivo:wght@400;500;600;700;800&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=Inter+Tight:wght@700;800&display=swap");
 
 :root {
   --m4g-green: #1f8a3c;
@@ -10,6 +10,9 @@
   --m4g-muted: #5c5348;
   --m4g-bg: #fff6cb;
   --m4g-card: #fffdf6;
+  --m4g-font-display: "Inter Tight", "Helvetica Neue", Arial, sans-serif;
+  --m4g-font-body: "Archivo", "Segoe UI", system-ui, sans-serif;
+  --m4g-label-spacing: 0.02em;
 }
 
 *,
@@ -20,18 +23,26 @@
 
 body.m4g-body {
   margin: 0;
-  font-family: "Archivo", "Segoe UI", system-ui, sans-serif;
+  font-family: var(--m4g-font-body);
   background: var(--m4g-bg);
   color: var(--m4g-ink);
   min-height: 100vh;
 }
 
 .m4g-body h1,
-.m4g-body h2,
+.m4g-body h2 {
+  font-family: var(--m4g-font-display);
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  line-height: 1.02;
+  text-transform: uppercase;
+}
+
 .m4g-body h3 {
-  font-family: "Archivo Narrow", "Archivo", sans-serif;
+  font-family: var(--m4g-font-display);
   font-weight: 700;
-  letter-spacing: 0.01em;
+  letter-spacing: 0;
+  text-transform: uppercase;
 }
 
 .m4g-hero {
@@ -61,8 +72,10 @@ body.m4g-body {
 
 .m4g-hero__eyebrow {
   margin: 0;
+  font-family: var(--m4g-font-display);
+  font-weight: 700;
   font-size: 0.75rem;
-  letter-spacing: 0.2em;
+  letter-spacing: var(--m4g-label-spacing);
   text-transform: uppercase;
   opacity: 0.85;
 }
@@ -190,9 +203,11 @@ body.m4g-body {
 
 .m4g-checkout__label {
   margin: 0;
+  font-family: var(--m4g-font-display);
+  font-weight: 700;
   font-size: 0.7rem;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: var(--m4g-label-spacing);
   color: var(--m4g-muted);
 }
 
@@ -430,9 +445,11 @@ body.m4g-body {
 }
 
 .m4g-consumption__eyebrow {
+  font-family: var(--m4g-font-display);
+  font-weight: 700;
   font-size: 0.75rem;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: var(--m4g-label-spacing);
   opacity: 0.85;
   margin: 0;
 }
@@ -604,8 +621,9 @@ body.m4g-body {
 
 .m4g-program__label {
   margin: 0;
+  font-family: var(--m4g-font-display);
   font-size: 0.75rem;
-  letter-spacing: 0.08em;
+  letter-spacing: var(--m4g-label-spacing);
   text-transform: uppercase;
   font-weight: 700;
   color: var(--m4g-green-dark);
@@ -764,9 +782,10 @@ body.m4g-body {
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 0.4rem 0.75rem;
+  font-family: var(--m4g-font-display);
   font-weight: 700;
   font-size: 0.72rem;
-  letter-spacing: 0.06em;
+  letter-spacing: var(--m4g-label-spacing);
   text-transform: uppercase;
 }
 
@@ -877,7 +896,7 @@ body.m4g-body {
   background: var(--m4g-green);
   color: var(--m4g-cream);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: var(--m4g-label-spacing);
   font-size: 1.2rem;
 }
 
@@ -895,9 +914,10 @@ body.m4g-body {
 .m4g-activity-card__price {
   display: inline-block;
   margin: 0.75rem 1rem 0;
-  font-weight: 800;
+  font-family: var(--m4g-font-display);
+  font-weight: 700;
   font-size: 0.85rem;
-  letter-spacing: 0.04em;
+  letter-spacing: var(--m4g-label-spacing);
   text-transform: uppercase;
   color: var(--m4g-red);
 }
@@ -1020,21 +1040,23 @@ body.m4g-body {
 
 .m4g-stats__total {
   margin: 0.2rem 0 0;
-  line-height: 0.9;
 }
 
 .m4g-stats__total strong {
-  display: block;
-  font-family: "Archivo Narrow", "Archivo", sans-serif;
-  font-size: clamp(3.4rem, 16vw, 5.75rem);
-  font-weight: 700;
-  letter-spacing: -0.03em;
+  display: inline;
+  font-family: var(--m4g-font-display);
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  line-height: 1.02;
 }
 
 .m4g-stats__caption {
   margin: 0.45rem 0 0;
+  font-family: var(--m4g-font-display);
+  font-weight: 700;
   font-size: 0.95rem;
-  letter-spacing: 0.08em;
+  letter-spacing: var(--m4g-label-spacing);
   text-transform: uppercase;
   color: var(--m4g-muted);
 }
@@ -1234,6 +1256,119 @@ body.m4g-body {
 @media (min-width: 768px) {
   .m4g-figure--banner {
     aspect-ratio: 21 / 9;
+  }
+}
+
+.m4g-video-banner {
+  margin: 1.25rem 0;
+  border-radius: var(--m4g-radius, 0.75rem);
+  overflow: hidden;
+  box-shadow: 0 4px 24px rgba(15, 23, 42, 0.12);
+}
+
+.m4g-video-banner__media {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  background: var(--m4g-green-dark, #002a19);
+}
+
+@media (min-width: 768px) {
+  .m4g-video-banner__media {
+    aspect-ratio: 21 / 9;
+  }
+}
+
+.m4g-video-banner__video,
+.m4g-video-banner__still {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.m4g-video-banner__still {
+  display: none;
+}
+
+.m4g-video-banner__sound {
+  position: absolute;
+  top: 0.65rem;
+  right: 0.65rem;
+  z-index: 2;
+  margin: 0;
+  padding: 0.4rem 0.65rem;
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.55);
+  color: #fff;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  backdrop-filter: blur(4px);
+}
+
+.m4g-video-banner__sound:hover {
+  background: rgba(15, 23, 42, 0.72);
+}
+
+.m4g-video-banner__sound--on {
+  border-color: rgba(255, 255, 255, 0.85);
+  background: rgba(0, 122, 61, 0.75);
+}
+
+.m4g-video-banner__shade {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(0, 42, 25, 0.15) 0%,
+    rgba(0, 42, 25, 0.45) 45%,
+    rgba(15, 23, 42, 0.82) 100%
+  );
+  pointer-events: none;
+}
+
+.m4g-video-banner__label {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1;
+  padding: 1rem 1.1rem 1.15rem;
+  color: #fff;
+}
+
+.m4g-video-banner__title {
+  margin: 0;
+  font-size: clamp(1.05rem, 2.5vw, 1.35rem);
+  font-weight: 700;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.45);
+}
+
+.m4g-video-banner__link {
+  display: inline-block;
+  margin-top: 0.35rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #fff;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.m4g-video-banner__link:hover {
+  opacity: 0.92;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .m4g-video-banner__video {
+    display: none;
+  }
+
+  .m4g-video-banner__still {
+    display: block;
   }
 }
 
@@ -1470,10 +1605,10 @@ body.m4g-body {
   max-width: 72rem;
   margin: 0 auto 0.35rem;
   padding: 0.35rem 0 0.15rem;
-  font-family: "Archivo Narrow", "Archivo", sans-serif;
+  font-family: var(--m4g-font-display);
   font-weight: 700;
   font-size: clamp(0.72rem, 2.1vw, 1rem);
-  letter-spacing: 0.08em;
+  letter-spacing: var(--m4g-label-spacing);
   text-transform: uppercase;
 }
 
@@ -1501,8 +1636,9 @@ body.m4g-body {
 }
 
 .m4g-hero__place {
-  font-weight: 800;
-  letter-spacing: 0.08em;
+  font-family: var(--m4g-font-display);
+  font-weight: 700;
+  letter-spacing: var(--m4g-label-spacing);
   text-transform: uppercase;
   font-size: 0.95rem;
 }

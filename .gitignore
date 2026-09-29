@@ -8,7 +8,8 @@ node_modules/
 # Python artifacts
 __pycache__/
 *.py[cod]
-.venv/
+.venv*/
+apps/web/mobile-screenshots/
 .env
 .env.local
 *.exe
