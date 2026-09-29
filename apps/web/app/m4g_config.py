@@ -360,7 +360,7 @@ ACTIVITIES = [
     {
         "key": "bike",
         "title": "Ride for Gaza",
-        "subtitle": "Giro ciclistico solidale",
+        "subtitle": "112 km, 64 km o percorso cittadino",
         "path": "/m4g/bici",
         "price_label": "15 €",
     },
@@ -374,14 +374,14 @@ ACTIVITIES = [
     {
         "key": "run",
         "title": "Run for Gaza",
-        "subtitle": "Corsa o staffetta",
+        "subtitle": "7 km, 14 km o staffetta 7+7",
         "path": "/m4g/corsa",
         "price_label": "15 €",
     },
     {
         "key": "entrance",
         "title": "Food, drink & talk",
-        "subtitle": "Ingresso senza sport",
+        "subtitle": "Cibo, drink, merch e talk dalle 11:30",
         "path": "/m4g/ingresso",
         "price_label": "15 €",
     },

@@ -37,6 +37,30 @@ class M4gPageTests(unittest.TestCase):
         self.assertIn("Il programma della giornata", body)
         self.assertIn("DONA QUI", body)
         self.assertIn("17 ottobre 2026", body)
+        self.assertIn("Raccolta di questa edizione", body)
+        self.assertIn("Realtà che hanno aderito", body)
+        self.assertIn("Amaro", body)
+        self.assertIn("Domande frequenti", body)
+        self.assertIn("Nexi", body)
+
+    def test_move4gaza_host_redirects_to_amarobici(self) -> None:
+        root = self.client.get(
+            "/",
+            headers={"host": "www.move-4-gaza.com"},
+            follow_redirects=False,
+        )
+        self.assertEqual(root.status_code, 301)
+        self.assertEqual(root.headers["location"], "https://www.amarobici.it/m4g/")
+        bike = self.client.get(
+            "/bici?from=poster",
+            headers={"host": "move-4-gaza.com"},
+            follow_redirects=False,
+        )
+        self.assertEqual(bike.status_code, 301)
+        self.assertEqual(
+            bike.headers["location"],
+            "https://www.amarobici.it/m4g/bici?from=poster",
+        )
 
     def test_giornata_page(self) -> None:
         response = self.client.get("/m4g/giornata")

@@ -19,3 +19,5 @@ services:
         value: /data/releases/wattlab
       - key: SESSION_SECRET
         generateValue: true
+      - key: M4G_SITE_PUBLIC
+        value: "1"

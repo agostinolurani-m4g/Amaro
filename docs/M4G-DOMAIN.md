@@ -1,6 +1,6 @@
 # Dominio www.move-4-gaza.com su Render
 
-Il sito Move for Gaza è servito dall'app FastAPI Amaro (`/m4g/*`). Su `www.amarobici.it` l'URL resta `/m4g/`. Su `www.move-4-gaza.com` un middleware riscrive la root verso `/m4g/` (es. `/` → home M4G, `/bici` → `/m4g/bici`).
+Il sito Move for Gaza vive su `https://www.amarobici.it/m4g/` (iscrizioni, Nexi, bar, merch, donazioni). `www.move-4-gaza.com` e `move-4-gaza.com` rispondono con un redirect 301 verso quella stessa app (`/` → `/m4g/`, `/bici` → `/m4g/bici`).
 
 ## Render
 
