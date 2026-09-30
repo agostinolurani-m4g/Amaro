@@ -491,7 +491,34 @@ class M4gPageTests(unittest.TestCase):
         self.assertEqual(standard.status_code, 200)
         self.assertIn("15.00 €", standard.text)
         self.assertIn("https://www.paypal.com/pool/9t6Ot5Kez2?sr=wccr", standard.text)
-        self.assertIn("orario", standard.text)
+        self.assertIn("Aggiorna importo", standard.text)
+        self.assertIn("Bonifico", standard.text)
+        self.assertIn("PayPal", standard.text)
+        from app.database import SessionLocal
+        from app.models import M4gRegistration
+
+        lookup_public = SessionLocal()
+        try:
+            twenty = (
+                lookup_public.query(M4gRegistration)
+                .filter_by(email=email, activity="donation", amount_cents=2000)
+                .one()
+            )
+            twenty_ref = twenty.reference
+        finally:
+            lookup_public.close()
+        too_small = self.client.post(
+            f"/m4g/pagamento/{twenty_ref}/importo",
+            data={"amount_eur": "10"},
+        )
+        self.assertEqual(too_small.status_code, 400)
+        fixed = self.client.post(
+            f"/m4g/pagamento/{twenty_ref}/importo",
+            data={"amount_eur": "80"},
+        )
+        self.assertEqual(fixed.status_code, 200)
+        self.assertIn("80.00", fixed.text)
+        self.assertIn("Importo aggiornato", fixed.text)
         login = self.client.post(
             "/m4g/gestione/login",
             data={"password": M4G_TEST_PASSWORD},
@@ -521,6 +548,14 @@ class M4gPageTests(unittest.TestCase):
             ref = reg.reference
         finally:
             lookup.close()
+        updated = self.client.post(
+            "/m4g/gestione/registration-amount",
+            data={"reference": ref, "amount_eur": "100"},
+            follow_redirects=True,
+        )
+        self.assertEqual(updated.status_code, 200)
+        self.assertIn("100.00", updated.text)
+        self.assertIn("Importo aggiornato", updated.text)
         hidden = self.client.post(
             "/m4g/gestione/registration-hide",
             data={"reference": ref},
@@ -538,6 +573,7 @@ class M4gPageTests(unittest.TestCase):
             stored = check.query(M4gRegistration).filter_by(reference=ref).one()
             self.assertTrue(stored.hidden)
             self.assertEqual(stored.payment_status, "unpaid")
+            self.assertEqual(stored.amount_cents, 10000)
             self.assertIsNone(stored.paid_at)
         finally:
             check.close()

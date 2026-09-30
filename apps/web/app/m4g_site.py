@@ -202,7 +202,13 @@ def _start_checkout(
     return reg, payment
 
 
-def _render_payment(request: Request, reg: M4gRegistration, payment: Any) -> HTMLResponse:
+def _render_payment(
+    request: Request,
+    reg: M4gRegistration,
+    payment: Any,
+    *,
+    amount_updated: bool = False,
+) -> HTMLResponse:
     payload = parse_payload(reg.payload_json)
     donate = reg.activity not in ("merch",)
     alt = alt_payment_context(
@@ -223,6 +229,7 @@ def _render_payment(request: Request, reg: M4gRegistration, payment: Any) -> HTM
             "reference": reg.reference,
             "payment": payment,
             "price_fn": format_price,
+            "amount_updated": amount_updated,
             **alt,
         },
     )
@@ -592,6 +599,35 @@ async def m4g_entrance_submit(
         amount_mode=amount_mode,
     )
     return _render_payment(request, reg, payment)
+
+
+@router.post("/m4g/pagamento/{reference}/importo", response_class=HTMLResponse)
+def m4g_update_paid_amount(
+    request: Request,
+    reference: str,
+    amount_eur: str = Form(""),
+    session: Session = Depends(get_session),
+) -> HTMLResponse:
+    reg = session.query(M4gRegistration).filter_by(reference=reference).first()
+    if not reg or reg.payment_status != "pending" or reg.hidden:
+        raise HTTPException(status_code=404, detail="Pagamento non trovato")
+    cents = _parse_euro_amount(amount_eur)
+    minimum = _standard_cents(reg.activity)
+    if cents < minimum:
+        raise HTTPException(
+            status_code=400,
+            detail=f"L'importo versato non può essere inferiore a {_euro_label(minimum)}",
+        )
+    reg.amount_cents = cents
+    session.commit()
+    session.refresh(reg)
+    payment = prepare_nexi_payment(
+        amount_cents=cents,
+        reference=reg.reference,
+        description=_activity_label(reg.activity),
+        email=reg.email,
+    )
+    return _render_payment(request, reg, payment, amount_updated=True)
 
 
 @router.get("/m4g/conferma/{token}", response_class=HTMLResponse)

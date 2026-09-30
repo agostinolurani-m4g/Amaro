@@ -466,6 +466,45 @@ def m4g_gestione_registration_paid(
     return RedirectResponse("/m4g/gestione?msg=reg-paid", status_code=302)
 
 
+def _parse_admin_euro(raw: str) -> int | None:
+    try:
+        euro = float(str(raw).replace("€", "").replace(" ", "").replace(",", ".").strip())
+    except ValueError:
+        return None
+    if euro <= 0:
+        return None
+    return int(round(euro * 100))
+
+
+def _registration_list_redirect(show_hidden: str, msg: str) -> RedirectResponse:
+    hidden = "&show_hidden=1" if show_hidden in ("1", "true", "on") else ""
+    return RedirectResponse(
+        f"/m4g/gestione?msg={msg}{hidden}#cms-iscrizioni",
+        status_code=302,
+    )
+
+
+@admin_router.post("/m4g/gestione/registration-amount")
+def m4g_gestione_registration_amount(
+    request: Request,
+    reference: str = Form(""),
+    amount_eur: str = Form(""),
+    show_hidden: str = Form(""),
+    session: Session = Depends(get_session),
+) -> RedirectResponse:
+    denied = _require_admin(request)
+    if denied:
+        return denied
+    cents = _parse_admin_euro(amount_eur)
+    if cents is None:
+        return _registration_list_redirect(show_hidden, "amount")
+    reg = session.query(M4gRegistration).filter_by(reference=reference.strip()).first()
+    if reg:
+        reg.amount_cents = cents
+        session.commit()
+    return _registration_list_redirect(show_hidden, "amount-ok")
+
+
 @admin_router.post("/m4g/gestione/registration-hide")
 def m4g_gestione_registration_hide(
     request: Request,

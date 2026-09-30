@@ -47,6 +47,15 @@
       <p class="m4g-muted">Lo staff verifica il pagamento: finché non conferma, i banner restano in attesa.</p>
     </div>
   {% elif not bar_order_note %}
+    <form method="post" action="/m4g/pagamento/{{ reference }}/importo" class="m4g-form m4g-pay-amount">
+      <p class="m4g-muted">Satispay, PayPal e bonifico non comunicano l'importo. Se ne versi uno diverso da {{ amount_label }} €, aggiornalo qui prima di pagare.</p>
+      {% if amount_updated %}<p class="m4g-alert" style="background:#e8f5e9;">Importo aggiornato: versa <strong>{{ amount_label }} €</strong>.</p>{% endif %}
+      <label>Importo versato (€)
+        <input name="amount_eur" type="number" min="0.01" step="0.01" value="{{ amount_label }}" required />
+      </label>
+      <button type="submit" class="m4g-btn m4g-btn--secondary">Aggiorna importo</button>
+    </form>
+
     <div class="m4g-pay-methods__alt">
       <h3>Satispay</h3>
       <p class="m4g-muted">Paga <strong>{{ amount_label }} €</strong> sulla colletta Move4gaza e, se puoi, metti in nota il codice <code>{{ reference }}</code>.</p>
@@ -65,7 +74,7 @@
 
     <div class="m4g-pay-methods__alt">
       <h3>PayPal</h3>
-      <p class="m4g-muted">Apre il <a class="m4g-link" href="{{ paypal_url }}" target="_blank" rel="noreferrer">PayPal Pool Move4Gaza</a>. Versa <strong>{{ amount_label }} €</strong>{% if registration %} con il nome <strong>{{ registration.first_name }} {{ registration.last_name }}</strong>{% endif %}. Se compare un messaggio, puoi scrivere il codice <code>{{ reference }}</code>; altrimenti abbiniamo a mano nome, importo e orario.</p>
+      <p class="m4g-muted">Apre il <a class="m4g-link" href="{{ paypal_url }}" target="_blank" rel="noreferrer">PayPal Pool Move4Gaza</a>. Versa <strong>{{ amount_label }} €</strong>{% if registration %} con il nome <strong>{{ registration.first_name }} {{ registration.last_name }}</strong>{% endif %}. Se l'importo è diverso, aggiornalo nel campo sopra. Se compare un messaggio, puoi scrivere il codice <code>{{ reference }}</code>.</p>
       <p class="m4g-pay-methods__links">
         <a class="m4g-btn m4g-btn--paypal m4g-btn--pay" href="{{ paypal_url }}" target="_blank" rel="noreferrer">Paga con PayPal</a>
       </p>
@@ -73,7 +82,7 @@
 
     <div class="m4g-iban m4g-pay-methods__iban">
       <h3>Bonifico</h3>
-      <p class="m4g-muted">Causale: «Move4Gaza {{ reference }}».</p>
+      <p class="m4g-muted">Versa <strong>{{ amount_label }} €</strong>. Se l'importo è diverso, aggiornalo nel campo sopra. Causale: «Move4Gaza {{ reference }}».</p>
       <p><strong>Intestatario:</strong> {{ m4g.payments.iban_owner }}</p>
       <p><strong>IBAN:</strong> <code>{{ m4g.payments.iban }}</code></p>
       <button type="button" class="m4g-btn m4g-btn--secondary m4g-btn--inline" onclick="navigator.clipboard.writeText('{{ m4g.payments.iban }}').then(()=>alert('IBAN copiato'))">Copia IBAN</button>
