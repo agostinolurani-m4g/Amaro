@@ -234,9 +234,17 @@ def bar_orders_eligible(session: Session) -> list[tuple[BarOrder, int]]:
 
 
 def list_m4g_registrations(
-    session: Session, query: str = "", limit: int = 200
+    session: Session,
+    query: str = "",
+    limit: int = 200,
+    *,
+    hidden: bool = False,
 ) -> list[M4gRegistration]:
     q = session.query(M4gRegistration)
+    if hidden:
+        q = q.filter(M4gRegistration.hidden.is_(True))
+    else:
+        q = q.filter(M4gRegistration.hidden.isnot(True))
     needle = query.strip().lower()
     if needle:
         like = f"%{needle}%"
@@ -345,11 +353,26 @@ def mark_registration_paid(reg: M4gRegistration, session: Session) -> str:
     if reg.payment_status != "paid":
         reg.payment_status = "paid"
         reg.paid_at = datetime.utcnow()
+    reg.hidden = False
     if not reg.confirmation_token:
         reg.confirmation_token = secrets.token_urlsafe(24)
     session.commit()
     session.refresh(reg)
     return reg.confirmation_token or ""
+
+
+def hide_registration_unpaid(reg: M4gRegistration, session: Session) -> None:
+    reg.payment_status = "unpaid"
+    reg.hidden = True
+    reg.paid_at = None
+    session.commit()
+
+
+def restore_registration(reg: M4gRegistration, session: Session) -> None:
+    reg.hidden = False
+    if reg.payment_status == "unpaid":
+        reg.payment_status = "pending"
+    session.commit()
 
 
 def mark_registration_failed(reg: M4gRegistration, session: Session) -> None:
@@ -437,6 +460,21 @@ def parse_payload(payload_json: str) -> dict[str, Any]:
     except json.JSONDecodeError:
         return {}
     return data if isinstance(data, dict) else {}
+
+
+def ensure_m4g_registration_schema() -> None:
+    inspector = inspect(engine)
+    if "m4g_registrations" not in inspector.get_table_names():
+        return
+    columns = {col["name"] for col in inspector.get_columns("m4g_registrations")}
+    if "hidden" not in columns:
+        with engine.begin() as conn:
+            conn.execute(
+                text(
+                    "ALTER TABLE m4g_registrations "
+                    "ADD COLUMN hidden BOOLEAN NOT NULL DEFAULT 0"
+                )
+            )
 
 
 def ensure_bar_order_schema() -> None:

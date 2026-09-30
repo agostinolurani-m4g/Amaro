@@ -261,6 +261,7 @@ class M4gRegistration(Base):
     payload_json: Mapped[str] = Column(Text, nullable=False, default="{}")
     amount_cents: Mapped[int] = Column(Integer, nullable=False)
     payment_status: Mapped[str] = Column(String(20), default="pending")
+    hidden: Mapped[bool] = Column(Boolean, nullable=False, default=False)
     confirmation_token: Mapped[str | None] = Column(String(80), unique=True)
     created_at: Mapped[DateTime] = Column(
         DateTime(timezone=True), server_default=func.now()

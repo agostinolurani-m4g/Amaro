@@ -44,7 +44,11 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from .acsi import send_documents_manual_review_email
 from .admin import setup_admin
-from .m4g_common import apply_m4g_payment_by_reference, ensure_bar_order_schema
+from .m4g_common import (
+    apply_m4g_payment_by_reference,
+    ensure_bar_order_schema,
+    ensure_m4g_registration_schema,
+)
 from .m4g_config import M4G_PUBLIC_HOSTS
 from .m4g_admin import admin_router as m4g_admin_router
 from .m4g_auth import M4gLoginRequired, access_router as m4g_access_router, m4g_access_redirect
@@ -466,6 +470,7 @@ def on_startup() -> None:
     ensure_merch_schema()
     ensure_membership_payment_schema()
     ensure_bar_order_schema()
+    ensure_m4g_registration_schema()
     session = SessionLocal()
     try:
         seed_sample_data(session)

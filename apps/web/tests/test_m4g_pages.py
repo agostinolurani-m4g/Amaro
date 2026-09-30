@@ -491,6 +491,7 @@ class M4gPageTests(unittest.TestCase):
         self.assertEqual(standard.status_code, 200)
         self.assertIn("15.00 €", standard.text)
         self.assertIn("https://www.paypal.com/pool/9t6Ot5Kez2?sr=wccr", standard.text)
+        self.assertIn("orario", standard.text)
         login = self.client.post(
             "/m4g/gestione/login",
             data={"password": M4G_TEST_PASSWORD},
@@ -503,6 +504,43 @@ class M4gPageTests(unittest.TestCase):
         self.assertIn("Ada", gestione.text)
         self.assertIn("Donazione", gestione.text)
         self.assertIn("15.00", gestione.text)
+        self.assertRegex(gestione.text, r"\d{2}/\d{2}/\d{4} \d{2}:\d{2}")
+        self.assertIn("Non pagata", gestione.text)
+        from app.database import SessionLocal
+        from app.models import M4gRegistration
+
+        lookup = SessionLocal()
+        try:
+            reg = (
+                lookup.query(M4gRegistration)
+                .filter_by(email=email, activity="donation", amount_cents=1500)
+                .order_by(M4gRegistration.id.desc())
+                .first()
+            )
+            self.assertIsNotNone(reg)
+            ref = reg.reference
+        finally:
+            lookup.close()
+        hidden = self.client.post(
+            "/m4g/gestione/registration-hide",
+            data={"reference": ref},
+            follow_redirects=False,
+        )
+        self.assertIn(hidden.status_code, (302, 303))
+        visible = self.client.get("/m4g/gestione")
+        self.assertNotIn(ref, visible.text)
+        archive = self.client.get("/m4g/gestione?show_hidden=1")
+        self.assertEqual(archive.status_code, 200)
+        self.assertIn(ref, archive.text)
+        self.assertIn("Non pagata", archive.text)
+        check = SessionLocal()
+        try:
+            stored = check.query(M4gRegistration).filter_by(reference=ref).one()
+            self.assertTrue(stored.hidden)
+            self.assertEqual(stored.payment_status, "unpaid")
+            self.assertIsNone(stored.paid_at)
+        finally:
+            check.close()
 
         bike_low = self.client.post(
             "/m4g/bici",

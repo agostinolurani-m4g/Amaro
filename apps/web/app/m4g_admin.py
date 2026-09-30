@@ -5,6 +5,7 @@ from __future__ import annotations
 import csv
 import io
 from collections import Counter
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, StreamingResponse
@@ -48,7 +49,9 @@ from .m4g_common import (
     format_price,
     mark_bar_order_paid,
     mark_registration_paid,
+    hide_registration_unpaid,
     list_m4g_registrations,
+    restore_registration,
     reject_bar_order,
     templates,
 )
@@ -61,6 +64,24 @@ admin_router = APIRouter(tags=["m4g-admin"])
 M4G_ACTIVITIES = ("bike", "soccer", "run", "entrance", "donation", "merch")
 
 
+def _last_sunday(year: int, month: int) -> datetime:
+    day = datetime(year, month, 31, 1, tzinfo=timezone.utc)
+    while day.weekday() != 6:
+        day -= timedelta(days=1)
+    return day
+
+
+def format_rome(value: datetime | None) -> str:
+    """Ora italiana (CET/CEST) senza dipendere dal database dei fusi."""
+    if value is None:
+        return ""
+    moment = value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+    moment = moment.astimezone(timezone.utc)
+    summer = _last_sunday(moment.year, 3) <= moment < _last_sunday(moment.year, 10)
+    local = moment.astimezone(timezone(timedelta(hours=2 if summer else 1)))
+    return local.strftime("%d/%m/%Y %H:%M")
+
+
 def _admin_dashboard(session: Session) -> dict:
     stats = compute_fundraising_stats(session)
     awaiting = bar_orders_awaiting_check(session)
@@ -70,9 +91,11 @@ def _admin_dashboard(session: Session) -> dict:
         reg_counts[activity] = {
             "paid": session.query(M4gRegistration)
             .filter_by(activity=activity, payment_status="paid")
+            .filter(M4gRegistration.hidden.isnot(True))
             .count(),
             "pending": session.query(M4gRegistration)
             .filter_by(activity=activity, payment_status="pending")
+            .filter(M4gRegistration.hidden.isnot(True))
             .count(),
         }
     bar_status = Counter(
@@ -145,6 +168,7 @@ def m4g_gestione_page(
             },
         )
     reg_q = request.query_params.get("reg_q", "")
+    show_hidden = request.query_params.get("show_hidden") == "1"
     return templates.TemplateResponse(
         "m4g_gestione.html",
         {
@@ -159,7 +183,10 @@ def m4g_gestione_page(
             "vendors": cms_vendors(),
             "menu": cms_menu(),
             "message": request.query_params.get("msg"),
-            "registrations": list_m4g_registrations(session, reg_q),
+            "registrations": list_m4g_registrations(
+                session, reg_q, hidden=show_hidden
+            ),
+            "show_hidden": show_hidden,
             "activity_labels": {
                 "bike": "Bici",
                 "soccer": "Calcio",
@@ -171,7 +198,9 @@ def m4g_gestione_page(
             "status_labels": {
                 "paid": "Pagato",
                 "pending": "In attesa",
+                "unpaid": "Non pagata",
             },
+            "when_fn": format_rome,
             "reg_q": reg_q,
             **_admin_dashboard(session),
         },
@@ -437,6 +466,36 @@ def m4g_gestione_registration_paid(
     return RedirectResponse("/m4g/gestione?msg=reg-paid", status_code=302)
 
 
+@admin_router.post("/m4g/gestione/registration-hide")
+def m4g_gestione_registration_hide(
+    request: Request,
+    reference: str = Form(""),
+    session: Session = Depends(get_session),
+) -> RedirectResponse:
+    denied = _require_admin(request)
+    if denied:
+        return denied
+    reg = session.query(M4gRegistration).filter_by(reference=reference.strip()).first()
+    if reg:
+        hide_registration_unpaid(reg, session)
+    return RedirectResponse("/m4g/gestione?msg=reg-hidden#cms-iscrizioni", status_code=302)
+
+
+@admin_router.post("/m4g/gestione/registration-restore")
+def m4g_gestione_registration_restore(
+    request: Request,
+    reference: str = Form(""),
+    session: Session = Depends(get_session),
+) -> RedirectResponse:
+    denied = _require_admin(request)
+    if denied:
+        return denied
+    reg = session.query(M4gRegistration).filter_by(reference=reference.strip()).first()
+    if reg:
+        restore_registration(reg, session)
+    return RedirectResponse("/m4g/gestione?msg=reg-restored#cms-iscrizioni", status_code=302)
+
+
 @admin_router.post("/m4g/gestione/vendor-logo")
 async def m4g_gestione_vendor_logo(
     request: Request,
@@ -487,6 +546,7 @@ def m4g_export_registrations(
             "phone",
             "amount_eur",
             "payment_status",
+            "hidden",
             "created_at",
         ]
     )
@@ -501,6 +561,7 @@ def m4g_export_registrations(
                 reg.phone or "",
                 f"{(reg.amount_cents or 0) / 100:.2f}",
                 reg.payment_status,
+                "1" if reg.hidden else "0",
                 reg.created_at,
             ]
         )

@@ -123,6 +123,7 @@ def _soccer_count(session: Session) -> int:
             .filter(
                 M4gRegistration.activity == "soccer",
                 M4gRegistration.payment_status.in_(("paid", "pending")),
+                M4gRegistration.hidden.isnot(True),
             )
             .count()
         )
@@ -138,6 +139,7 @@ def _run_count(session: Session) -> int:
             .filter(
                 M4gRegistration.activity == "run",
                 M4gRegistration.payment_status.in_(("paid", "pending")),
+                M4gRegistration.hidden.isnot(True),
             )
             .count()
         )

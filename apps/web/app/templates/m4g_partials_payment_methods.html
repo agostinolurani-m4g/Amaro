@@ -65,7 +65,7 @@
 
     <div class="m4g-pay-methods__alt">
       <h3>PayPal</h3>
-      <p class="m4g-muted">Apre il <a class="m4g-link" href="{{ paypal_url }}" target="_blank" rel="noreferrer">PayPal Pool Move4Gaza</a>. Versa <strong>{{ amount_label }} €</strong> e indica il codice <code>{{ reference }}</code>.</p>
+      <p class="m4g-muted">Apre il <a class="m4g-link" href="{{ paypal_url }}" target="_blank" rel="noreferrer">PayPal Pool Move4Gaza</a>. Versa <strong>{{ amount_label }} €</strong>{% if registration %} con il nome <strong>{{ registration.first_name }} {{ registration.last_name }}</strong>{% endif %}. Se compare un messaggio, puoi scrivere il codice <code>{{ reference }}</code>; altrimenti abbiniamo a mano nome, importo e orario.</p>
       <p class="m4g-pay-methods__links">
         <a class="m4g-btn m4g-btn--paypal m4g-btn--pay" href="{{ paypal_url }}" target="_blank" rel="noreferrer">Paga con PayPal</a>
       </p>

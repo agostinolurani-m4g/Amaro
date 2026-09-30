@@ -28,6 +28,7 @@
       .m4g-cms-thumb img { width: 100%; height: 5rem; object-fit: cover; border-radius: 0.25rem; }
       .m4g-cms-list { list-style: none; padding: 0; margin: 1rem 0 0; }
       .m4g-cms-list li { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; padding: 0.5rem 0; border-bottom: 1px solid #eee; }
+      .m4g-cms-list__actions { display: flex; flex-wrap: wrap; gap: 0.35rem; }
       .m4g-cms-preview { max-width: 16rem; margin: 0.5rem 0 1rem; }
       .m4g-cms-preview img { width: 100%; height: auto; border-radius: 0.25rem; display: block; }
       .m4g-cms-head { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-bottom: 1.5rem; }
@@ -89,6 +90,10 @@
         <p class="m4g-alert" style="background:#e8f5e9;">Logo cucina aggiornato.</p>
       {% elif message == 'reg-paid' %}
         <p class="m4g-alert" style="background:#e8f5e9;">Iscrizione segnata come pagata.</p>
+      {% elif message == 'reg-hidden' %}
+        <p class="m4g-alert" style="background:#e8f5e9;">Segnata come non pagata e tolta dall'elenco.</p>
+      {% elif message == 'reg-restored' %}
+        <p class="m4g-alert" style="background:#e8f5e9;">Rimessa nell'elenco, ancora da pagare.</p>
       {% endif %}
 
       <nav class="m4g-cms-nav" aria-label="Sezioni gestionale">
@@ -123,9 +128,15 @@
       </section>
 
       <section id="cms-iscrizioni" class="m4g-card m4g-card--padded" style="margin-bottom:1rem;">
-        <h2>Elenco iscrizioni e donazioni</h2>
-        <p class="m4g-muted">Tutte le iscrizioni, pagate e in attesa. Per Satispay, PayPal o bonifico usa «Segna pagato» quando il versamento arriva.</p>
+        <h2>{% if show_hidden %}Non pagate, nascoste{% else %}Elenco iscrizioni e donazioni{% endif %}</h2>
+        <p class="m4g-muted">PayPal non conferma da solo. Confronta nome, importo e orario con il pool, poi segna pagato. «Non pagata» toglie la riga dall'elenco senza cancellarla.</p>
+        {% if show_hidden %}
+          <p><a class="m4g-link" href="/m4g/gestione#cms-iscrizioni">Torna all'elenco</a></p>
+        {% else %}
+          <p><a class="m4g-link" href="/m4g/gestione?show_hidden=1#cms-iscrizioni">Vedi non pagate nascoste</a></p>
+        {% endif %}
         <form method="get" action="/m4g/gestione" class="m4g-form" style="margin:0.75rem 0;">
+          {% if show_hidden %}<input type="hidden" name="show_hidden" value="1" />{% endif %}
           <label>Cerca<input name="reg_q" value="{{ reg_q }}" placeholder="Codice, nome, email, attività" /></label>
           <button type="submit" class="m4g-btn m4g-btn--secondary m4g-btn--inline">Cerca</button>
         </form>
@@ -143,14 +154,28 @@
                 · {{ reg.first_name }} {{ reg.last_name }}
                 {% if reg.email %}· {{ reg.email }}{% endif %}
                 · {{ price_fn(reg.amount_cents) }} €
+                · {{ when_fn(reg.created_at) }}
                 · <strong>{{ status_labels.get(reg.payment_status, reg.payment_status) }}</strong>
               </span>
-              {% if reg.payment_status == 'pending' %}
-              <form method="post" action="/m4g/gestione/registration-paid">
-                <input type="hidden" name="reference" value="{{ reg.reference }}" />
-                <button type="submit" class="m4g-btn m4g-btn--primary">Segna pagato</button>
-              </form>
-              {% endif %}
+              <span class="m4g-cms-list__actions">
+                {% if show_hidden %}
+                <form method="post" action="/m4g/gestione/registration-restore">
+                  <input type="hidden" name="reference" value="{{ reg.reference }}" />
+                  <button type="submit" class="m4g-btn m4g-btn--secondary">Ripristina</button>
+                </form>
+                {% else %}
+                  {% if reg.payment_status == 'pending' %}
+                  <form method="post" action="/m4g/gestione/registration-paid">
+                    <input type="hidden" name="reference" value="{{ reg.reference }}" />
+                    <button type="submit" class="m4g-btn m4g-btn--primary">Segna pagato</button>
+                  </form>
+                  {% endif %}
+                  <form method="post" action="/m4g/gestione/registration-hide">
+                    <input type="hidden" name="reference" value="{{ reg.reference }}" />
+                    <button type="submit" class="m4g-btn m4g-btn--secondary">Non pagata</button>
+                  </form>
+                {% endif %}
+              </span>
             </li>
           {% endfor %}
         </ul>
