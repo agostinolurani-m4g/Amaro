@@ -26,17 +26,53 @@
       .m4g-cms-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(5rem, 1fr)); gap: 0.5rem; margin-top: 1rem; }
       .m4g-cms-thumb { position: relative; }
       .m4g-cms-thumb img { width: 100%; height: 5rem; object-fit: cover; border-radius: 0.25rem; }
-      .m4g-cms-list { list-style: none; padding: 0; margin: 1rem 0 0; }
-      .m4g-cms-list li { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; padding: 0.5rem 0; border-bottom: 1px solid #eee; }
-      .m4g-cms-list__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem; }
-      .m4g-cms-amount { display: flex; align-items: center; gap: 0.35rem; margin: 0; }
-      .m4g-cms-amount input {
-        width: 5.5rem;
-        padding: 0.35rem 0.45rem;
+      .m4g-regs {
+        width: calc(100vw - 1.5rem);
+        margin-left: calc(50% - 50vw + 0.75rem);
+      }
+      .m4g-regs-scroll {
+        overflow: auto;
+        max-height: 72vh;
+        border: 1px solid #e7e0c8;
+        background: #fff;
+      }
+      .m4g-regs-table {
+        width: max-content;
+        min-width: 100%;
+        border-collapse: collapse;
+        font-size: 0.72rem;
+        line-height: 1.25;
+      }
+      .m4g-regs-table th,
+      .m4g-regs-table td {
+        padding: 0.18rem 0.4rem;
+        border-bottom: 1px solid #eee;
+        text-align: left;
+        white-space: nowrap;
+        vertical-align: middle;
+      }
+      .m4g-regs-table th {
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        background: #faf8f2;
+        font-weight: 600;
+      }
+      .m4g-regs-table td.m4g-regs__detail {
+        white-space: normal;
+        min-width: 11rem;
+        max-width: 20rem;
+      }
+      .m4g-regs-table .m4g-cms-list__actions { display: flex; flex-wrap: nowrap; align-items: center; gap: 0.25rem; }
+      .m4g-regs-table .m4g-btn { padding: 0.15rem 0.4rem; font-size: 0.68rem; }
+      .m4g-cms-amount { display: flex; align-items: center; gap: 0.25rem; margin: 0; }
+      .m4g-regs-table .m4g-cms-amount input {
+        width: 4rem;
+        padding: 0.12rem 0.28rem;
         border: 1px solid #cbd5e1;
-        border-radius: 0.45rem;
+        border-radius: 0.3rem;
         font: inherit;
-        font-size: 16px;
+        font-size: 0.72rem;
       }
       .m4g-cms-preview { max-width: 16rem; margin: 0.5rem 0 1rem; }
       .m4g-cms-preview img { width: 100%; height: auto; border-radius: 0.25rem; display: block; }
@@ -140,7 +176,7 @@
         </ul>
       </section>
 
-      <section id="cms-iscrizioni" class="m4g-card m4g-card--padded" style="margin-bottom:1rem;">
+      <section id="cms-iscrizioni" class="m4g-card m4g-card--padded m4g-regs" style="margin-bottom:1rem;">
         <h2>{% if show_hidden %}Non pagate, nascoste{% else %}Elenco iscrizioni e donazioni{% endif %}</h2>
         <p class="m4g-muted">Satispay, PayPal e bonifico non aggiornano l'importo da soli. Se ne è arrivato uno diverso, correggilo qui e poi segna pagato. «Non pagata» toglie la riga dall'elenco senza cancellarla.</p>
         {% if show_hidden %}
@@ -150,7 +186,7 @@
         {% endif %}
         <form method="get" action="/m4g/gestione" class="m4g-form" style="margin:0.75rem 0;">
           {% if show_hidden %}<input type="hidden" name="show_hidden" value="1" />{% endif %}
-          <label>Cerca<input name="reg_q" value="{{ reg_q }}" placeholder="Codice, nome, email, attività" /></label>
+          <label>Cerca<input name="reg_q" value="{{ reg_q }}" placeholder="Codice, nome, email, squadra, percorso" /></label>
           <button type="submit" class="m4g-btn m4g-btn--secondary m4g-btn--inline">Cerca</button>
         </form>
         {% if not registrations %}
@@ -158,46 +194,68 @@
         {% else %}
           <p class="m4g-muted">{{ registrations|length }} in elenco</p>
         {% endif %}
-        <ul class="m4g-cms-list">
-          {% for reg in registrations %}
-            <li>
-              <span>
-                <strong>{{ reg.reference }}</strong>
-                · {{ activity_labels.get(reg.activity, reg.activity) }}
-                · {{ reg.first_name }} {{ reg.last_name }}
-                {% if reg.email %}· {{ reg.email }}{% endif %}
-                · {{ price_fn(reg.amount_cents) }} €
-                · {{ when_fn(reg.created_at) }}
-                · <strong>{{ status_labels.get(reg.payment_status, reg.payment_status) }}</strong>
-              </span>
-              <span class="m4g-cms-list__actions">
-                <form method="post" action="/m4g/gestione/registration-amount" class="m4g-cms-amount">
-                  <input type="hidden" name="reference" value="{{ reg.reference }}" />
-                  {% if show_hidden %}<input type="hidden" name="show_hidden" value="1" />{% endif %}
-                  <input name="amount_eur" type="text" inputmode="decimal" value="{{ price_fn(reg.amount_cents) }}" aria-label="Importo pagato in euro" />
-                  <button type="submit" class="m4g-btn m4g-btn--secondary">Salva importo</button>
-                </form>
-                {% if show_hidden %}
-                <form method="post" action="/m4g/gestione/registration-restore">
-                  <input type="hidden" name="reference" value="{{ reg.reference }}" />
-                  <button type="submit" class="m4g-btn m4g-btn--secondary">Ripristina</button>
-                </form>
-                {% else %}
-                  {% if reg.payment_status == 'pending' %}
-                  <form method="post" action="/m4g/gestione/registration-paid">
-                    <input type="hidden" name="reference" value="{{ reg.reference }}" />
-                    <button type="submit" class="m4g-btn m4g-btn--primary">Segna pagato</button>
-                  </form>
-                  {% endif %}
-                  <form method="post" action="/m4g/gestione/registration-hide">
-                    <input type="hidden" name="reference" value="{{ reg.reference }}" />
-                    <button type="submit" class="m4g-btn m4g-btn--secondary">Non pagata</button>
-                  </form>
-                {% endif %}
-              </span>
-            </li>
-          {% endfor %}
-        </ul>
+        <div class="m4g-regs-scroll">
+          <table class="m4g-regs-table">
+            <thead>
+              <tr>
+                <th>Quando</th>
+                <th>Codice</th>
+                <th>Attività</th>
+                <th>Iscrizione</th>
+                <th>Nome</th>
+                <th>Cognome</th>
+                <th>Email</th>
+                <th>Telefono</th>
+                <th>€</th>
+                <th>Stato</th>
+                <th>Azioni</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for reg in registrations %}
+              <tr>
+                <td>{{ when_fn(reg.created_at) }}</td>
+                <td>{{ reg.reference }}</td>
+                <td>{{ activity_labels.get(reg.activity, reg.activity) }}</td>
+                <td class="m4g-regs__detail">{{ detail_fn(reg) }}</td>
+                <td>{{ reg.first_name }}</td>
+                <td>{{ reg.last_name }}</td>
+                <td>{{ reg.email or "" }}</td>
+                <td>{{ reg.phone or "" }}</td>
+                <td>{{ price_fn(reg.amount_cents) }}</td>
+                <td>{{ status_labels.get(reg.payment_status, reg.payment_status) }}</td>
+                <td>
+                  <span class="m4g-cms-list__actions">
+                    <form method="post" action="/m4g/gestione/registration-amount" class="m4g-cms-amount">
+                      <input type="hidden" name="reference" value="{{ reg.reference }}" />
+                      {% if show_hidden %}<input type="hidden" name="show_hidden" value="1" />{% endif %}
+                      <input name="amount_eur" type="text" inputmode="decimal" value="{{ price_fn(reg.amount_cents) }}" aria-label="Importo pagato in euro" />
+                      <button type="submit" class="m4g-btn m4g-btn--secondary">Salva</button>
+                    </form>
+                    {% if show_hidden %}
+                    <form method="post" action="/m4g/gestione/registration-restore">
+                      <input type="hidden" name="reference" value="{{ reg.reference }}" />
+                      <button type="submit" class="m4g-btn m4g-btn--secondary">Ripristina</button>
+                    </form>
+                    {% else %}
+                      {% if reg.payment_status == 'pending' %}
+                      <form method="post" action="/m4g/gestione/registration-paid">
+                        <input type="hidden" name="reference" value="{{ reg.reference }}" />
+                        <button type="submit" class="m4g-btn m4g-btn--primary">Pagato</button>
+                      </form>
+                      {% endif %}
+                      <form method="post" action="/m4g/gestione/registration-hide">
+                        <input type="hidden" name="reference" value="{{ reg.reference }}" />
+                        <button type="submit" class="m4g-btn m4g-btn--secondary">Non pagata</button>
+                      </form>
+                    {% endif %}
+                  </span>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
       </section>
 
       <section class="m4g-card m4g-card--padded" style="margin-bottom:1rem;">

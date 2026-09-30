@@ -233,10 +233,58 @@ def bar_orders_eligible(session: Session) -> list[tuple[BarOrder, int]]:
     return rows
 
 
+def registration_signup_detail(reg: M4gRegistration) -> str:
+    data = parse_payload(reg.payload_json)
+    bits: list[str] = []
+    if reg.activity == "bike":
+        if data.get("distance"):
+            bits.append(f"{data['distance']} km")
+        if data.get("level"):
+            bits.append(str(data["level"]))
+        if data.get("team_name"):
+            bits.append(f"squadra {data['team_name']}")
+    elif reg.activity == "soccer":
+        if data.get("team_name"):
+            bits.append(str(data["team_name"]))
+        if data.get("captain"):
+            bits.append(f"referente {data['captain']}")
+        if data.get("count"):
+            bits.append(f"{data['count']} giocatori")
+        players = data.get("players") or []
+        if isinstance(players, list) and players:
+            bits.append(", ".join(str(name) for name in players))
+    elif reg.activity == "run":
+        if data.get("distance"):
+            bits.append(f"{data['distance']} km")
+        if str(data.get("staffetta", "")).lower() in ("si", "sì", "yes", "1"):
+            bits.append("staffetta")
+        if data.get("team_name"):
+            bits.append(f"squadra {data['team_name']}")
+    elif reg.activity == "entrance":
+        if data.get("notes"):
+            bits.append(str(data["notes"]))
+        else:
+            bits.append("Ingresso giornata")
+    elif reg.activity == "merch":
+        labels = {"socks": "Calze", "tshirt": "Maglietta"}
+        item = labels.get(str(data.get("item", "")), str(data.get("item") or ""))
+        if item:
+            bits.append(item)
+        if data.get("quantity"):
+            bits.append(f"x{data['quantity']}")
+        if data.get("size"):
+            bits.append(f"taglia {data['size']}")
+        if data.get("model"):
+            bits.append(str(data["model"]))
+    elif reg.activity == "donation":
+        bits.append("Donazione libera")
+    return " · ".join(bit for bit in bits if bit)
+
+
 def list_m4g_registrations(
     session: Session,
     query: str = "",
-    limit: int = 200,
+    limit: int = 2000,
     *,
     hidden: bool = False,
 ) -> list[M4gRegistration]:
@@ -253,7 +301,9 @@ def list_m4g_registrations(
             | (M4gRegistration.first_name.ilike(like))
             | (M4gRegistration.last_name.ilike(like))
             | (M4gRegistration.email.ilike(like))
+            | (M4gRegistration.phone.ilike(like))
             | (M4gRegistration.activity.ilike(like))
+            | (M4gRegistration.payload_json.ilike(like))
         )
     return q.order_by(M4gRegistration.created_at.desc()).limit(limit).all()
 

@@ -530,6 +530,8 @@ class M4gPageTests(unittest.TestCase):
         self.assertIn("Elenco iscrizioni e donazioni", gestione.text)
         self.assertIn("Ada", gestione.text)
         self.assertIn("Donazione", gestione.text)
+        self.assertIn("Donazione libera", gestione.text)
+        self.assertIn("<th>Iscrizione</th>", gestione.text)
         self.assertIn("15.00", gestione.text)
         self.assertRegex(gestione.text, r"\d{2}/\d{2}/\d{4} \d{2}:\d{2}")
         self.assertIn("Non pagata", gestione.text)
@@ -589,6 +591,8 @@ class M4gPageTests(unittest.TestCase):
         )
         self.assertEqual(bike_ok.status_code, 200)
         self.assertIn("25.00 €", bike_ok.text)
+        listed = self.client.get("/m4g/gestione")
+        self.assertIn("64 km", listed.text)
 
         soccer_base = {
             "team_name": "Solidal",
@@ -611,6 +615,9 @@ class M4gPageTests(unittest.TestCase):
         )
         self.assertEqual(soccer_ok.status_code, 200)
         self.assertIn("120.00 €", soccer_ok.text)
+        soccer_list = self.client.get("/m4g/gestione")
+        self.assertIn("Solidal", soccer_list.text)
+        self.assertIn("6 giocatori", soccer_list.text)
 
 
 if __name__ == "__main__":
