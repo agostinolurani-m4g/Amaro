@@ -27,6 +27,7 @@
       </label>
       <label>Squadra staffetta (opz.)<input name="team_name" /></label>
       <label class="m4g-checkbox"><input type="checkbox" name="waiver" value="1" required /> Dichiaro idoneità fisica</label>
+      {% include "m4g_partials_amount.html" %}
       <button type="submit" class="m4g-btn m4g-btn--primary">Procedi al pagamento</button>
     </form>
     {% endif %}

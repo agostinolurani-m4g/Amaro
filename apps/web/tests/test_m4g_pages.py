@@ -441,5 +441,103 @@ class M4gPageTests(unittest.TestCase):
         self.assertIn("short_code", bar_ok.text)
 
 
+    def test_other_amount_on_donation_and_registration(self) -> None:
+        from app.database import SessionLocal
+        from app.models import M4gRegistration
+
+        email = "altro-importo@example.test"
+        donate = self.client.get("/m4g/donazione")
+        self.assertEqual(donate.status_code, 200)
+        self.assertIn("Altro importo", donate.text)
+        self.assertIn("superiore a 15 €", donate.text)
+        for path in ("/m4g/bici", "/m4g/corsa", "/m4g/ingresso"):
+            page = self.client.get(path)
+            self.assertEqual(page.status_code, 200, path)
+            self.assertIn("Altro importo", page.text)
+            self.assertIn("superiore a 15 €", page.text)
+        soccer = self.client.get("/m4g/calcio")
+        self.assertEqual(soccer.status_code, 200)
+        self.assertIn("Altro importo", soccer.text)
+        self.assertIn("superiore a 100 €", soccer.text)
+
+        person = {
+            "first_name": "Ada",
+            "last_name": "Test",
+            "email": email,
+        }
+        try:
+            self._assert_other_amount_submits(person, email)
+        finally:
+            session = SessionLocal()
+            try:
+                session.query(M4gRegistration).filter(M4gRegistration.email == email).delete()
+                session.commit()
+            finally:
+                session.close()
+
+    def _assert_other_amount_submits(self, person: dict[str, str], email: str) -> None:
+        too_low = self.client.post(
+            "/m4g/donazione",
+            data={**person, "amount_mode": "custom", "amount_eur": "15"},
+        )
+        self.assertEqual(too_low.status_code, 400)
+        ok = self.client.post(
+            "/m4g/donazione",
+            data={**person, "amount_mode": "custom", "amount_eur": "20"},
+        )
+        self.assertEqual(ok.status_code, 200)
+        self.assertIn("20.00 €", ok.text)
+        standard = self.client.post("/m4g/donazione", data=person)
+        self.assertEqual(standard.status_code, 200)
+        self.assertIn("15.00 €", standard.text)
+        self.assertIn("https://www.paypal.com/pool/9t6Ot5Kez2?sr=wccr", standard.text)
+        login = self.client.post(
+            "/m4g/gestione/login",
+            data={"password": M4G_TEST_PASSWORD},
+            follow_redirects=False,
+        )
+        self.assertIn(login.status_code, (302, 303))
+        gestione = self.client.get("/m4g/gestione")
+        self.assertEqual(gestione.status_code, 200)
+        self.assertIn("Elenco iscrizioni e donazioni", gestione.text)
+        self.assertIn("Ada", gestione.text)
+        self.assertIn("Donazione", gestione.text)
+        self.assertIn("15.00", gestione.text)
+
+        bike_low = self.client.post(
+            "/m4g/bici",
+            data={**person, "amount_mode": "custom", "amount_eur": "15,00"},
+        )
+        self.assertEqual(bike_low.status_code, 400)
+        bike_ok = self.client.post(
+            "/m4g/bici",
+            data={**person, "distance": "64", "amount_mode": "custom", "amount_eur": "25"},
+        )
+        self.assertEqual(bike_ok.status_code, 200)
+        self.assertIn("25.00 €", bike_ok.text)
+
+        soccer_base = {
+            "team_name": "Solidal",
+            "captain": "Ada Test",
+            "email": email,
+            "fairplay": "1",
+            "count": "6",
+        }
+        soccer_low = self.client.post(
+            "/m4g/calcio",
+            data={**soccer_base, "amount_mode": "custom", "amount_eur": "100"},
+        )
+        self.assertEqual(soccer_low.status_code, 400)
+        soccer_std = self.client.post("/m4g/calcio", data=soccer_base)
+        self.assertEqual(soccer_std.status_code, 200)
+        self.assertIn("75.00 €", soccer_std.text)
+        soccer_ok = self.client.post(
+            "/m4g/calcio",
+            data={**soccer_base, "amount_mode": "custom", "amount_eur": "120"},
+        )
+        self.assertEqual(soccer_ok.status_code, 200)
+        self.assertIn("120.00 €", soccer_ok.text)
+
+
 if __name__ == "__main__":
     unittest.main()

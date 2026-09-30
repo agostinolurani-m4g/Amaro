@@ -122,6 +122,40 @@
         </ul>
       </section>
 
+      <section id="cms-iscrizioni" class="m4g-card m4g-card--padded" style="margin-bottom:1rem;">
+        <h2>Elenco iscrizioni e donazioni</h2>
+        <p class="m4g-muted">Tutte le iscrizioni, pagate e in attesa. Per Satispay, PayPal o bonifico usa «Segna pagato» quando il versamento arriva.</p>
+        <form method="get" action="/m4g/gestione" class="m4g-form" style="margin:0.75rem 0;">
+          <label>Cerca<input name="reg_q" value="{{ reg_q }}" placeholder="Codice, nome, email, attività" /></label>
+          <button type="submit" class="m4g-btn m4g-btn--secondary m4g-btn--inline">Cerca</button>
+        </form>
+        {% if not registrations %}
+          <p class="m4g-muted">Nessuna iscrizione.</p>
+        {% else %}
+          <p class="m4g-muted">{{ registrations|length }} in elenco</p>
+        {% endif %}
+        <ul class="m4g-cms-list">
+          {% for reg in registrations %}
+            <li>
+              <span>
+                <strong>{{ reg.reference }}</strong>
+                · {{ activity_labels.get(reg.activity, reg.activity) }}
+                · {{ reg.first_name }} {{ reg.last_name }}
+                {% if reg.email %}· {{ reg.email }}{% endif %}
+                · {{ price_fn(reg.amount_cents) }} €
+                · <strong>{{ status_labels.get(reg.payment_status, reg.payment_status) }}</strong>
+              </span>
+              {% if reg.payment_status == 'pending' %}
+              <form method="post" action="/m4g/gestione/registration-paid">
+                <input type="hidden" name="reference" value="{{ reg.reference }}" />
+                <button type="submit" class="m4g-btn m4g-btn--primary">Segna pagato</button>
+              </form>
+              {% endif %}
+            </li>
+          {% endfor %}
+        </ul>
+      </section>
+
       <section class="m4g-card m4g-card--padded" style="margin-bottom:1rem;">
         <h2>Sito pubblico (go live)</h2>
         <p class="m4g-muted">Se attivo, il sito evento non chiede più la password. Questa pagina resta sempre protetta.</p>
@@ -332,31 +366,6 @@
         {% endfor %}
       </section>
 
-      <section id="cms-iscrizioni" class="m4g-card m4g-card--padded" style="margin-top:1rem;">
-        <h2>Iscrizioni in attesa</h2>
-        <p class="m4g-muted">Per pagamenti Satispay, PayPal o bonifico con codice riferimento.</p>
-        <form method="get" action="/m4g/gestione" class="m4g-form" style="margin:0.75rem 0;">
-          <label>Cerca<input name="reg_q" value="{{ reg_q }}" placeholder="Codice, nome, email" /></label>
-          <button type="submit" class="m4g-btn m4g-btn--secondary m4g-btn--inline">Cerca</button>
-        </form>
-        {% if not pending_regs %}
-          <p class="m4g-muted">Nessuna iscrizione in attesa.</p>
-        {% endif %}
-        <ul class="m4g-cms-list">
-          {% for reg in pending_regs %}
-            <li>
-              <span>
-                <strong>{{ reg.reference }}</strong> · {{ reg.activity }} ·
-                {{ reg.first_name }} {{ reg.last_name }} · {{ price_fn(reg.amount_cents) }} €
-              </span>
-              <form method="post" action="/m4g/gestione/registration-paid">
-                <input type="hidden" name="reference" value="{{ reg.reference }}" />
-                <button type="submit" class="m4g-btn m4g-btn--primary">Segna pagato</button>
-              </form>
-            </li>
-          {% endfor %}
-        </ul>
-      </section>
     </div>
     <script>
     document.querySelectorAll("[data-m4g-dropzone]").forEach((zone) => {

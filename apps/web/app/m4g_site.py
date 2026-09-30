@@ -53,6 +53,47 @@ def _amount_for_activity(activity: str) -> int:
     return int(M4G_EVENT["pricing"]["person_cents"])
 
 
+def _euro_label(cents: int) -> str:
+    if cents % 100 == 0:
+        return f"{cents // 100} €"
+    return f"{format_price(cents)} €"
+
+
+def _standard_cents(activity: str) -> int:
+    if activity == "donation":
+        return int(M4G_EVENT["pricing"]["min_donation_cents"])
+    return _amount_for_activity(activity)
+
+
+def _other_amount_floor_cents(activity: str) -> int:
+    pricing = M4G_EVENT["pricing"]
+    if activity == "soccer":
+        return int(pricing["soccer_other_amount_above_cents"])
+    return int(pricing["other_amount_above_cents"])
+
+
+def amount_picker_context(activity: str) -> dict[str, str]:
+    floor = _other_amount_floor_cents(activity)
+    return {
+        "standard_label": _euro_label(_standard_cents(activity)),
+        "other_above_label": _euro_label(floor),
+        "custom_min": f"{(floor + 1) / 100:.2f}",
+    }
+
+
+def _checkout_amount(activity: str, amount_mode: str, amount_eur: str) -> int:
+    if (amount_mode or "standard").strip() != "custom":
+        return _standard_cents(activity)
+    cents = _parse_euro_amount(amount_eur)
+    floor = _other_amount_floor_cents(activity)
+    if cents <= floor:
+        raise HTTPException(
+            status_code=400,
+            detail=f"L'importo libero deve essere superiore a {_euro_label(floor)}",
+        )
+    return cents
+
+
 def _activity_label(activity: str) -> str:
     labels = {
         "bike": "Ride for Gaza — Bici",
@@ -128,9 +169,14 @@ def _start_checkout(
     phone: str | None,
     payload: dict[str, Any],
     amount_cents: int | None = None,
+    amount_mode: str = "standard",
 ) -> tuple[M4gRegistration, Any]:
     reference = build_payment_reference("M4G")
     cents = amount_cents if amount_cents is not None else _amount_for_activity(activity)
+    payload = {
+        **payload,
+        "amount_mode": "custom" if amount_mode == "custom" else "standard",
+    }
     reg = M4gRegistration(
         reference=reference,
         activity=activity,
@@ -218,6 +264,7 @@ def m4g_donate_form(request: Request) -> HTMLResponse:
             "payment_failed": _payment_failed(request),
             "min_donation": format_price(min_cents),
             "min_donation_cents": min_cents,
+            **amount_picker_context("donation"),
         },
     )
 
@@ -230,17 +277,12 @@ async def m4g_donate_submit(
     last_name: str = Form(""),
     email: str = Form(""),
     phone: str = Form(""),
+    amount_mode: str = Form("standard"),
     amount_eur: str = Form(""),
 ) -> HTMLResponse:
     if not first_name.strip() or not last_name.strip() or not email.strip():
         raise HTTPException(status_code=400, detail="Compila nome, cognome ed email")
-    amount_cents = _parse_euro_amount(amount_eur)
-    min_cents = int(M4G_EVENT["pricing"]["min_donation_cents"])
-    if amount_cents < min_cents:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Donazione minima {format_price(min_cents)} €",
-        )
+    amount_cents = _checkout_amount("donation", amount_mode, amount_eur)
     reg, payment = _start_checkout(
         activity="donation",
         session=session,
@@ -250,6 +292,7 @@ async def m4g_donate_submit(
         phone=phone,
         payload={"type": "free_donation"},
         amount_cents=amount_cents,
+        amount_mode=amount_mode,
     )
     return _render_payment(request, reg, payment)
 
@@ -349,6 +392,7 @@ def m4g_bike_form(request: Request) -> HTMLResponse:
             "event": M4G_EVENT,
             "payment_failed": _payment_failed(request),
             "price": format_price(_amount_for_activity("bike")),
+            **amount_picker_context("bike"),
             "bike_distances": m4g_bike_distances(),
             "bike_routes": m4g_bike_routes_for_map(),
         },
@@ -366,6 +410,8 @@ async def m4g_bike_submit(
     distance: str = Form("112"),
     team_name: str = Form(""),
     level: str = Form(""),
+    amount_mode: str = Form("standard"),
+    amount_eur: str = Form(""),
 ) -> HTMLResponse:
     if not first_name.strip() or not last_name.strip() or not email.strip():
         raise HTTPException(status_code=400, detail="Compila nome, cognome ed email")
@@ -381,6 +427,8 @@ async def m4g_bike_submit(
             "team_name": team_name.strip(),
             "level": level.strip(),
         },
+        amount_cents=_checkout_amount("bike", amount_mode, amount_eur),
+        amount_mode=amount_mode,
     )
     return _render_payment(request, reg, payment)
 
@@ -396,6 +444,7 @@ def m4g_soccer_form(request: Request, session: Session = Depends(get_session)) -
             "soccer_full": _soccer_full(session),
             "teams_count": _soccer_count(session),
             "price": format_price(_amount_for_activity("soccer")),
+            **amount_picker_context("soccer"),
         },
     )
 
@@ -410,6 +459,8 @@ async def m4g_soccer_submit(
     phone: str = Form(""),
     count: int = Form(6),
     fairplay: str = Form(""),
+    amount_mode: str = Form("standard"),
+    amount_eur: str = Form(""),
 ) -> HTMLResponse:
     if _soccer_full(session):
         raise HTTPException(status_code=409, detail="Posti squadre esauriti")
@@ -437,6 +488,8 @@ async def m4g_soccer_submit(
             "count": max(5, min(12, count)),
             "players": players,
         },
+        amount_cents=_checkout_amount("soccer", amount_mode, amount_eur),
+        amount_mode=amount_mode,
     )
     return _render_payment(request, reg, payment)
 
@@ -452,6 +505,7 @@ def m4g_run_form(request: Request, session: Session = Depends(get_session)) -> H
             "run_full": _run_full(session),
             "run_count": _run_count(session),
             "price": format_price(_amount_for_activity("run")),
+            **amount_picker_context("run"),
             "run_route": cms_run_route(),
         },
     )
@@ -468,6 +522,8 @@ async def m4g_run_submit(
     staffetta: str = Form("no"),
     team_name: str = Form(""),
     waiver: str = Form(""),
+    amount_mode: str = Form("standard"),
+    amount_eur: str = Form(""),
 ) -> HTMLResponse:
     if _run_full(session):
         raise HTTPException(status_code=409, detail="Posti corsa esauriti")
@@ -488,6 +544,8 @@ async def m4g_run_submit(
             "staffetta": staffetta,
             "team_name": team_name.strip(),
         },
+        amount_cents=_checkout_amount("run", amount_mode, amount_eur),
+        amount_mode=amount_mode,
     )
     return _render_payment(request, reg, payment)
 
@@ -501,6 +559,7 @@ def m4g_entrance_form(request: Request) -> HTMLResponse:
             "event": M4G_EVENT,
             "payment_failed": _payment_failed(request),
             "price": format_price(_amount_for_activity("entrance")),
+            **amount_picker_context("entrance"),
         },
     )
 
@@ -514,6 +573,8 @@ async def m4g_entrance_submit(
     email: str = Form(""),
     phone: str = Form(""),
     notes: str = Form(""),
+    amount_mode: str = Form("standard"),
+    amount_eur: str = Form(""),
 ) -> HTMLResponse:
     if not first_name.strip() or not last_name.strip() or not email.strip():
         raise HTTPException(status_code=400, detail="Compila nome, cognome ed email")
@@ -525,6 +586,8 @@ async def m4g_entrance_submit(
         email=email,
         phone=phone,
         payload={"notes": notes.strip()},
+        amount_cents=_checkout_amount("entrance", amount_mode, amount_eur),
+        amount_mode=amount_mode,
     )
     return _render_payment(request, reg, payment)
 

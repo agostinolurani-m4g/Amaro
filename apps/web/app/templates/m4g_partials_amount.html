@@ -1,0 +1,44 @@
+<fieldset class="m4g-amount" data-m4g-amount>
+  <legend>Importo</legend>
+  <label class="m4g-amount__choice">
+    <input type="radio" name="amount_mode" value="standard" checked />
+    {{ standard_label }}
+  </label>
+  <label class="m4g-amount__choice">
+    <input type="radio" name="amount_mode" value="custom" />
+    Altro importo
+  </label>
+  <label class="m4g-amount__custom" data-amount-custom hidden>
+    Importo (€)
+    <input
+      type="number"
+      name="amount_eur"
+      min="{{ custom_min }}"
+      step="0.01"
+      inputmode="decimal"
+      placeholder="{{ custom_min }}"
+    />
+  </label>
+  <p class="m4g-muted">L'importo libero deve essere superiore a {{ other_above_label }}.</p>
+</fieldset>
+<script>
+(function () {
+  document.querySelectorAll("[data-m4g-amount]").forEach(function (box) {
+    if (box.dataset.bound) return;
+    box.dataset.bound = "1";
+    var custom = box.querySelector("[data-amount-custom]");
+    var input = custom.querySelector("input");
+    function sync() {
+      var selected = box.querySelector('input[name="amount_mode"]:checked');
+      var on = selected && selected.value === "custom";
+      custom.hidden = !on;
+      input.required = on;
+      input.disabled = !on;
+    }
+    box.querySelectorAll('input[name="amount_mode"]').forEach(function (radio) {
+      radio.addEventListener("change", sync);
+    });
+    sync();
+  });
+})();
+</script>

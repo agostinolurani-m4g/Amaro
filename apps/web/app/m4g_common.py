@@ -233,12 +233,10 @@ def bar_orders_eligible(session: Session) -> list[tuple[BarOrder, int]]:
     return rows
 
 
-def pending_m4g_registrations(
-    session: Session, query: str = "", limit: int = 40
+def list_m4g_registrations(
+    session: Session, query: str = "", limit: int = 200
 ) -> list[M4gRegistration]:
-    q = session.query(M4gRegistration).filter(
-        M4gRegistration.payment_status == "pending"
-    )
+    q = session.query(M4gRegistration)
     needle = query.strip().lower()
     if needle:
         like = f"%{needle}%"
@@ -247,6 +245,7 @@ def pending_m4g_registrations(
             | (M4gRegistration.first_name.ilike(like))
             | (M4gRegistration.last_name.ilike(like))
             | (M4gRegistration.email.ilike(like))
+            | (M4gRegistration.activity.ilike(like))
         )
     return q.order_by(M4gRegistration.created_at.desc()).limit(limit).all()
 

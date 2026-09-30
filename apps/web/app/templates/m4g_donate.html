@@ -6,7 +6,7 @@
   <div class="m4g-wrap">
     <p class="m4g-hero__eyebrow">Solidarietà</p>
     <h1>Dona ora</h1>
-    <p>Donazione libera (min. {{ min_donation }} €) — Nexi, Satispay, PayPal o bonifico.</p>
+    <p>{{ standard_label }}, oppure un importo superiore — Nexi, Satispay, PayPal o bonifico.</p>
   </div>
 </section>
 <div class="m4g-wrap m4g-wrap--wide">
@@ -41,7 +41,7 @@
       </div>
       <label>Email<input type="email" name="email" required /></label>
       <label>Telefono (opz.)<input type="tel" name="phone" /></label>
-      <label>Importo (€)<input name="amount_eur" type="number" min="{{ min_donation }}" step="0.01" value="{{ min_donation }}" required /></label>
+      {% include "m4g_partials_amount.html" %}
       <p class="m4g-muted">Dopo «Procedi» scegli Nexi, Satispay o PayPal.</p>
       <button type="submit" class="m4g-btn m4g-btn--primary">Procedi al pagamento</button>
     </form>

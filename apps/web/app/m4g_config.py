@@ -138,17 +138,20 @@ M4G_EVENT = {
         "soccer_team_cents": 7500,
         "merch_unit_cents": 1500,
         "min_donation_cents": 1500,
+        # «Altro importo» deve essere strettamente superiore a queste soglie.
+        "other_amount_above_cents": 1500,
+        "soccer_other_amount_above_cents": 10000,
     },
     "payments": {
         "paypal_business": os.environ.get("M4G_PAYPAL_BUSINESS", "amaro.bici@gmail.com"),
         "paypal_me": os.environ.get("M4G_PAYPAL_ME", ""),
         "paypal_link": os.environ.get(
             "M4G_PAYPAL_LINK",
-            "https://www.paypal.com/pool/9iq3YyxOcH?sr=wccr",
+            "https://www.paypal.com/pool/9t6Ot5Kez2?sr=wccr",
         ),
         "paypal_link_merch": os.environ.get(
             "M4G_PAYPAL_LINK_MERCH",
-            "https://www.paypal.com/pool/9iq3YyxOcH?sr=wccr",
+            "https://www.paypal.com/pool/9t6Ot5Kez2?sr=wccr",
         ),
         "satispay_link": os.environ.get(
             "M4G_SATISPAY_LINK",
