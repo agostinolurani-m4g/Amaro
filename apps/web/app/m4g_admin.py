@@ -450,6 +450,28 @@ def m4g_gestione_registration_paid(
     return RedirectResponse("/m4g/gestione?msg=reg-paid", status_code=302)
 
 
+@admin_router.post("/m4g/gestione/registration-send-email")
+def m4g_gestione_registration_send_email(
+    request: Request,
+    reference: str = Form(""),
+    session: Session = Depends(get_session),
+) -> RedirectResponse:
+    denied = _require_admin(request)
+    if denied:
+        return denied
+    ref = reference.strip()
+    reg = session.query(M4gRegistration).filter_by(reference=ref).first()
+    if not reg or reg.payment_status != "paid" or reg.paid_email_sent_at is not None:
+        return RedirectResponse("/m4g/gestione?msg=reg-email-skip#cms-iscrizioni", status_code=302)
+    if not (reg.email or "").strip():
+        return RedirectResponse("/m4g/gestione?msg=reg-email-noaddr#cms-iscrizioni", status_code=302)
+    from . import m4g_mail
+
+    ok = m4g_mail.send_paid_confirmation(reg, session)
+    msg = "reg-email-ok" if ok else "reg-email-fail"
+    return RedirectResponse(f"/m4g/gestione?msg={msg}#cms-iscrizioni", status_code=302)
+
+
 def _parse_admin_euro(raw: str) -> int | None:
     try:
         euro = float(str(raw).replace("€", "").replace(" ", "").replace(",", ".").strip())

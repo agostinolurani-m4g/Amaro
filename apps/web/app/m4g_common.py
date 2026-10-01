@@ -58,25 +58,6 @@ def format_rome(value: datetime | None) -> str:
     return local.strftime("%d/%m/%Y %H:%M")
 
 
-def next_italy_evening_utc(now: datetime | None = None) -> datetime:
-    """Prossimo 19:00 ora italiana, in UTC (aware)."""
-    if now is None:
-        now = datetime.now(timezone.utc)
-    elif now.tzinfo is None:
-        now = now.replace(tzinfo=timezone.utc)
-    else:
-        now = now.astimezone(timezone.utc)
-    offset = italy_utc_offset_hours(now)
-    local = now.astimezone(timezone(timedelta(hours=offset)))
-    target_local = local.replace(hour=19, minute=0, second=0, microsecond=0)
-    if local >= target_local:
-        target_local += timedelta(days=1)
-        offset = italy_utc_offset_hours(target_local)
-    return target_local.astimezone(timezone(timedelta(hours=offset))).astimezone(
-        timezone.utc
-    )
-
-
 def format_price(cents: int) -> str:
     return f"{cents / 100:.2f}"
 
@@ -454,14 +435,6 @@ def mark_registration_paid(reg: M4gRegistration, session: Session) -> str:
         reg.confirmation_token = secrets.token_urlsafe(24)
     session.commit()
     session.refresh(reg)
-    try:
-        from . import m4g_mail
-
-        m4g_mail.send_paid_confirmation(reg, session)
-    except Exception:
-        logger.exception(
-            "M4G paid confirmation email failed for %s", reg.reference
-        )
     return reg.confirmation_token or ""
 
 
@@ -502,6 +475,14 @@ def apply_m4g_payment_by_reference(
     if reg:
         if success:
             token = mark_registration_paid(reg, session)
+            try:
+                from . import m4g_mail
+
+                m4g_mail.send_paid_confirmation(reg, session)
+            except Exception:
+                logger.exception(
+                    "M4G paid confirmation email failed for %s", reg.reference
+                )
             return {"redirect_url": f"{base}/m4g/conferma/{token}"}
         mark_registration_failed(reg, session)
         activity_paths = {

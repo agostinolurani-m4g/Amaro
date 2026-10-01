@@ -135,6 +135,14 @@
         <p class="m4g-alert" style="background:#e8f5e9;">Logo cucina aggiornato.</p>
       {% elif message == 'reg-paid' %}
         <p class="m4g-alert" style="background:#e8f5e9;">Iscrizione segnata come pagata.</p>
+      {% elif message == 'reg-email-ok' %}
+        <p class="m4g-alert" style="background:#e8f5e9;">Email di conferma inviata.</p>
+      {% elif message == 'reg-email-fail' %}
+        <p class="m4g-alert">Invio email non riuscito. Controlla SMTP e riprova.</p>
+      {% elif message == 'reg-email-noaddr' %}
+        <p class="m4g-alert">Nessun indirizzo email sull'iscrizione.</p>
+      {% elif message == 'reg-email-skip' %}
+        <p class="m4g-alert">Email già inviata o iscrizione non pagata.</p>
       {% elif message == 'reg-hidden' %}
         <p class="m4g-alert" style="background:#e8f5e9;">Segnata come non pagata e tolta dall'elenco.</p>
       {% elif message == 'reg-restored' %}
@@ -252,6 +260,11 @@
                       <form method="post" action="/m4g/gestione/registration-paid">
                         <input type="hidden" name="reference" value="{{ reg.reference }}" />
                         <button type="submit" class="m4g-btn m4g-btn--primary">Pagato</button>
+                      </form>
+                      {% elif reg.payment_status == 'paid' and reg.email and not reg.paid_email_sent_at %}
+                      <form method="post" action="/m4g/gestione/registration-send-email">
+                        <input type="hidden" name="reference" value="{{ reg.reference }}" />
+                        <button type="submit" class="m4g-btn m4g-btn--primary">Invia email</button>
                       </form>
                       {% endif %}
                       <form method="post" action="/m4g/gestione/registration-hide">

@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import asyncio
 import logging
-import os
 import smtplib
 from datetime import datetime, timezone
 from email.message import EmailMessage
@@ -12,8 +10,7 @@ from email.message import EmailMessage
 from sqlalchemy.orm import Session
 
 from .config import settings
-from .database import SessionLocal
-from .m4g_common import format_price, next_italy_evening_utc
+from .m4g_common import format_price, parse_payload
 from .m4g_config import M4G_EVENT
 from .models import M4gRegistration
 
@@ -34,6 +31,41 @@ _ACTIVITY_HINT = {
     "soccer": "Porta la tua squadra e tanta voglia di giocare e soprattutto fair play.",
     "entrance": "Ti aspettiamo per una giornata di talk, buon cibo e buona compagnia.",
 }
+
+_BIKE_DEPARTURE = {
+    "112": (
+        "Partenza prevista alla francese, ossia scaglionata, "
+        "indicativamente tra le 8.30 e le 9.30."
+    ),
+    "64": (
+        "Partenza prevista alla francese, ossia scaglionata, "
+        "indicativamente tra le 9.30 e le 10.00."
+    ),
+    "25": (
+        "Partenza prevista alla francese, ossia scaglionata, "
+        "indicativamente tra le 10.30 e le 11.00."
+    ),
+}
+
+_SCHEDULE_CONFIRM = "Due giorni prima dell'evento confermeremo gli orari definitivi."
+
+
+def _schedule_line(reg: M4gRegistration) -> str:
+    activity = reg.activity or ""
+    if activity == "run":
+        return (
+            "Partenza prevista alle ore 11, due giorni prima dell'evento "
+            "confermeremo gli orari definitivi.\n"
+        )
+    line = ""
+    if activity == "bike":
+        dist = str(parse_payload(reg.payload_json).get("distance", "")).strip()
+        line = _BIKE_DEPARTURE.get(dist, "")
+    elif activity == "soccer":
+        line = "Calcio in campo, indicativamente dalle 9.00 alle 13.00."
+    if not line:
+        return ""
+    return f"{line} {_SCHEDULE_CONFIRM}\n"
 
 
 def _public_base_url() -> str:
@@ -130,12 +162,15 @@ def build_paid_confirmation(reg: M4gRegistration) -> tuple[str, str]:
     subject = "Move for Gaza — ci sei! Pagamento ricevuto"
     hint = _ACTIVITY_HINT.get(activity, "")
     hint_block = f"{hint}\n\n" if hint else ""
+    schedule = _schedule_line(reg)
+    schedule_block = f"{schedule}\n" if schedule else ""
     body = (
         f"Ciao {first},\n\n"
         f"buone notizie: abbiamo ricevuto il tuo pagamento di {amount} € e la tua "
         f"iscrizione a {activity_label} è confermata. Benvenutə nella squadra!\n\n"
         f"{link_line}"
         f"Ci vediamo il {event_date} presso {event_location}.\n"
+        f"{schedule_block}"
         f"{hint_block}"
         "Grazie di cuore: ogni chilometro, ogni gol e ogni passo sono un pezzo di "
         "sostegno concreto per Gaza.\n\n"
@@ -164,50 +199,3 @@ def send_paid_confirmation(reg: M4gRegistration, session: Session) -> bool:
         session.commit()
         return False
     return True
-
-
-def send_pending_paid_confirmations(session: Session) -> int:
-    pending = (
-        session.query(M4gRegistration)
-        .filter(M4gRegistration.payment_status == "paid")
-        .filter(M4gRegistration.hidden.isnot(True))
-        .filter(M4gRegistration.paid_email_sent_at.is_(None))
-        .filter(M4gRegistration.email.isnot(None))
-        .filter(M4gRegistration.email != "")
-        .all()
-    )
-    sent = 0
-    for reg in pending:
-        if send_paid_confirmation(reg, session):
-            sent += 1
-    return sent
-
-
-def _evening_batch() -> None:
-    session = SessionLocal()
-    try:
-        count = send_pending_paid_confirmations(session)
-        if count:
-            logger.info("M4G evening batch sent %s paid confirmation email(s).", count)
-    finally:
-        session.close()
-
-
-async def run_evening_loop() -> None:
-    while True:
-        wake_at = next_italy_evening_utc()
-        delay = (wake_at - datetime.now(timezone.utc)).total_seconds()
-        if delay > 0:
-            await asyncio.sleep(delay)
-        await asyncio.to_thread(_evening_batch)
-
-
-def scheduler_enabled() -> bool:
-    raw = os.environ.get("M4G_PAID_EMAIL_SCHEDULER", "1").strip().lower()
-    return raw not in ("0", "false", "no", "off")
-
-
-def start_evening_scheduler() -> None:
-    if not scheduler_enabled():
-        return
-    asyncio.create_task(run_evening_loop())

@@ -8,7 +8,6 @@ os.environ.setdefault("NEXI_SUCCESS_URL", "https://example.test/success")
 os.environ.setdefault("NEXI_FAILURE_URL", "https://example.test/failure")
 os.environ.setdefault("SESSION_SECRET", "test-m4g-secret")
 os.environ.setdefault("M4G_SITE_PASSWORD", "test-m4g-password")
-os.environ.setdefault("M4G_PAID_EMAIL_SCHEDULER", "0")
 M4G_TEST_PASSWORD = os.environ["M4G_SITE_PASSWORD"]
 
 from fastapi.testclient import TestClient  # noqa: E402
@@ -673,7 +672,7 @@ class M4gPaidEmailTests(unittest.TestCase):
         finally:
             session.close()
 
-    def test_gestione_mark_paid_sends_one_confirmation_email(self) -> None:
+    def test_gestione_mark_paid_does_not_send_email(self) -> None:
         from unittest.mock import patch
 
         ref = self._make_pending_reg("one")
@@ -697,12 +696,47 @@ class M4gPaidEmailTests(unittest.TestCase):
                 follow_redirects=False,
             )
         self.assertIn(paid.status_code, (302, 303))
-        self.assertEqual(len(sent), 1)
-        self.assertIn("m4g-paid-mail-one@example.test", sent[0][0])
-        self.assertIn("Benvenutə", sent[0][2])
-        self.assertIn("Pagamento ricevuto", sent[0][1])
+        self.assertEqual(len(sent), 0)
 
-    def test_second_payment_success_does_not_resend_email(self) -> None:
+    def test_gestione_send_email_button(self) -> None:
+        from unittest.mock import patch
+
+        ref = self._make_pending_reg("btn")
+        self.addCleanup(lambda: self._cleanup(ref))
+        sent: list[tuple[str, str, str]] = []
+
+        def capture(to: str, subject: str, body: str) -> bool:
+            sent.append((to, subject, body))
+            return True
+
+        self.client.post(
+            "/m4g/gestione/login",
+            data={"password": M4G_TEST_PASSWORD},
+            follow_redirects=False,
+        )
+        self.client.post(
+            "/m4g/gestione/registration-paid",
+            data={"reference": ref},
+            follow_redirects=False,
+        )
+        with patch("app.m4g_mail._smtp_send", side_effect=capture):
+            mail = self.client.post(
+                "/m4g/gestione/registration-send-email",
+                data={"reference": ref},
+                follow_redirects=False,
+            )
+        self.assertIn(mail.status_code, (302, 303))
+        self.assertEqual(len(sent), 1)
+        self.assertIn("Benvenutə", sent[0][2])
+        repeat = self.client.post(
+            "/m4g/gestione/registration-send-email",
+            data={"reference": ref},
+            follow_redirects=False,
+        )
+        self.assertIn(repeat.status_code, (302, 303))
+        self.assertEqual(len(sent), 1)
+
+    def test_nexi_success_sends_one_confirmation_email(self) -> None:
         from unittest.mock import patch
 
         from app.database import SessionLocal
@@ -720,8 +754,7 @@ class M4gPaidEmailTests(unittest.TestCase):
         with patch("app.m4g_mail._smtp_send", side_effect=capture):
             session = SessionLocal()
             try:
-                reg = session.query(M4gRegistration).filter_by(reference=ref).one()
-                mark_registration_paid(reg, session)
+                apply_m4g_payment_by_reference(ref, session, True, None)
                 reg = session.query(M4gRegistration).filter_by(reference=ref).one()
                 mark_registration_paid(reg, session)
                 apply_m4g_payment_by_reference(ref, session, True, None)
@@ -730,12 +763,12 @@ class M4gPaidEmailTests(unittest.TestCase):
 
         self.assertEqual(len(sent), 1)
 
-    def test_evening_batch_retries_after_smtp_failure(self) -> None:
+    def test_send_email_retries_after_smtp_failure(self) -> None:
         from unittest.mock import patch
 
         from app.database import SessionLocal
         from app.m4g_common import mark_registration_paid
-        from app.m4g_mail import send_pending_paid_confirmations
+        from app.m4g_mail import send_paid_confirmation
         from app.models import M4gRegistration
 
         ref = self._make_pending_reg("retry")
@@ -746,33 +779,21 @@ class M4gPaidEmailTests(unittest.TestCase):
             attempts["n"] += 1
             return attempts["n"] > 1
 
-        with patch("app.m4g_mail._smtp_send", side_effect=flaky):
-            session = SessionLocal()
-            try:
+        session = SessionLocal()
+        try:
+            reg = session.query(M4gRegistration).filter_by(reference=ref).one()
+            mark_registration_paid(reg, session)
+            with patch("app.m4g_mail._smtp_send", side_effect=flaky):
                 reg = session.query(M4gRegistration).filter_by(reference=ref).one()
-                mark_registration_paid(reg, session)
+                self.assertFalse(send_paid_confirmation(reg, session))
                 reg = session.query(M4gRegistration).filter_by(reference=ref).one()
                 self.assertIsNone(reg.paid_email_sent_at)
-                send_pending_paid_confirmations(session)
                 reg = session.query(M4gRegistration).filter_by(reference=ref).one()
-                self.assertIsNotNone(reg.paid_email_sent_at)
-            finally:
-                session.close()
+                self.assertTrue(send_paid_confirmation(reg, session))
+        finally:
+            session.close()
 
         self.assertEqual(attempts["n"], 2)
-
-    def test_next_italy_evening_utc_winter_and_summer(self) -> None:
-        from datetime import datetime, timezone
-
-        from app.m4g_common import next_italy_evening_utc
-
-        winter_now = datetime(2026, 1, 15, 10, 0, tzinfo=timezone.utc)
-        winter_next = next_italy_evening_utc(winter_now)
-        self.assertEqual(winter_next, datetime(2026, 1, 15, 18, 0, tzinfo=timezone.utc))
-
-        summer_now = datetime(2026, 7, 15, 16, 0, tzinfo=timezone.utc)
-        summer_next = next_italy_evening_utc(summer_now)
-        self.assertEqual(summer_next, datetime(2026, 7, 15, 17, 0, tzinfo=timezone.utc))
 
 
 if __name__ == "__main__":
