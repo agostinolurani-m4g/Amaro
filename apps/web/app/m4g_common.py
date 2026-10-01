@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import secrets
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -29,6 +29,52 @@ templates.env.globals["m4g"] = M4G_EVENT
 templates.env.globals["m4g_show_bar"] = cms_show_bar
 templates.env.globals["m4g_show_merch"] = cms_show_merch
 templates.env.globals["m4g_show_total"] = cms_show_total
+
+
+def last_sunday(year: int, month: int) -> datetime:
+    day = datetime(year, month, 31, 1, tzinfo=timezone.utc)
+    while day.weekday() != 6:
+        day -= timedelta(days=1)
+    return day
+
+
+def italy_utc_offset_hours(moment: datetime) -> int:
+    """1 = CET, 2 = CEST (ora italiana)."""
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=timezone.utc)
+    moment = moment.astimezone(timezone.utc)
+    summer = last_sunday(moment.year, 3) <= moment < last_sunday(moment.year, 10)
+    return 2 if summer else 1
+
+
+def format_rome(value: datetime | None) -> str:
+    """Ora italiana (CET/CEST) senza dipendere dal database dei fusi."""
+    if value is None:
+        return ""
+    moment = value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+    moment = moment.astimezone(timezone.utc)
+    offset = italy_utc_offset_hours(moment)
+    local = moment.astimezone(timezone(timedelta(hours=offset)))
+    return local.strftime("%d/%m/%Y %H:%M")
+
+
+def next_italy_evening_utc(now: datetime | None = None) -> datetime:
+    """Prossimo 19:00 ora italiana, in UTC (aware)."""
+    if now is None:
+        now = datetime.now(timezone.utc)
+    elif now.tzinfo is None:
+        now = now.replace(tzinfo=timezone.utc)
+    else:
+        now = now.astimezone(timezone.utc)
+    offset = italy_utc_offset_hours(now)
+    local = now.astimezone(timezone(timedelta(hours=offset)))
+    target_local = local.replace(hour=19, minute=0, second=0, microsecond=0)
+    if local >= target_local:
+        target_local += timedelta(days=1)
+        offset = italy_utc_offset_hours(target_local)
+    return target_local.astimezone(timezone(timedelta(hours=offset))).astimezone(
+        timezone.utc
+    )
 
 
 def format_price(cents: int) -> str:
@@ -408,6 +454,14 @@ def mark_registration_paid(reg: M4gRegistration, session: Session) -> str:
         reg.confirmation_token = secrets.token_urlsafe(24)
     session.commit()
     session.refresh(reg)
+    try:
+        from . import m4g_mail
+
+        m4g_mail.send_paid_confirmation(reg, session)
+    except Exception:
+        logger.exception(
+            "M4G paid confirmation email failed for %s", reg.reference
+        )
     return reg.confirmation_token or ""
 
 
@@ -517,12 +571,19 @@ def ensure_m4g_registration_schema() -> None:
     if "m4g_registrations" not in inspector.get_table_names():
         return
     columns = {col["name"] for col in inspector.get_columns("m4g_registrations")}
-    if "hidden" not in columns:
-        with engine.begin() as conn:
+    with engine.begin() as conn:
+        if "hidden" not in columns:
             conn.execute(
                 text(
                     "ALTER TABLE m4g_registrations "
                     "ADD COLUMN hidden BOOLEAN NOT NULL DEFAULT 0"
+                )
+            )
+        if "paid_email_sent_at" not in columns:
+            conn.execute(
+                text(
+                    "ALTER TABLE m4g_registrations "
+                    "ADD COLUMN paid_email_sent_at DATETIME"
                 )
             )
 

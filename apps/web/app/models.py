@@ -267,3 +267,4 @@ class M4gRegistration(Base):
         DateTime(timezone=True), server_default=func.now()
     )
     paid_at: Mapped[DateTime | None] = Column(DateTime(timezone=True))
+    paid_email_sent_at: Mapped[DateTime | None] = Column(DateTime(timezone=True))

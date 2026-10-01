@@ -478,6 +478,13 @@ def on_startup() -> None:
         session.close()
 
 
+@app.on_event("startup")
+async def start_m4g_paid_email_scheduler() -> None:
+    from .m4g_mail import start_evening_scheduler
+
+    start_evening_scheduler()
+
+
 def format_price(cents: int) -> str:
     return f"{cents / 100:.2f}"
 

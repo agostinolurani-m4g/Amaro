@@ -5,7 +5,6 @@ from __future__ import annotations
 import csv
 import io
 from collections import Counter
-from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, StreamingResponse
@@ -47,6 +46,7 @@ from .m4g_common import (
     bar_orders_eligible,
     compute_fundraising_stats,
     format_price,
+    format_rome,
     mark_bar_order_paid,
     mark_registration_paid,
     hide_registration_unpaid,
@@ -63,24 +63,6 @@ M4G_ADMIN_SESSION_KEY = "m4g_admin_unlocked"
 admin_router = APIRouter(tags=["m4g-admin"])
 
 M4G_ACTIVITIES = ("bike", "soccer", "run", "entrance", "donation", "merch")
-
-
-def _last_sunday(year: int, month: int) -> datetime:
-    day = datetime(year, month, 31, 1, tzinfo=timezone.utc)
-    while day.weekday() != 6:
-        day -= timedelta(days=1)
-    return day
-
-
-def format_rome(value: datetime | None) -> str:
-    """Ora italiana (CET/CEST) senza dipendere dal database dei fusi."""
-    if value is None:
-        return ""
-    moment = value if value.tzinfo else value.replace(tzinfo=timezone.utc)
-    moment = moment.astimezone(timezone.utc)
-    summer = _last_sunday(moment.year, 3) <= moment < _last_sunday(moment.year, 10)
-    local = moment.astimezone(timezone(timedelta(hours=2 if summer else 1)))
-    return local.strftime("%d/%m/%Y %H:%M")
 
 
 def _admin_dashboard(session: Session) -> dict:

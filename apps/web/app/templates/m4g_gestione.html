@@ -208,6 +208,7 @@
                 <th>Telefono</th>
                 <th>€</th>
                 <th>Stato</th>
+                <th>Mail</th>
                 <th>Azioni</th>
               </tr>
             </thead>
@@ -224,6 +225,15 @@
                 <td>{{ reg.phone or "" }}</td>
                 <td>{{ price_fn(reg.amount_cents) }}</td>
                 <td>{{ status_labels.get(reg.payment_status, reg.payment_status) }}</td>
+                <td class="m4g-muted">
+                  {% if reg.paid_email_sent_at %}
+                    inviata {{ when_fn(reg.paid_email_sent_at) }}
+                  {% elif reg.payment_status == 'paid' and reg.email %}
+                    in attesa
+                  {% else %}
+                    —
+                  {% endif %}
+                </td>
                 <td>
                   <span class="m4g-cms-list__actions">
                     <form method="post" action="/m4g/gestione/registration-amount" class="m4g-cms-amount">
