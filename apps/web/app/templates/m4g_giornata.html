@@ -42,6 +42,21 @@
     </ol>
   </section>
 
+  <section class="m4g-card m4g-card--padded">
+    <h2>Orari attività sportive</h2>
+    <p class="m4g-muted" style="margin-bottom:1rem;">Due giorni prima dell'evento confermeremo gli orari definitivi.</p>
+    <h3 class="m4g-muted" style="font-size:1rem;margin:0 0 0.35rem;">Bici</h3>
+    <ul class="m4g-steps">
+      <li><strong>112 km</strong> — {{ m4g.activity_orari.bike['112'] }}</li>
+      <li><strong>64 km</strong> — {{ m4g.activity_orari.bike['64'] }}</li>
+      <li><strong>25 km</strong> — {{ m4g.activity_orari.bike['20'] }}</li>
+    </ul>
+    <h3 class="m4g-muted" style="font-size:1rem;margin:1rem 0 0.35rem;">Corsa</h3>
+    <p class="m4g-muted">{{ m4g.activity_orari.run }}</p>
+    <h3 class="m4g-muted" style="font-size:1rem;margin:1rem 0 0.35rem;">Calcio</h3>
+    <p class="m4g-muted">{{ m4g.activity_orari.soccer }}</p>
+  </section>
+
   <section class="m4g-card m4g-card--padded m4g-registration">
     <p class="m4g-prose"><strong>NB:</strong> {{ event.registration_note }}</p>
     <p class="m4g-registration__price"><strong>15 €</strong> / pax</p>

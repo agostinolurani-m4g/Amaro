@@ -32,40 +32,35 @@ _ACTIVITY_HINT = {
     "entrance": "Ti aspettiamo per una giornata di talk, buon cibo e buona compagnia.",
 }
 
-_BIKE_DEPARTURE = {
-    "112": (
-        "Partenza prevista alla francese, ossia scaglionata, "
-        "indicativamente tra le 8.30 e le 9.30."
-    ),
-    "64": (
-        "Partenza prevista alla francese, ossia scaglionata, "
-        "indicativamente tra le 9.30 e le 10.00."
-    ),
-    "25": (
-        "Partenza prevista alla francese, ossia scaglionata, "
-        "indicativamente tra le 10.30 e le 11.00."
-    ),
-}
-
 _SCHEDULE_CONFIRM = "Due giorni prima dell'evento confermeremo gli orari definitivi."
 
 
+def _bike_distance_key(raw: str) -> str:
+    dist = str(raw or "").strip()
+    if dist == "25":
+        return "20"
+    return dist
+
+
 def _schedule_line(reg: M4gRegistration) -> str:
+    orari = M4G_EVENT.get("activity_orari") or {}
     activity = reg.activity or ""
     if activity == "run":
-        return (
-            "Partenza prevista alle ore 11, due giorni prima dell'evento "
-            "confermeremo gli orari definitivi.\n"
-        )
-    line = ""
+        line = orari.get("run") or ""
+        return f"{line}\n" if line else ""
+    if activity == "soccer":
+        line = orari.get("soccer") or ""
+        if not line:
+            return ""
+        return f"{line} {_SCHEDULE_CONFIRM}\n"
     if activity == "bike":
-        dist = str(parse_payload(reg.payload_json).get("distance", "")).strip()
-        line = _BIKE_DEPARTURE.get(dist, "")
-    elif activity == "soccer":
-        line = "Calcio in campo, indicativamente dalle 9.00 alle 13.00."
-    if not line:
-        return ""
-    return f"{line} {_SCHEDULE_CONFIRM}\n"
+        bike = orari.get("bike") or {}
+        dist = _bike_distance_key(parse_payload(reg.payload_json).get("distance", ""))
+        line = bike.get(dist, "")
+        if not line:
+            return ""
+        return f"{line} {_SCHEDULE_CONFIRM}\n"
+    return ""
 
 
 def _public_base_url() -> str:

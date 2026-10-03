@@ -13,6 +13,7 @@
       <div class="m4g-alert">Posti corsa esauriti.</div>
     {% else %}
     <p>Donazione: <strong>{{ price }} €</strong></p>
+    <p class="m4g-muted m4g-orari">{{ m4g.activity_orari.run }}</p>
     <p><strong>{{ run_route.title }}</strong></p>
     {% with gpx_url=run_route.url, gpx_download_url=run_route.download_url, map_id="run", gpx_label=run_route.title %}{% include "m4g_partials_gpx_map.html" %}{% endwith %}
     <form method="post" action="/m4g/corsa" class="m4g-form">

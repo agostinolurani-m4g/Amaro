@@ -458,7 +458,7 @@ class M4gPageTests(unittest.TestCase):
         soccer = self.client.get("/m4g/calcio")
         self.assertEqual(soccer.status_code, 200)
         self.assertIn("Altro importo", soccer.text)
-        self.assertIn("superiore a 100 €", soccer.text)
+        self.assertIn("superiore a 75 €", soccer.text)
 
         person = {
             "first_name": "Ada",
@@ -603,7 +603,7 @@ class M4gPageTests(unittest.TestCase):
         }
         soccer_low = self.client.post(
             "/m4g/calcio",
-            data={**soccer_base, "amount_mode": "custom", "amount_eur": "100"},
+            data={**soccer_base, "amount_mode": "custom", "amount_eur": "75"},
         )
         self.assertEqual(soccer_low.status_code, 400)
         soccer_std = self.client.post("/m4g/calcio", data=soccer_base)
@@ -611,10 +611,10 @@ class M4gPageTests(unittest.TestCase):
         self.assertIn("75.00 €", soccer_std.text)
         soccer_ok = self.client.post(
             "/m4g/calcio",
-            data={**soccer_base, "amount_mode": "custom", "amount_eur": "120"},
+            data={**soccer_base, "amount_mode": "custom", "amount_eur": "76"},
         )
         self.assertEqual(soccer_ok.status_code, 200)
-        self.assertIn("120.00 €", soccer_ok.text)
+        self.assertIn("76.00 €", soccer_ok.text)
         soccer_list = self.client.get("/m4g/gestione")
         self.assertIn("Solidal", soccer_list.text)
         self.assertIn("6 giocatori", soccer_list.text)

@@ -33,6 +33,7 @@ from .m4g_cms import (
     remove_media_file,
     save_menu,
     save_merch_item,
+    delete_merch_item,
     save_route_fields,
     save_vendors,
     set_merch_image,
@@ -325,18 +326,37 @@ async def m4g_gestione_merch(
     slot: str = Form(""),
     title: str = Form(""),
     blurb: str = Form(""),
+    price_eur: str = Form(""),
+    sizes: str = Form(""),
+    models: str = Form(""),
     photo: UploadFile | None = File(None),
 ) -> RedirectResponse:
     denied = _require_admin(request)
     if denied:
         return denied
+    price = _parse_admin_euro(price_eur) if price_eur.strip() else None
+    if price_eur.strip() and price is None:
+        return RedirectResponse("/m4g/gestione?msg=price#cms-merch", status_code=302)
     try:
-        save_merch_item(slot, title, blurb)
+        item_id = save_merch_item(slot, title, blurb, price, sizes, models)
         if photo is not None and photo.filename:
-            set_merch_image(slot, photo.filename, await photo.read())
+            set_merch_image(item_id, photo.filename, await photo.read())
     except ValueError:
-        return RedirectResponse("/m4g/gestione?msg=upload", status_code=302)
-    return RedirectResponse("/m4g/gestione?msg=merch", status_code=302)
+        return RedirectResponse("/m4g/gestione?msg=upload#cms-merch", status_code=302)
+    return RedirectResponse("/m4g/gestione?msg=merch#cms-merch", status_code=302)
+
+
+@admin_router.post("/m4g/gestione/merch-delete")
+def m4g_gestione_merch_delete(
+    request: Request,
+    slot: str = Form(""),
+) -> RedirectResponse:
+    denied = _require_admin(request)
+    if denied:
+        return denied
+    if slot.strip():
+        delete_merch_item(slot.strip())
+    return RedirectResponse("/m4g/gestione?msg=merch#cms-merch", status_code=302)
 
 
 @admin_router.post("/m4g/gestione/merch-photo-reset")

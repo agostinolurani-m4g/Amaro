@@ -293,8 +293,7 @@ def registration_signup_detail(reg: M4gRegistration) -> str:
         else:
             bits.append("Ingresso giornata")
     elif reg.activity == "merch":
-        labels = {"socks": "Calze", "tshirt": "Maglietta"}
-        item = labels.get(str(data.get("item", "")), str(data.get("item") or ""))
+        item = str(data.get("item_title") or data.get("item") or "")
         if item:
             bits.append(item)
         if data.get("quantity"):

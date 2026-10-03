@@ -2,17 +2,23 @@
 {% from "m4g_macros.html" import m4g_figure %}
 {% block title %}Merch — Move for Gaza{% endblock %}
 {% block content %}
-<section class="m4g-hero"><div class="m4g-wrap m4g-wrap--wide"><p class="m4g-hero__eyebrow">Merch solidale</p><h1>Calze e T-shirt</h1><p>Prezzo unitario {{ unit_price }} € · ricavi a Gaza Sunbirds</p></div></section>
+<section class="m4g-hero"><div class="m4g-wrap m4g-wrap--wide"><p class="m4g-hero__eyebrow">Merch solidale</p><h1>Merch</h1><p>Ricavi a Gaza Sunbirds</p></div></section>
 <div class="m4g-wrap m4g-wrap--wide">
   {% if payment_failed %}<div class="m4g-alert">Pagamento non riuscito. Riprova.</div>{% endif %}
 
+  {% if not merch_items %}
+    <p class="m4g-muted">Nessun prodotto in vendita al momento.</p>
+  {% endif %}
+
   <div class="m4g-merch-grid">
+    {% for item in merch_items %}
     <div class="m4g-card m4g-card--padded">
-      {{ m4g_figure(merch_socks.image, merch_socks.title, "product") }}
-      <h2>{{ merch_socks.title }}</h2>
-      <p class="m4g-muted">{{ merch_socks.blurb }}</p>
+      {% if item.image %}{{ m4g_figure(item.image, item.title, "product") }}{% endif %}
+      <h2>{{ item.title }}</h2>
+      <p class="m4g-muted">{{ item.blurb }}</p>
+      <p><strong>{{ price_fn(item.price_cents) }} €</strong></p>
       <form method="post" action="/m4g/merch" class="m4g-form">
-        <input type="hidden" name="item" value="socks" />
+        <input type="hidden" name="item" value="{{ item.slot }}" />
         <div class="m4g-form__row">
           <label>Nome<input name="first_name" required /></label>
           <label>Cognome<input name="last_name" required /></label>
@@ -20,34 +26,27 @@
         <label>Email<input type="email" name="email" required /></label>
         <label>Telefono<input type="tel" name="phone" /></label>
         <div class="m4g-form__row">
-          <label>Modello<select name="model"><option value="1">1</option><option value="2">2</option><option value="4">4</option></select></label>
-          <label>Taglia<select name="size"><option value="S">S (36–40)</option><option value="L">L (41–45)</option></select></label>
+          {% if item.models %}
+          <label>Modello
+            <select name="model">
+              {% for model in item.models %}<option value="{{ model }}">{{ model }}</option>{% endfor %}
+            </select>
+          </label>
+          {% endif %}
+          {% if item.sizes %}
+          <label>Taglia
+            <select name="size">
+              {% for size in item.sizes %}<option value="{{ size }}">{{ size }}</option>{% endfor %}
+            </select>
+          </label>
+          {% endif %}
         </div>
         <label>Quantità<input type="number" name="quantity" min="1" max="20" value="1" /></label>
-        <button type="submit" class="m4g-btn m4g-btn--primary">Procedi al pagamento</button>
-      </form>
-    </div>
-
-    <div class="m4g-card m4g-card--padded">
-      {{ m4g_figure(merch_tshirt.image, merch_tshirt.title, "product") }}
-      <h2>{{ merch_tshirt.title }}</h2>
-      <p class="m4g-muted">{{ merch_tshirt.blurb }}</p>
-      <form method="post" action="/m4g/merch" class="m4g-form">
-        <input type="hidden" name="item" value="tshirt" />
-        <div class="m4g-form__row">
-          <label>Nome<input name="first_name" required /></label>
-          <label>Cognome<input name="last_name" required /></label>
-        </div>
-        <label>Email<input type="email" name="email" required /></label>
-        <label>Telefono<input type="tel" name="phone" /></label>
-        <div class="m4g-form__row">
-          <label>Taglia<select name="size"><option value="S">S</option><option value="M">M</option><option value="L">L</option><option value="XL">XL</option></select></label>
-          <label>Quantità<input type="number" name="quantity" min="1" max="20" value="1" /></label>
-        </div>
         <label>Note<textarea name="notes" rows="2"></textarea></label>
         <button type="submit" class="m4g-btn m4g-btn--primary">Procedi al pagamento</button>
       </form>
     </div>
+    {% endfor %}
   </div>
 
   <p class="m4g-muted" style="text-align:center;"><a href="/m4g/" class="m4g-link">← Home</a></p>

@@ -65,6 +65,10 @@ def _load_state_raw() -> dict[str, Any]:
     out["media"] = [str(x) for x in (data.get("media") or []) if x]
     out["route_overrides"] = _clean_route_overrides(data.get("route_overrides"))
     out["merch_items"] = _clean_merch_items(data.get("merch_items"))
+    if isinstance(data.get("merch_catalog"), list):
+        out["merch_catalog"] = _clean_merch_catalog(data.get("merch_catalog"))
+    else:
+        out["merch_catalog"] = None
     routes = data.get("gpx_routes") or []
     cleaned: list[dict[str, str]] = []
     if isinstance(routes, list):
@@ -191,19 +195,132 @@ def _clean_route_overrides(raw: Any) -> dict[str, dict[str, str]]:
     return cleaned
 
 
+def _default_merch_rows() -> list[dict[str, Any]]:
+    unit = int(M4G_EVENT["pricing"]["merch_unit_cents"])
+    return [
+        {
+            "id": "socks",
+            "title": "Calze solidali",
+            "blurb": "Modelli 1, 2 e 4 · taglie S/L · OEKO-TEX®",
+            "price_cents": unit,
+            "sizes": "S,L",
+            "models": "1,2,4",
+            "image": "",
+        },
+        {
+            "id": "tshirt",
+            "title": "T-shirt Move4Gaza",
+            "blurb": "Cotone italiano · taglie unisex",
+            "price_cents": unit,
+            "sizes": "S,M,L,XL",
+            "models": "",
+            "image": "",
+        },
+    ]
+
+
 def _merch_defaults() -> dict[str, dict[str, Any]]:
     images = M4G_EVENT["merch_images"]
     return {
-        "socks": {
-            "title": "Calze solidali",
-            "blurb": "Modelli 1, 2 e 4 · taglie S/L · OEKO-TEX®",
-            "figure": images["socks"],
-        },
-        "tshirt": {
-            "title": "T-shirt Move4Gaza",
-            "blurb": "Cotone italiano · taglie unisex",
-            "figure": images["tshirt"],
-        },
+        row["id"]: {
+            "title": row["title"],
+            "blurb": row["blurb"],
+            "figure": images[row["id"]],
+        }
+        for row in _default_merch_rows()
+        if row["id"] in images
+    }
+
+
+def _option_list(raw: str) -> list[str]:
+    return [part.strip()[:40] for part in str(raw or "").split(",") if part.strip()][:12]
+
+
+def _clean_merch_catalog(raw: Any) -> list[dict[str, Any]]:
+    if not isinstance(raw, list):
+        return []
+    unit = int(M4G_EVENT["pricing"]["merch_unit_cents"])
+    cleaned: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        item_id = re.sub(r"[^a-z0-9-]+", "-", str(item.get("id") or "").lower()).strip("-")[:48]
+        title = str(item.get("title") or "").strip()[:120]
+        if not item_id or not title or item_id in seen:
+            continue
+        seen.add(item_id)
+        try:
+            price = int(item.get("price_cents") or unit)
+        except (TypeError, ValueError):
+            price = unit
+        if price <= 0:
+            price = unit
+        image = Path(str(item.get("image") or "")).name
+        cleaned.append(
+            {
+                "id": item_id,
+                "title": title,
+                "blurb": str(item.get("blurb") or "").strip()[:500],
+                "price_cents": price,
+                "sizes": ",".join(_option_list(str(item.get("sizes") or ""))),
+                "models": ",".join(_option_list(str(item.get("models") or ""))),
+                "image": image if image and image != "." else "",
+            }
+        )
+    return cleaned
+
+
+def _catalog_from_legacy(state: dict[str, Any]) -> list[dict[str, Any]]:
+    old = state.get("merch_items") or {}
+    rows: list[dict[str, Any]] = []
+    for default in _default_merch_rows():
+        row = dict(default)
+        stored = old.get(row["id"]) if isinstance(old, dict) else None
+        if isinstance(stored, dict):
+            if stored.get("title"):
+                row["title"] = str(stored["title"])[:120]
+            if stored.get("blurb"):
+                row["blurb"] = str(stored["blurb"])[:500]
+            if stored.get("image"):
+                row["image"] = str(stored["image"])
+        rows.append(row)
+    return rows
+
+
+def _resolved_merch_catalog(state: dict[str, Any]) -> list[dict[str, Any]]:
+    stored = state.get("merch_catalog")
+    if isinstance(stored, list):
+        return stored
+    return _catalog_from_legacy(state)
+
+
+def _public_merch_row(row: dict[str, Any]) -> dict[str, Any]:
+    defaults = _merch_defaults().get(row["id"])
+    fallback = (defaults or {}).get("figure") or {
+        "src": "",
+        "w640": "",
+        "w1280": "",
+        "width": 1600,
+        "height": 1200,
+        "sizes": "(max-width: 768px) 100vw, 22rem",
+    }
+    image_name = str(row.get("image") or "")
+    custom = bool(image_name and (M4G_MEDIA_DIR / image_name).is_file())
+    figure = _uploaded_figure(image_name, fallback) if custom else (defaults["figure"] if defaults else None)
+    return {
+        "slot": row["id"],
+        "title": row["title"],
+        "blurb": row["blurb"],
+        "price_cents": int(row["price_cents"]),
+        "sizes": _option_list(row.get("sizes") or ""),
+        "models": _option_list(row.get("models") or ""),
+        "sizes_text": row.get("sizes") or "",
+        "models_text": row.get("models") or "",
+        "image": figure,
+        "preview": figure["w640"] if figure else "",
+        "custom_image": custom,
+        "has_default_image": defaults is not None,
     }
 
 
@@ -310,24 +427,21 @@ def route_gpx_file_path(route_key: str) -> Path | None:
     return path if path.is_file() else None
 
 
-def cms_merch_item(slot: str) -> dict[str, Any]:
-    defaults = _merch_defaults()[slot]
-    stored = (_load_state_raw().get("merch_items") or {}).get(slot) or {}
-    image_name = str(stored.get("image") or "")
-    custom = bool(image_name and (M4G_MEDIA_DIR / image_name).is_file())
-    figure = _uploaded_figure(image_name, defaults["figure"]) if custom else defaults["figure"]
-    return {
-        "slot": slot,
-        "title": str(stored.get("title") or defaults["title"]),
-        "blurb": str(stored.get("blurb") or defaults["blurb"]),
-        "image": figure,
-        "preview": figure["w640"],
-        "custom_image": custom,
-    }
+def cms_merch_item(slot: str) -> dict[str, Any] | None:
+    for row in cms_merch_items():
+        if row["slot"] == slot:
+            return row
+    return None
 
 
 def cms_merch_items() -> list[dict[str, Any]]:
-    return [cms_merch_item(slot) for slot in ("socks", "tshirt")]
+    return [_public_merch_row(row) for row in _resolved_merch_catalog(_load_state_raw())]
+
+
+def _persist_merch_catalog(rows: list[dict[str, Any]]) -> None:
+    state = _load_state_raw()
+    state["merch_catalog"] = _clean_merch_catalog(rows)
+    save_cms_state(state)
 
 
 def _safe_stored_name(original: str, prefix: str, default_ext: str) -> str:
@@ -474,43 +588,67 @@ def _validate_gpx(filename: str, data: bytes) -> None:
         raise ValueError("Il file non sembra un GPX valido")
 
 
-def save_merch_item(slot: str, title: str, blurb: str) -> None:
-    if slot not in _merch_defaults():
-        raise ValueError("Prodotto merch sconosciuto")
-    defaults = _merch_defaults()[slot]
-    state = _load_state_raw()
-    items = dict(state.get("merch_items") or {})
-    current = dict(items.get(slot) or {})
+def save_merch_item(
+    slot: str,
+    title: str,
+    blurb: str,
+    price_cents: int | None = None,
+    sizes: str | None = None,
+    models: str | None = None,
+) -> str:
     title = title.strip()
-    blurb = blurb.strip()
-    if title and title != defaults["title"]:
-        current["title"] = title[:120]
-    else:
-        current.pop("title", None)
-    if blurb and blurb != defaults["blurb"]:
-        current["blurb"] = blurb[:500]
-    else:
-        current.pop("blurb", None)
-    if current:
-        items[slot] = current
-    else:
-        items.pop(slot, None)
-    state["merch_items"] = items
-    save_cms_state(state)
+    if not title:
+        raise ValueError("Serve un titolo")
+    rows = _resolved_merch_catalog(_load_state_raw())
+    item_id = re.sub(r"[^a-z0-9-]+", "-", (slot or "").lower()).strip("-")[:48]
+    if not item_id:
+        item_id = re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")[:40] or "merch"
+        taken = {row["id"] for row in rows}
+        base = item_id
+        n = 2
+        while item_id in taken:
+            item_id = f"{base}-{n}"
+            n += 1
+    unit = int(M4G_EVENT["pricing"]["merch_unit_cents"])
+    price = unit if price_cents is None or price_cents <= 0 else int(price_cents)
+    found = False
+    for row in rows:
+        if row["id"] != item_id:
+            continue
+        row["title"] = title[:120]
+        row["blurb"] = blurb.strip()[:500]
+        row["price_cents"] = price
+        if sizes is not None:
+            row["sizes"] = ",".join(_option_list(sizes))
+        if models is not None:
+            row["models"] = ",".join(_option_list(models))
+        found = True
+        break
+    if not found:
+        rows.append(
+            {
+                "id": item_id,
+                "title": title[:120],
+                "blurb": blurb.strip()[:500],
+                "price_cents": price,
+                "sizes": ",".join(_option_list(sizes or "")),
+                "models": ",".join(_option_list(models or "")),
+                "image": "",
+            }
+        )
+    _persist_merch_catalog(rows)
+    return item_id
 
 
 def set_merch_image(slot: str, filename: str, data: bytes) -> None:
-    if slot not in _merch_defaults():
+    rows = _resolved_merch_catalog(_load_state_raw())
+    target = next((row for row in rows if row["id"] == slot), None)
+    if target is None:
         raise ValueError("Prodotto merch sconosciuto")
     stored = _store_image(filename, data, f"merch-{slot}")
-    state = _load_state_raw()
-    items = dict(state.get("merch_items") or {})
-    current = dict(items.get(slot) or {})
-    old = str(current.get("image") or "")
-    current["image"] = stored
-    items[slot] = current
-    state["merch_items"] = items
-    save_cms_state(state)
+    old = str(target.get("image") or "")
+    target["image"] = stored
+    _persist_merch_catalog(rows)
     if old and old != stored:
         path = M4G_MEDIA_DIR / old
         if path.is_file():
@@ -518,20 +656,31 @@ def set_merch_image(slot: str, filename: str, data: bytes) -> None:
 
 
 def clear_merch_image(slot: str) -> None:
-    if slot not in _merch_defaults():
+    rows = _resolved_merch_catalog(_load_state_raw())
+    target = next((row for row in rows if row["id"] == slot), None)
+    if target is None:
         return
-    state = _load_state_raw()
-    items = dict(state.get("merch_items") or {})
-    current = dict(items.get(slot) or {})
-    old = str(current.pop("image", "") or "")
-    if current:
-        items[slot] = current
-    else:
-        items.pop(slot, None)
-    state["merch_items"] = items
-    save_cms_state(state)
+    old = str(target.get("image") or "")
+    target["image"] = ""
+    _persist_merch_catalog(rows)
     if old:
         path = M4G_MEDIA_DIR / old
+        if path.is_file():
+            path.unlink()
+
+
+def delete_merch_item(slot: str) -> None:
+    rows = _resolved_merch_catalog(_load_state_raw())
+    kept: list[dict[str, Any]] = []
+    removed_image = ""
+    for row in rows:
+        if row["id"] == slot:
+            removed_image = str(row.get("image") or "")
+            continue
+        kept.append(row)
+    _persist_merch_catalog(kept)
+    if removed_image:
+        path = M4G_MEDIA_DIR / removed_image
         if path.is_file():
             path.unlink()
 
@@ -613,8 +762,16 @@ def reset_page_content() -> None:
         path = M4G_MEDIA_DIR / filename
         if filename and path.is_file():
             path.unlink()
+    for item in state.get("merch_catalog") or []:
+        if not isinstance(item, dict):
+            continue
+        filename = str(item.get("image") or "")
+        path = M4G_MEDIA_DIR / filename
+        if filename and path.is_file():
+            path.unlink()
     state["route_overrides"] = {}
     state["merch_items"] = {}
+    state["merch_catalog"] = None
     save_cms_state(state)
 
 

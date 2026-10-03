@@ -10,6 +10,7 @@
       <div class="m4g-alert">Posti squadre esauriti.</div>
     {% else %}
     <p>Donazione squadra: <strong>{{ price }} €</strong></p>
+    <p class="m4g-muted m4g-orari">{{ m4g.activity_orari.soccer }}</p>
     <form method="post" action="/m4g/calcio" class="m4g-form" id="soccer-form">
       <label>Nome squadra<input name="team_name" required /></label>
       <label>Referente (capitanə)<input name="captain" required /></label>

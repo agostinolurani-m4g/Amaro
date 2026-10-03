@@ -29,6 +29,7 @@ from .m4g_cms import (
     cms_menu,
     cms_menu_by_id,
     cms_merch_item,
+    cms_merch_items,
     cms_run_route,
     cms_show_bar,
     cms_show_merch,
@@ -319,8 +320,8 @@ def m4g_merch_form(request: Request) -> HTMLResponse:
             "payment_failed": _payment_failed(request),
             "unit_price": format_price(unit),
             "unit_cents": unit,
-            "merch_socks": cms_merch_item("socks"),
-            "merch_tshirt": cms_merch_item("tshirt"),
+            "merch_items": cms_merch_items(),
+            "price_fn": format_price,
         },
     )
 
@@ -341,13 +342,17 @@ async def m4g_merch_submit(
 ) -> HTMLResponse:
     if not cms_show_merch():
         raise HTTPException(status_code=404, detail="Pagina non disponibile")
-    if item not in ("socks", "tshirt"):
+    product = cms_merch_item(item.strip())
+    if product is None:
         raise HTTPException(status_code=400, detail="Articolo non valido")
     if not first_name.strip() or not last_name.strip() or not email.strip():
         raise HTTPException(status_code=400, detail="Compila nome, cognome ed email")
     qty = max(1, min(20, quantity))
-    unit = int(M4G_EVENT["pricing"]["merch_unit_cents"])
-    amount_cents = unit * qty
+    if product["sizes"] and size.strip() not in product["sizes"]:
+        raise HTTPException(status_code=400, detail="Taglia non valida")
+    if product["models"] and model.strip() not in product["models"]:
+        raise HTTPException(status_code=400, detail="Modello non valido")
+    amount_cents = int(product["price_cents"]) * qty
     reg, payment = _start_checkout(
         activity="merch",
         session=session,
@@ -356,7 +361,8 @@ async def m4g_merch_submit(
         email=email,
         phone=phone,
         payload={
-            "item": item,
+            "item": product["slot"],
+            "item_title": product["title"],
             "quantity": qty,
             "size": size.strip(),
             "model": model.strip(),

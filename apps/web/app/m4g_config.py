@@ -82,8 +82,9 @@ M4G_EVENT = {
             "label": "LA MATTINA",
             "title": "SPORT",
             "detail": (
-                "Torneo di calcio a 5, corsa non competitiva o giro in bici. "
-                "Aperto a tuttə, nessuna competizione."
+                "Bici con partenze scaglionate e pacer su lungo/medio, calcio 5vs5 "
+                "(partite da 20 minuti, senza finali), corsa alle 11. "
+                "Vedi orari in La giornata."
             ),
         },
         {
@@ -104,11 +105,11 @@ M4G_EVENT = {
     ],
     "day_timeline": [
         {
-            "time": "09:00 – 14:00",
+            "time": "09:00 – 13:00",
             "title": "SPORT",
             "detail": (
-                "Torneo di calcio a 5, corsa non competitiva e giro in bici. "
-                "Attività non competitive, aperte a tuttə."
+                "Calcio 5vs5 (partite da 20 minuti, senza finali), corsa alle 11, bici con partenze "
+                "scaglionate e pacer su lungo/medio. Dettagli nelle pagine iscrizione."
             ),
         },
         {
@@ -140,7 +141,7 @@ M4G_EVENT = {
         "min_donation_cents": 1500,
         # «Altro importo» deve essere strettamente superiore a queste soglie.
         "other_amount_above_cents": 1500,
-        "soccer_other_amount_above_cents": 10000,
+        "soccer_other_amount_above_cents": 7500,
     },
     "payments": {
         "paypal_business": os.environ.get("M4G_PAYPAL_BUSINESS", "amaro.bici@gmail.com"),
@@ -190,13 +191,12 @@ M4G_EVENT = {
         "(anche verso il Parco Agricolo Sud)."
     ),
     "descrizione_calcio": (
-        "Il torneo di calcio non competitivo a 5 si svolge presso il campo sportivo dell'Arci Olmi "
-        "a Milano. Le squadre sono miste e aperte a tuttə, ogni squadra gioca 3 partite da 20 minuti, "
-        "tra una partita ci saranno momenti per mangiare o bere qualcosa. La donazione minima è di "
-        "75 € a squadra (15 € a persona), chi vuole può donare di più. Il torneo inizia alle 9:30 e "
-        "finisce verso le 13:00, dopo il torneo c'è la possibilità di partecipare al pranzo sociale "
-        "(non incluso nella donazione). Il quadro delle squadre verrà comunicato qualche giorno prima "
-        "dell'evento, se avete necessità particolari (orari, composizione squadra ecc) scriveteci pure."
+        "Il torneo di calcio non competitivo 5 contro 5 si svolge presso il campo sportivo dell'Arci Olmi "
+        "dalle 9.00 alle 13.00. Ogni partita dura 20 minuti; torneo a gironi, senza finali — tutte le "
+        "squadre giocano più match. Le squadre sono miste e aperte a tuttə. La donazione minima è di "
+        "75 € a squadra (15 € a persona), chi vuole può donare di più. Dopo il torneo c'è la possibilità "
+        "di partecipare al pranzo sociale (non incluso nella donazione). Il calendario delle partite "
+        "verrà comunicato qualche giorno prima dell'evento; per esigenze particolari scriveteci pure."
     ),
     "descrizione_corsa": (
         "La corsa non competitiva di circa 7 km si svolge su un percorso cittadino che parte e arriva "
@@ -206,6 +206,30 @@ M4G_EVENT = {
         "(non incluso nella donazione). Durante la corsa non sono previsti punti di ristoro e assistenza "
         "medica, il tracciato gps è scaricabile e il tracciato sarà segnato."
     ),
+    "activity_orari": {
+        "bike": {
+            "112": (
+                "Partenza prevista alla francese, ossia scaglionata, indicativamente tra le 8.30 e le 9.30. "
+                "Su percorso lungo e medio ci saranno pacer: ritmo 25 km/h con partenza alle 8.30; "
+                "ritmo 30 km/h con partenza alle 9.00."
+            ),
+            "64": (
+                "Partenza prevista alla francese, ossia scaglionata, indicativamente tra le 8.30 e le 10.00. "
+                "Su percorso lungo e medio ci saranno pacer: ritmo 25 km/h con partenza alle 8.30; "
+                "ritmo 30 km/h con partenza alle 9.00."
+            ),
+            "20": (
+                "Partenza prevista alla francese, ossia scaglionata, indicativamente tra le 10.30 e le 11.00."
+            ),
+        },
+        "run": (
+            "Partenza prevista alle ore 11, due giorni prima dell'evento confermeremo gli orari definitivi."
+        ),
+        "soccer": (
+            "Calcio in campo dalle 9.00 alle 13.00. Partite da 20 minuti l'una, 5 contro 5: torneo a gironi, "
+            "senza finali — tutte le squadre giocano più match."
+        ),
+    },
     "descrizione_ingresso": (
         "L'ingresso all'evento è aperto a tuttə, la donazione minima è di 15 €, chi vuole può donare di più. "
         "L'ingresso dà accesso alle attività della giornata (sport e momenti di confronto). "
@@ -220,14 +244,25 @@ M4G_EVENT = {
             "detail": "Apertura campo Arci Olmi, info desk e ritiro numeri per le attività.",
         },
         {
-            "time": "09:30",
+            "time": "08:30",
+            "title": "Ride for Gaza — bici (partenze scaglionate)",
+            "detail": (
+                "112 km: 8.30–9.30 (pacer 25 km/h alle 8.30, 30 km/h alle 9.00). "
+                "64 km: 8.30–10.00 (stessi pacer). 25 km cittadino: 10.30–11.00."
+            ),
+        },
+        {
+            "time": "09:00",
             "title": "Play for Gaza — calcio",
-            "detail": "Torneo 5vs5 non competitivo; partite da 20 minuti fino a circa le 13:00.",
+            "detail": (
+                "Torneo 5vs5 non competitivo, partite da 20 minuti, girone senza finali, "
+                "in campo fino a circa le 13:00."
+            ),
         },
         {
             "time": "10:00",
-            "title": "Ride for Gaza — partenza bici",
-            "detail": "Percorsi da 25 km (cittadino), 64 km (medio) e 112 km (perimetro Gaza in scala). Ritrovo all'Arci Olmi.",
+            "title": "Ride for Gaza — ritrovo bici",
+            "detail": "Ritrovo all'Arci Olmi; partenze scaglionate come sopra.",
         },
         {
             "time": "11:00",

@@ -315,29 +315,51 @@
       </section>
 
       <section id="cms-merch" class="m4g-card m4g-card--padded" style="margin-bottom:1rem;">
-        <h2>Merch — foto e testi</h2>
-        <p class="m4g-muted">Ogni foto va sul suo riquadro della pagina merch: calze a sinistra, maglietta a destra. Titolo e testo sono quelli sotto la foto.</p>
+        <h2>Merch</h2>
+        <p class="m4g-muted">Aggiungi i prodotti che vuoi: calze, maglie o altro. Taglie e modelli, se servono, separati da virgola. Il prezzo è in euro. Senza foto, calze e maglia tengono l'immagine di partenza.</p>
         {% for item in merch_items %}
           <fieldset class="m4g-cms-section">
-            <h3>{% if item.slot == 'socks' %}Calze{% else %}Maglietta{% endif %}</h3>
+            <h3>{{ item.title }}</h3>
+            {% if item.preview %}
             <div class="m4g-cms-preview">
               <img src="{{ item.preview }}" alt="" />
             </div>
+            {% endif %}
             <form method="post" action="/m4g/gestione/merch" enctype="multipart/form-data" class="m4g-form">
               <input type="hidden" name="slot" value="{{ item.slot }}" />
-              <label>Titolo<input name="title" value="{{ item.title }}" /></label>
+              <label>Titolo<input name="title" value="{{ item.title }}" required /></label>
               <label>Testo sotto la foto<textarea name="blurb" rows="2">{{ item.blurb }}</textarea></label>
-              <label>Nuova foto per questo riquadro<input type="file" name="photo" accept="image/jpeg,image/png,image/webp,image/gif" /></label>
-              <button type="submit" class="m4g-btn m4g-btn--primary m4g-btn--inline">Salva {% if item.slot == 'socks' %}calze{% else %}maglietta{% endif %}</button>
+              <label>Prezzo €<input name="price_eur" value="{{ ('%0.2f'|format(item.price_cents / 100)).replace('.', ',') }}" inputmode="decimal" /></label>
+              <label>Taglie (opzionale, separate da virgola)<input name="sizes" value="{{ item.sizes_text }}" placeholder="S, M, L" /></label>
+              <label>Modelli (opzionale, separati da virgola)<input name="models" value="{{ item.models_text }}" placeholder="1, 2, 4" /></label>
+              <label>Foto<input type="file" name="photo" accept="image/jpeg,image/png,image/webp,image/gif" /></label>
+              <button type="submit" class="m4g-btn m4g-btn--primary m4g-btn--inline">Salva</button>
             </form>
             {% if item.custom_image %}
               <form method="post" action="/m4g/gestione/merch-photo-reset" style="margin-top:0.5rem;">
                 <input type="hidden" name="slot" value="{{ item.slot }}" />
-                <button type="submit" class="m4g-btn m4g-btn--secondary">Torna alla foto originale</button>
+                <button type="submit" class="m4g-btn m4g-btn--secondary">Togli la foto caricata</button>
               </form>
             {% endif %}
+            <form method="post" action="/m4g/gestione/merch-delete" style="margin-top:0.5rem;">
+              <input type="hidden" name="slot" value="{{ item.slot }}" />
+              <button type="submit" class="m4g-btn m4g-btn--secondary">Elimina prodotto</button>
+            </form>
           </fieldset>
         {% endfor %}
+        <fieldset class="m4g-cms-section">
+          <h3>Nuovo prodotto</h3>
+          <form method="post" action="/m4g/gestione/merch" enctype="multipart/form-data" class="m4g-form">
+            <input type="hidden" name="slot" value="" />
+            <label>Titolo<input name="title" placeholder="Es. Cappellino" required /></label>
+            <label>Testo<textarea name="blurb" rows="2" placeholder="Descrizione breve"></textarea></label>
+            <label>Prezzo €<input name="price_eur" value="15,00" inputmode="decimal" /></label>
+            <label>Taglie<input name="sizes" placeholder="S, M, L" /></label>
+            <label>Modelli<input name="models" placeholder="" /></label>
+            <label>Foto<input type="file" name="photo" accept="image/jpeg,image/png,image/webp,image/gif" /></label>
+            <button type="submit" class="m4g-btn m4g-btn--primary m4g-btn--inline">Aggiungi</button>
+          </form>
+        </fieldset>
       </section>
 
       <section id="cms-cucine" class="m4g-card m4g-card--padded" style="margin-bottom:1rem;">
