@@ -1,12 +1,22 @@
 {% extends "m4g_base.html" %}
 
-{% block title %}Iscrizione confermata — Move for Gaza{% endblock %}
+{% block title %}{% if is_donation %}Donazione ricevuta{% else %}Iscrizione confermata{% endif %} — Move for Gaza{% endblock %}
 
 {% block content %}
   <div class="m4g-confirm">
-    <div class="m4g-confirm__card">
+    <div class="m4g-confirm__card{% if is_donation %} m4g-confirm__card--donation{% endif %}">
       <p class="m4g-hero__eyebrow" style="color: var(--m4g-muted);">Move for Gaza</p>
-      <h1>Iscrizione confermata</h1>
+      {% if is_donation %}
+        <div class="m4g-donate-card" aria-label="Card donazione">
+          <img src="{{ m4g.logo_url }}" alt="Move for Gaza" width="1017" height="147" />
+          <p class="m4g-donate-card__title">Donazione ricevuta</p>
+          <p class="m4g-donate-card__amount">{{ price_fn(registration.amount_cents) }} €</p>
+          <p class="m4g-donate-card__tagline">Insieme possiamo fare di più!</p>
+        </div>
+        <h1>Grazie per la donazione</h1>
+      {% else %}
+        <h1>Iscrizione confermata</h1>
+      {% endif %}
       <p>Pagamento ricevuto. Grazie per il tuo sostegno!</p>
       <div class="m4g-voucher__ref">
         <span class="m4g-muted">Codice</span><br />
@@ -17,9 +27,54 @@
       <p>{{ registration.email }}</p>
       {% if payload.team_name %}<p>Squadra: {{ payload.team_name }}</p>{% endif %}
       <p class="m4g-payment__total">Pagato: {{ price_fn(registration.amount_cents) }} €</p>
+
+      <section class="m4g-confirm__share" aria-labelledby="m4g-share-heading">
+        <h2 id="m4g-share-heading" class="m4g-sr">Condividi</h2>
+        {% for paragraph in share_invite_paragraphs %}
+          <p class="m4g-confirm__share-text">{{ paragraph }}</p>
+        {% endfor %}
+
+        <div class="m4g-confirm__share-action">
+          <p class="m4g-confirm__share-label">Condividi su WhatsApp:</p>
+          <a
+            class="m4g-btn m4g-btn--whatsapp m4g-btn--pay"
+            href="{{ share_whatsapp_url }}"
+            target="_blank"
+            rel="noreferrer"
+          >Condividi su WhatsApp</a>
+        </div>
+
+        <div class="m4g-confirm__share-action">
+          <p class="m4g-confirm__share-label">Riposta una storia su Instagram:</p>
+          <a
+            class="m4g-btn m4g-btn--secondary m4g-btn--pay"
+            href="{{ share_instagram_url }}"
+            target="_blank"
+            rel="noreferrer"
+          >Vai al post</a>
+        </div>
+
+        <div class="m4g-confirm__share-action">
+          <p class="m4g-confirm__share-label">Link: <strong>{{ share_public_link_label }}</strong></p>
+          <button
+            type="button"
+            class="m4g-btn m4g-btn--secondary m4g-btn--pay"
+            data-m4g-copy="{{ share_public_url }}"
+          >Copia link</button>
+        </div>
+      </section>
+
       <p style="margin-top:1.5rem;">
         <a href="/m4g/" class="m4g-btn m4g-btn--primary">Torna alla home</a>
       </p>
     </div>
   </div>
+  <script>
+    document.querySelectorAll("[data-m4g-copy]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const text = btn.getAttribute("data-m4g-copy") || "";
+        navigator.clipboard.writeText(text).then(() => alert("Link copiato"));
+      });
+    });
+  </script>
 {% endblock %}

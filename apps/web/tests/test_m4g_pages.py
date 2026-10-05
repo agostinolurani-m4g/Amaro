@@ -795,6 +795,91 @@ class M4gPaidEmailTests(unittest.TestCase):
 
         self.assertEqual(attempts["n"], 2)
 
+    def _unlock_m4g_site(self) -> None:
+        unlock = self.client.post(
+            "/m4g/access",
+            data={"password": M4G_TEST_PASSWORD, "next": "/m4g/"},
+            follow_redirects=False,
+        )
+        self.assertIn(unlock.status_code, (302, 303))
+
+    def _make_paid_reg(self, suffix: str, activity: str = "run") -> tuple[str, str]:
+        from app.database import SessionLocal
+        from app.m4g_common import mark_registration_paid
+        from app.models import M4gRegistration
+
+        email = f"m4g-confirm-{suffix}@example.test"
+        ref = f"M4GCFM{suffix.upper()}"[:20]
+        session = SessionLocal()
+        try:
+            session.query(M4gRegistration).filter(
+                M4gRegistration.email == email
+            ).delete()
+            session.query(M4gRegistration).filter_by(reference=ref).delete()
+            session.commit()
+            reg = M4gRegistration(
+                reference=ref,
+                activity=activity,
+                first_name="Anna",
+                last_name="Test",
+                email=email,
+                amount_cents=2000,
+                payload_json="{}",
+                payment_status="pending",
+            )
+            session.add(reg)
+            session.commit()
+            reg = session.query(M4gRegistration).filter_by(reference=ref).one()
+            token = mark_registration_paid(reg, session)
+            return ref, token
+        finally:
+            session.close()
+
+    def test_donation_confirmation_email_includes_share_links(self) -> None:
+        from app.database import SessionLocal
+        from app.m4g_mail import build_paid_confirmation
+        from app.models import M4gRegistration
+
+        ref, _token = self._make_paid_reg("donmail", activity="donation")
+        self.addCleanup(lambda: self._cleanup(ref))
+        session = SessionLocal()
+        try:
+            reg = session.query(M4gRegistration).filter_by(reference=ref).one()
+            _subject, body = build_paid_confirmation(reg)
+        finally:
+            session.close()
+        self.assertIn("wa.me", body)
+        self.assertIn("instagram.com/p/Dd65foPiL6K", body)
+        self.assertIn("parentə", body)
+        self.assertIn("move-4-gaza.com", body)
+        self.assertIn("Condividi su WhatsApp:", body)
+
+    def test_confirm_page_donation_share_and_card(self) -> None:
+        ref, token = self._make_paid_reg("donpage", activity="donation")
+        self.addCleanup(lambda: self._cleanup(ref))
+        self._unlock_m4g_site()
+        response = self.client.get(f"/m4g/conferma/{token}")
+        self.assertEqual(response.status_code, 200)
+        body = response.text
+        self.assertIn("m4g-donate-card", body)
+        self.assertIn("Copia link", body)
+        self.assertIn("WhatsApp", body)
+        self.assertIn("Condividi su WhatsApp:", body)
+        self.assertIn("Riposta una storia su Instagram:", body)
+        self.assertIn("www.move-4-gaza.com", body)
+        self.assertIn("data-m4g-copy=", body)
+
+    def test_confirm_page_registration_share(self) -> None:
+        ref, token = self._make_paid_reg("regpage", activity="run")
+        self.addCleanup(lambda: self._cleanup(ref))
+        self._unlock_m4g_site()
+        response = self.client.get(f"/m4g/conferma/{token}")
+        self.assertEqual(response.status_code, 200)
+        body = response.text
+        self.assertNotIn("m4g-donate-card", body)
+        self.assertIn("bellissima iniziativa", body)
+        self.assertIn("Copia link", body)
+
 
 if __name__ == "__main__":
     unittest.main()

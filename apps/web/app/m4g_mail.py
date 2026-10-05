@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from .config import settings
 from .m4g_common import format_price, parse_payload
 from .m4g_config import M4G_EVENT
+from .m4g_share import share_email_block
 from .models import M4gRegistration
 
 logger = logging.getLogger(__name__)
@@ -129,11 +130,13 @@ def build_paid_confirmation(reg: M4gRegistration) -> tuple[str, str]:
 
     if activity == "donation":
         subject = "Move for Gaza — Grazie! Donazione ricevuta"
+        share_block = share_email_block(reg, confirm_link)
         body = (
             f"Ciao {first},\n\n"
             f"abbiamo ricevuto la tua donazione di {amount} €. "
             "È arrivata a destinazione: grazie per essere dalla nostra parte.\n\n"
             f"{link_line}"
+            f"{share_block}"
             "Grazie di cuore per il sostegno concreto a Gaza.\n\n"
             "A presto,\n"
             "lo staff di Move for Gaza\n"
@@ -142,12 +145,14 @@ def build_paid_confirmation(reg: M4gRegistration) -> tuple[str, str]:
 
     if activity == "merch":
         subject = "Move for Gaza — Ordine merch ricevuto"
+        share_block = share_email_block(reg, confirm_link)
         body = (
             f"Ciao {first},\n\n"
             f"abbiamo ricevuto il tuo pagamento di {amount} € e il tuo ordine merch "
             "è confermato. Lo ritiri il giorno dell'evento al banchetto.\n\n"
             f"{link_line}"
-            f"Ci vediamo il {event_date} presso {event_location}.\n\n"
+            f"Ci vediamo il {event_date} presso {event_location}.\n"
+            f"{share_block}\n"
             "Grazie di cuore.\n\n"
             "A presto,\n"
             "lo staff di Move for Gaza\n"
@@ -159,6 +164,7 @@ def build_paid_confirmation(reg: M4gRegistration) -> tuple[str, str]:
     hint_block = f"{hint}\n\n" if hint else ""
     schedule = _schedule_line(reg)
     schedule_block = f"{schedule}\n" if schedule else ""
+    share_block = share_email_block(reg, confirm_link)
     body = (
         f"Ciao {first},\n\n"
         f"buone notizie: abbiamo ricevuto il tuo pagamento di {amount} € e la tua "
@@ -168,7 +174,8 @@ def build_paid_confirmation(reg: M4gRegistration) -> tuple[str, str]:
         f"{schedule_block}"
         f"{hint_block}"
         "Grazie di cuore: ogni chilometro, ogni gol e ogni passo sono un pezzo di "
-        "sostegno concreto per Gaza.\n\n"
+        "sostegno concreto per Gaza.\n"
+        f"{share_block}\n"
         "A presto,\n"
         "lo staff di Move for Gaza\n"
     )

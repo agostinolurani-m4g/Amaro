@@ -42,6 +42,11 @@ M4G_EVENT = {
     "location": "Arci Olmi, via degli Ulivi 2, Milano",
     "contact_email": "amaro.bici@gmail.com",
     "public_site": "https://www.move-4-gaza.com",
+    "share": {
+        "public_link": "https://www.move-4-gaza.com",
+        "public_link_label": "www.move-4-gaza.com",
+        "instagram_post_url": "https://www.instagram.com/p/Dd65foPiL6K/?img_index=1",
+    },
     "logo_url": static_m4g("move4gaza-wordmark.png"),
     "poster_url": static_m4g("locandina.png"),
     "arci_olmi_url": static_m4g("arci_olmi.jpeg"),

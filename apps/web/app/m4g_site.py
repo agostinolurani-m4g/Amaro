@@ -37,6 +37,7 @@ from .m4g_cms import (
     route_gpx_file_path,
 )
 from .m4g_config import ACTIVITIES, LAST_EDITION, M4G_EVENT, REALTA_ADERENTI
+from .m4g_share import registration_share_context
 from .models import BarOrder, M4gRegistration
 
 logger = logging.getLogger(__name__)
@@ -653,6 +654,7 @@ def m4g_confirmation(
             "payload": parse_payload(reg.payload_json),
             "activity_label": _activity_label(reg.activity),
             "price_fn": format_price,
+            **registration_share_context(reg),
         },
     )
 
