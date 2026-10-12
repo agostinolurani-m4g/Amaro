@@ -26,8 +26,10 @@ from .m4g_common import (
 )
 from .m4g_cms import m4g_bike_distances, m4g_bike_routes_for_map, m4g_photos_2025
 from .m4g_cms import (
+    cms_adherents,
     cms_menu,
     cms_menu_by_id,
+    menu_with_producer_names,
     cms_merch_item,
     cms_merch_items,
     cms_run_route,
@@ -36,7 +38,7 @@ from .m4g_cms import (
     cms_vendors,
     route_gpx_file_path,
 )
-from .m4g_config import ACTIVITIES, LAST_EDITION, M4G_EVENT, REALTA_ADERENTI
+from .m4g_config import ACTIVITIES, LAST_EDITION, M4G_EVENT
 from .m4g_share import registration_share_context
 from .models import BarOrder, M4gRegistration
 
@@ -248,7 +250,7 @@ def m4g_home(request: Request, session: Session = Depends(get_session)) -> HTMLR
             "activities": ACTIVITIES,
             "event": M4G_EVENT,
             "photos_2025": m4g_photos_2025(),
-            "adherents": REALTA_ADERENTI,
+            "adherents": cms_adherents(),
             "stats": stats,
             "price_fn": format_price,
         },
@@ -697,13 +699,14 @@ def _parse_cart_json(cart_json: str) -> list[dict[str, Any]]:
 def bar_menu_page(request: Request) -> HTMLResponse:
     if not cms_show_bar():
         raise HTTPException(status_code=404, detail="Pagina non disponibile")
+    vendors = cms_vendors()
     return templates.TemplateResponse(
         "m4g_bar_menu.html",
         {
             "request": request,
-            "menu": cms_menu(),
+            "menu": menu_with_producer_names(cms_menu(), vendors),
             "event": M4G_EVENT,
-            "vendors": cms_vendors(),
+            "vendors": vendors,
             "payment_failed": _payment_failed(request),
             "price_fn": format_price,
         },

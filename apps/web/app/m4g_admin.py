@@ -14,9 +14,12 @@ from . import m4g_auth
 from .database import get_session
 from .m4g_cms import (
     add_media_file,
+    build_adherents_from_form,
     build_menu_from_form,
     build_vendors_from_form,
+    clear_adherent_logo,
     clear_vendor_logo,
+    cms_adherents,
     cms_gpx_path,
     cms_media_path,
     clear_merch_image,
@@ -31,13 +34,16 @@ from .m4g_cms import (
     list_cms_media,
     managed_routes,
     remove_media_file,
+    save_adherents,
     save_menu,
     save_merch_item,
     delete_merch_item,
     save_route_fields,
     save_vendors,
     set_merch_image,
+    set_merch_model_image,
     set_route_gpx,
+    set_adherent_logo,
     set_vendor_logo,
     set_page_visibility,
     set_site_public,
@@ -165,6 +171,7 @@ def m4g_gestione_page(
             "show_merch": cms_show_merch(),
             "show_total": cms_show_total(),
             "vendors": cms_vendors(),
+            "adherents": cms_adherents(),
             "menu": cms_menu(),
             "message": request.query_params.get("msg"),
             "registrations": list_m4g_registrations(
@@ -264,6 +271,7 @@ def m4g_gestione_menu(
     item_id: list[str] = Form(default=[]),
     item_name: list[str] = Form(default=[]),
     item_price: list[str] = Form(default=[]),
+    item_vendor: list[str] = Form(default=[]),
 ) -> RedirectResponse:
     denied = _require_admin(request)
     if denied:
@@ -276,6 +284,7 @@ def m4g_gestione_menu(
             item_id,
             item_name,
             item_price,
+            item_vendor,
         )
     except ValueError:
         return RedirectResponse("/m4g/gestione?msg=price", status_code=302)
@@ -330,6 +339,7 @@ async def m4g_gestione_merch(
     sizes: str = Form(""),
     models: str = Form(""),
     photo: UploadFile | None = File(None),
+    model_photo: list[UploadFile] = File(default=[]),
 ) -> RedirectResponse:
     denied = _require_admin(request)
     if denied:
@@ -341,6 +351,10 @@ async def m4g_gestione_merch(
         item_id = save_merch_item(slot, title, blurb, price, sizes, models)
         if photo is not None and photo.filename:
             set_merch_image(item_id, photo.filename, await photo.read())
+        for index, upload in enumerate(model_photo):
+            if not upload.filename:
+                continue
+            set_merch_model_image(item_id, index, upload.filename, await upload.read())
     except ValueError:
         return RedirectResponse("/m4g/gestione?msg=upload#cms-merch", status_code=302)
     return RedirectResponse("/m4g/gestione?msg=merch#cms-merch", status_code=302)
@@ -559,6 +573,49 @@ def m4g_gestione_registration_restore(
     if reg:
         restore_registration(reg, session)
     return RedirectResponse("/m4g/gestione?msg=reg-restored#cms-iscrizioni", status_code=302)
+
+
+@admin_router.post("/m4g/gestione/adherents")
+def m4g_gestione_adherents(
+    request: Request,
+    a_id: list[str] = Form(default=[]),
+    a_name: list[str] = Form(default=[]),
+) -> RedirectResponse:
+    denied = _require_admin(request)
+    if denied:
+        return denied
+    save_adherents(build_adherents_from_form(a_id, a_name))
+    return RedirectResponse("/m4g/gestione?msg=adherents#cms-adherenti", status_code=302)
+
+
+@admin_router.post("/m4g/gestione/adherent-logo")
+async def m4g_gestione_adherent_logo(
+    request: Request,
+    adherent_id: str = Form(""),
+    logo: UploadFile | None = File(None),
+) -> RedirectResponse:
+    denied = _require_admin(request)
+    if denied:
+        return denied
+    if logo is None or not logo.filename:
+        return RedirectResponse("/m4g/gestione?msg=upload#cms-adherenti", status_code=302)
+    try:
+        set_adherent_logo(adherent_id, logo.filename, await logo.read())
+    except ValueError:
+        return RedirectResponse("/m4g/gestione?msg=upload#cms-adherenti", status_code=302)
+    return RedirectResponse("/m4g/gestione?msg=logo#cms-adherenti", status_code=302)
+
+
+@admin_router.post("/m4g/gestione/adherent-logo-reset")
+def m4g_gestione_adherent_logo_reset(
+    request: Request,
+    adherent_id: str = Form(""),
+) -> RedirectResponse:
+    denied = _require_admin(request)
+    if denied:
+        return denied
+    clear_adherent_logo(adherent_id)
+    return RedirectResponse("/m4g/gestione?msg=logo#cms-adherenti", status_code=302)
 
 
 @admin_router.post("/m4g/gestione/vendor-logo")

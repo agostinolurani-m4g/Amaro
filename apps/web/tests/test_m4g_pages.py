@@ -51,6 +51,8 @@ class M4gPageTests(unittest.TestCase):
         self.assertNotIn("iscrizioni pagate", body)
         self.assertNotIn("bar e cucina", body.lower())
         self.assertIn("Realtà che hanno aderito", body)
+        self.assertIn("data-m4g-adherents-carousel", body)
+        self.assertIn("m4g-adherents-carousel.js", body)
         self.assertIn("Amaro", body)
         self.assertIn("Il Forno di Lambrate", body)
         self.assertIn("Le Polveri", body)
@@ -136,10 +138,10 @@ class M4gPageTests(unittest.TestCase):
             kitchen = admin.post(
                 "/m4g/gestione/vendors",
                 data={
-                    "v_id": "cucina-test",
-                    "v_name": "Cucina Test",
-                    "v_blurb": "Primi del giorno",
-                    "v_status": "confirmed",
+                    "v_id": ["cucina-test", "forno-test"],
+                    "v_name": ["Cucina Test", "Forno Test"],
+                    "v_blurb": ["Primi del giorno", "Pizza"],
+                    "v_status": ["confirmed", "confirmed"],
                 },
                 follow_redirects=False,
             )
@@ -149,10 +151,11 @@ class M4gPageTests(unittest.TestCase):
                 data={
                     "sec_category": "Pranzo — Cucina Test",
                     "sec_vendor": "cucina-test",
-                    "item_section": "0",
-                    "item_id": "piatto-test",
-                    "item_name": "Lasagna solidale",
-                    "item_price": "8,50",
+                    "item_section": ["0", "0"],
+                    "item_id": ["piatto-test", "pizza-test"],
+                    "item_name": ["Lasagna solidale", "Margherita"],
+                    "item_price": ["8,50", "5,00"],
+                    "item_vendor": ["", "forno-test"],
                 },
                 follow_redirects=False,
             )
@@ -162,6 +165,9 @@ class M4gPageTests(unittest.TestCase):
             self.assertIn("Lasagna solidale", page.text)
             self.assertIn("8.50", page.text)
             self.assertIn("Cucina Test", page.text)
+            self.assertIn("m4g-item__producer", page.text)
+            self.assertIn("Margherita", page.text)
+            self.assertIn("Forno Test", page.text)
             checkout = self.client.post(
                 "/m4g/bar/checkout",
                 data={"cart_json": '[{"id":"piatto-test","quantity":2}]'},
@@ -193,15 +199,24 @@ class M4gPageTests(unittest.TestCase):
                     "slot": "socks",
                     "title": "Calze test",
                     "blurb": "Lana del test",
+                    "models": "1,2,4",
                 },
-                files={"photo": ("calze.png", b"\x89PNG\r\n\x1a\n", "image/png")},
+                files=[
+                    ("model_photo", ("m1.png", b"\x89PNG\r\n\x1a\n", "image/png")),
+                    ("model_photo", ("m2.png", b"\x89PNG\r\n\x1a\n", "image/png")),
+                ],
             )
             self.assertEqual(merch.status_code, 200)
             page = self.client.get("/m4g/merch")
             self.assertEqual(page.status_code, 200)
             self.assertIn("Calze test", page.text)
             self.assertIn("Lana del test", page.text)
-            self.assertIn("/m4g/cms/media/", page.text)
+            self.assertIn("3 modelli", page.text)
+            self.assertIn("m4g-merch-model__name", page.text)
+            self.assertIn("data-m4g-merch-model=\"1\"", page.text)
+            self.assertIn("data-m4g-merch-model=\"2\"", page.text)
+            self.assertIn("data-m4g-merch-model=\"4\"", page.text)
+            self.assertGreaterEqual(page.text.count("/m4g/cms/media/"), 2)
             self.assertIn("T-shirt Move4Gaza", page.text)
 
             route = admin.post(
@@ -370,6 +385,40 @@ class M4gPageTests(unittest.TestCase):
             cassa = admin.get("/m4g/gestione/cassa")
             self.assertEqual(cassa.status_code, 200)
             self.assertNotIn(short_code, cassa.text.split("Da verificare")[1].split("Eligible")[0])
+        finally:
+            reset_catalog()
+
+    def test_adherents_cms_and_logo(self) -> None:
+        from app.m4g_cms import reset_catalog
+
+        admin = TestClient(app)
+        admin.post(
+            "/m4g/gestione/login",
+            data={"password": M4G_TEST_PASSWORD},
+            follow_redirects=False,
+        )
+        try:
+            saved = admin.post(
+                "/m4g/gestione/adherents",
+                data={"a_id": "assoc-test", "a_name": "Associazione Test"},
+                follow_redirects=False,
+            )
+            self.assertIn(saved.status_code, (302, 303))
+            home = self.client.get("/m4g/")
+            self.assertIn("Associazione Test", home.text)
+            logo = admin.post(
+                "/m4g/gestione/adherent-logo",
+                data={"adherent_id": "assoc-test"},
+                files={"logo": ("logo.png", b"\x89PNG\r\n\x1a\n", "image/png")},
+            )
+            self.assertEqual(logo.status_code, 200)
+            home_logo = self.client.get("/m4g/")
+            self.assertIn("/m4g/cms/media/", home_logo.text)
+            reset_resp = admin.post(
+                "/m4g/gestione/adherent-logo-reset",
+                data={"adherent_id": "assoc-test"},
+            )
+            self.assertEqual(reset_resp.status_code, 200)
         finally:
             reset_catalog()
 

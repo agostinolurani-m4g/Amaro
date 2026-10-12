@@ -375,6 +375,7 @@ REALTA_ADERENTI = [
     "Ciclofficina Bincio",
     "Circonvalley",
     "Ciclo Club Scappati di Casa",
+    "Comunità Palestinesi di Lombardia",
     "Cucina Franca",
     "Eleganza Cycling",
     "Errantes",

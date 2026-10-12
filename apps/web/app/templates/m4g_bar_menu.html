@@ -39,6 +39,9 @@
             <div class="m4g-item" data-item-id="{{ item.id }}" data-price-cents="{{ item.price_cents }}">
               <div class="m4g-item__info">
                 <p class="m4g-item__name">{{ item.name }}</p>
+                {% if item.producer_name %}
+                  <p class="m4g-item__producer m4g-muted">{{ item.producer_name }}</p>
+                {% endif %}
                 <p class="m4g-item__price">{{ price_fn(item.price_cents) }} €</p>
               </div>
               <div class="m4g-qty">

@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from .config import settings
-from .m4g_config import FOOD_VENDORS, M4G_EVENT
+from .m4g_config import FOOD_VENDORS, M4G_EVENT, REALTA_ADERENTI
 from .m4g_menu import BAR_MENU
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -32,6 +32,7 @@ _DEFAULT_STATE: dict[str, Any] = {
     "media": [],
     "gpx_routes": [],
     "vendors": None,
+    "adherents": None,
     "menu": None,
     "route_overrides": {},
     "merch_items": {},
@@ -60,6 +61,8 @@ def _load_state_raw() -> dict[str, Any]:
     out["show_total"] = True if "show_total" not in data else bool(data.get("show_total"))
     vendors = data.get("vendors")
     out["vendors"] = vendors if isinstance(vendors, list) else None
+    adherents = data.get("adherents")
+    out["adherents"] = adherents if isinstance(adherents, list) else None
     menu = data.get("menu")
     out["menu"] = menu if isinstance(menu, list) else None
     out["media"] = [str(x) for x in (data.get("media") or []) if x]
@@ -236,6 +239,53 @@ def _option_list(raw: str) -> list[str]:
     return [part.strip()[:40] for part in str(raw or "").split(",") if part.strip()][:12]
 
 
+def _normalize_model_images(raw: Any, models: list[str]) -> list[str]:
+    if not models:
+        return []
+    source: list[str] = []
+    if isinstance(raw, list):
+        source = [str(x or "") for x in raw]
+    aligned: list[str] = []
+    for i in range(len(models)):
+        name = Path(str(source[i] if i < len(source) else "")).name
+        if name and name != "." and (M4G_MEDIA_DIR / name).is_file():
+            aligned.append(name)
+        else:
+            aligned.append("")
+    return aligned
+
+
+def _realign_model_images(
+    old_models: list[str],
+    old_images: list[str],
+    new_models: list[str],
+) -> tuple[list[str], list[str]]:
+    """Map images by model name; return (new_images, filenames to delete)."""
+    if not old_models:
+        padded = list(old_images) + [""] * max(0, len(new_models) - len(old_images))
+        return padded[: len(new_models)], []
+    by_name: dict[str, str] = {}
+    for i, name in enumerate(old_models):
+        img = old_images[i] if i < len(old_images) else ""
+        if img:
+            by_name[name] = img
+    new_set = set(new_models)
+    removed: list[str] = []
+    for name, img in by_name.items():
+        if name not in new_set and img:
+            removed.append(img)
+    new_images = [by_name.get(m, "") for m in new_models]
+    return new_images, removed
+
+
+def _unlink_merch_media(filename: str) -> None:
+    if not filename:
+        return
+    path = M4G_MEDIA_DIR / filename
+    if path.is_file():
+        path.unlink()
+
+
 def _clean_merch_catalog(raw: Any) -> list[dict[str, Any]]:
     if not isinstance(raw, list):
         return []
@@ -257,17 +307,20 @@ def _clean_merch_catalog(raw: Any) -> list[dict[str, Any]]:
         if price <= 0:
             price = unit
         image = Path(str(item.get("image") or "")).name
-        cleaned.append(
-            {
-                "id": item_id,
-                "title": title,
-                "blurb": str(item.get("blurb") or "").strip()[:500],
-                "price_cents": price,
-                "sizes": ",".join(_option_list(str(item.get("sizes") or ""))),
-                "models": ",".join(_option_list(str(item.get("models") or ""))),
-                "image": image if image and image != "." else "",
-            }
-        )
+        models_list = _option_list(str(item.get("models") or ""))
+        models_str = ",".join(models_list)
+        entry: dict[str, Any] = {
+            "id": item_id,
+            "title": title,
+            "blurb": str(item.get("blurb") or "").strip()[:500],
+            "price_cents": price,
+            "sizes": ",".join(_option_list(str(item.get("sizes") or ""))),
+            "models": models_str,
+            "image": image if image and image != "." else "",
+        }
+        if models_list:
+            entry["model_images"] = _normalize_model_images(item.get("model_images"), models_list)
+        cleaned.append(entry)
     return cleaned
 
 
@@ -308,19 +361,39 @@ def _public_merch_row(row: dict[str, Any]) -> dict[str, Any]:
     image_name = str(row.get("image") or "")
     custom = bool(image_name and (M4G_MEDIA_DIR / image_name).is_file())
     figure = _uploaded_figure(image_name, fallback) if custom else (defaults["figure"] if defaults else None)
+    models = _option_list(row.get("models") or "")
+    model_images = _normalize_model_images(row.get("model_images"), models)
+    model_photos: list[dict[str, Any]] = []
+    for i, model in enumerate(models):
+        slot_name = model_images[i] if i < len(model_images) else ""
+        slot_custom = bool(slot_name and (M4G_MEDIA_DIR / slot_name).is_file())
+        slot_figure = (
+            _uploaded_figure(slot_name, fallback)
+            if slot_custom
+            else (figure if figure else (defaults["figure"] if defaults else None))
+        )
+        model_photos.append(
+            {
+                "model": model,
+                "image": slot_figure,
+                "preview": slot_figure["w640"] if slot_figure else "",
+                "custom_image": slot_custom,
+            }
+        )
     return {
         "slot": row["id"],
         "title": row["title"],
         "blurb": row["blurb"],
         "price_cents": int(row["price_cents"]),
         "sizes": _option_list(row.get("sizes") or ""),
-        "models": _option_list(row.get("models") or ""),
+        "models": models,
         "sizes_text": row.get("sizes") or "",
         "models_text": row.get("models") or "",
         "image": figure,
         "preview": figure["w640"] if figure else "",
         "custom_image": custom,
         "has_default_image": defaults is not None,
+        "model_photos": model_photos,
     }
 
 
@@ -621,21 +694,35 @@ def save_merch_item(
         if sizes is not None:
             row["sizes"] = ",".join(_option_list(sizes))
         if models is not None:
-            row["models"] = ",".join(_option_list(models))
+            old_models = _option_list(row.get("models") or "")
+            old_images = _normalize_model_images(row.get("model_images"), old_models)
+            new_models = _option_list(models)
+            new_images, removed = _realign_model_images(old_models, old_images, new_models)
+            for fname in removed:
+                _unlink_merch_media(fname)
+            row["models"] = ",".join(new_models)
+            if new_models:
+                row["model_images"] = new_images
+            else:
+                for fname in old_images:
+                    _unlink_merch_media(fname)
+                row.pop("model_images", None)
         found = True
         break
     if not found:
-        rows.append(
-            {
-                "id": item_id,
-                "title": title[:120],
-                "blurb": blurb.strip()[:500],
-                "price_cents": price,
-                "sizes": ",".join(_option_list(sizes or "")),
-                "models": ",".join(_option_list(models or "")),
-                "image": "",
-            }
-        )
+        new_models = _option_list(models or "")
+        new_row: dict[str, Any] = {
+            "id": item_id,
+            "title": title[:120],
+            "blurb": blurb.strip()[:500],
+            "price_cents": price,
+            "sizes": ",".join(_option_list(sizes or "")),
+            "models": ",".join(new_models),
+            "image": "",
+        }
+        if new_models:
+            new_row["model_images"] = [""] * len(new_models)
+        rows.append(new_row)
     _persist_merch_catalog(rows)
     return item_id
 
@@ -650,9 +737,27 @@ def set_merch_image(slot: str, filename: str, data: bytes) -> None:
     target["image"] = stored
     _persist_merch_catalog(rows)
     if old and old != stored:
-        path = M4G_MEDIA_DIR / old
-        if path.is_file():
-            path.unlink()
+        _unlink_merch_media(old)
+
+
+def set_merch_model_image(slot: str, index: int, filename: str, data: bytes) -> None:
+    rows = _resolved_merch_catalog(_load_state_raw())
+    target = next((row for row in rows if row["id"] == slot), None)
+    if target is None:
+        raise ValueError("Prodotto merch sconosciuto")
+    models = _option_list(target.get("models") or "")
+    if not models:
+        raise ValueError("Questo prodotto non ha modelli")
+    if index < 0 or index >= len(models):
+        raise ValueError("Indice modello non valido")
+    images = _normalize_model_images(target.get("model_images"), models)
+    stored = _store_image(filename, data, f"merch-{slot}-m{index}")
+    old = images[index]
+    images[index] = stored
+    target["model_images"] = images
+    _persist_merch_catalog(rows)
+    if old and old != stored:
+        _unlink_merch_media(old)
 
 
 def clear_merch_image(slot: str) -> None:
@@ -664,25 +769,27 @@ def clear_merch_image(slot: str) -> None:
     target["image"] = ""
     _persist_merch_catalog(rows)
     if old:
-        path = M4G_MEDIA_DIR / old
-        if path.is_file():
-            path.unlink()
+        _unlink_merch_media(old)
 
 
 def delete_merch_item(slot: str) -> None:
     rows = _resolved_merch_catalog(_load_state_raw())
     kept: list[dict[str, Any]] = []
     removed_image = ""
+    removed_model_images: list[str] = []
     for row in rows:
         if row["id"] == slot:
             removed_image = str(row.get("image") or "")
+            models = _option_list(row.get("models") or "")
+            for img in _normalize_model_images(row.get("model_images"), models):
+                if img:
+                    removed_model_images.append(img)
             continue
         kept.append(row)
     _persist_merch_catalog(kept)
-    if removed_image:
-        path = M4G_MEDIA_DIR / removed_image
-        if path.is_file():
-            path.unlink()
+    _unlink_merch_media(removed_image)
+    for fname in removed_model_images:
+        _unlink_merch_media(fname)
 
 
 def save_route_fields(route_key: str, title: str, copy: str) -> None:
@@ -766,9 +873,10 @@ def reset_page_content() -> None:
         if not isinstance(item, dict):
             continue
         filename = str(item.get("image") or "")
-        path = M4G_MEDIA_DIR / filename
-        if filename and path.is_file():
-            path.unlink()
+        _unlink_merch_media(filename)
+        models = _option_list(item.get("models") or "")
+        for img in _normalize_model_images(item.get("model_images"), models):
+            _unlink_merch_media(img)
     state["route_overrides"] = {}
     state["merch_items"] = {}
     state["merch_catalog"] = None
@@ -790,6 +898,7 @@ def cms_show_total() -> bool:
 def reset_catalog() -> None:
     state = _load_state_raw()
     state["vendors"] = None
+    state["adherents"] = None
     state["menu"] = None
     state["show_bar"] = True
     state["show_merch"] = True
@@ -989,11 +1098,15 @@ def cms_menu() -> list[dict[str, Any]]:
                     continue
                 if cents < 0:
                     continue
+                item_vendor_id = str(item.get("vendor_id") or "").strip()
+                if item_vendor_id not in vendor_ids:
+                    item_vendor_id = ""
                 items.append(
                     {
                         "id": str(item.get("id") or _slug(name)),
                         "name": name,
                         "price_cents": cents,
+                        "vendor_id": item_vendor_id,
                     }
                 )
         if not category or not items:
@@ -1003,6 +1116,25 @@ def cms_menu() -> list[dict[str, Any]]:
             vendor_id = ""
         sections.append({"category": category, "vendor_id": vendor_id, "items": items})
     return sections
+
+
+def menu_with_producer_names(
+    sections: list[dict[str, Any]],
+    vendors: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    by_id = {str(v["id"]): str(v["name"]) for v in vendors}
+    enriched: list[dict[str, Any]] = []
+    for section in sections:
+        section_vendor = str(section.get("vendor_id") or "")
+        items_out: list[dict[str, Any]] = []
+        for item in section["items"]:
+            effective = str(item.get("vendor_id") or "").strip() or section_vendor
+            if effective not in by_id:
+                effective = ""
+            producer_name = by_id.get(effective) if effective else None
+            items_out.append({**item, "producer_name": producer_name})
+        enriched.append({**section, "items": items_out})
+    return enriched
 
 
 def cms_menu_by_id() -> dict[str, dict[str, Any]]:
@@ -1075,6 +1207,143 @@ def build_vendors_from_form(
     return vendors
 
 
+def _default_adherents() -> list[dict[str, Any]]:
+    used: set[str] = set()
+    rows: list[dict[str, Any]] = []
+    for name in REALTA_ADERENTI:
+        clean = str(name).strip()
+        if not clean:
+            continue
+        rows.append({"id": _unique_id(clean, used), "name": clean, "logo": ""})
+    return rows
+
+
+def _ensure_adherents_in_state() -> list[dict[str, Any]]:
+    state = _load_state_raw()
+    if not isinstance(state.get("adherents"), list):
+        state["adherents"] = _default_adherents()
+        save_cms_state(state)
+    return list(state["adherents"])
+
+
+def cms_adherents() -> list[dict[str, Any]]:
+    stored = _load_state_raw().get("adherents")
+    if not isinstance(stored, list):
+        base = _default_adherents()
+    else:
+        base = []
+        for item in stored:
+            if not isinstance(item, dict):
+                continue
+            name = str(item.get("name") or "").strip()
+            if not name:
+                continue
+            logo = Path(str(item.get("logo") or "")).name
+            base.append(
+                {
+                    "id": str(item.get("id") or _slug(name)),
+                    "name": name,
+                    "logo": logo if logo != "." else "",
+                    "logo_url": _vendor_logo_url(logo),
+                }
+            )
+    for row in base:
+        if "logo_url" not in row:
+            row["logo_url"] = _vendor_logo_url(str(row.get("logo") or ""))
+    return base
+
+
+def save_adherents(adherents: list[dict[str, Any]]) -> None:
+    state = _load_state_raw()
+    cleaned: list[dict[str, Any]] = []
+    for row in adherents:
+        entry: dict[str, Any] = {"id": row["id"], "name": row["name"]}
+        logo = Path(str(row.get("logo") or "")).name
+        if logo and logo != ".":
+            entry["logo"] = logo
+        cleaned.append(entry)
+    state["adherents"] = cleaned
+    save_cms_state(state)
+
+
+def _adherent_logos_map() -> dict[str, str]:
+    stored = _load_state_raw().get("adherents")
+    if not isinstance(stored, list):
+        return {}
+    logos: dict[str, str] = {}
+    for item in stored:
+        if not isinstance(item, dict):
+            continue
+        logo = Path(str(item.get("logo") or "")).name
+        if logo and logo != ".":
+            logos[str(item.get("id"))] = logo
+    return logos
+
+
+def build_adherents_from_form(ids: list[str], names: list[str]) -> list[dict[str, Any]]:
+    logos = _adherent_logos_map()
+    used: set[str] = set()
+    adherents: list[dict[str, Any]] = []
+    for index, name in enumerate(names):
+        clean_name = name.strip()
+        if not clean_name:
+            continue
+        wanted = ids[index].strip() if index < len(ids) else ""
+        adherent_id = wanted if wanted and wanted not in used else _unique_id(clean_name, used)
+        if wanted and wanted not in used:
+            used.add(wanted)
+        entry: dict[str, Any] = {"id": adherent_id, "name": clean_name}
+        logo_key = wanted or adherent_id
+        if logos.get(logo_key):
+            entry["logo"] = logos[logo_key]
+        adherents.append(entry)
+    return adherents
+
+
+def set_adherent_logo(adherent_id: str, filename: str, data: bytes) -> None:
+    ext = Path(filename).suffix.lower()
+    if ext not in MEDIA_EXTENSIONS:
+        raise ValueError("Formato immagine non supportato")
+    if len(data) > 12 * 1024 * 1024:
+        raise ValueError("File troppo grande (max 12 MB)")
+    adherents = _ensure_adherents_in_state()
+    target = None
+    for row in adherents:
+        if str(row.get("id")) == adherent_id:
+            target = row
+            break
+    if target is None:
+        raise ValueError("Realta sconosciuta")
+    old = Path(str(target.get("logo") or "")).name
+    stored = _safe_stored_name(filename, f"adherent-{adherent_id}", ext)
+    _ensure_dirs()
+    (M4G_MEDIA_DIR / stored).write_bytes(data)
+    target["logo"] = stored
+    state = _load_state_raw()
+    state["adherents"] = adherents
+    save_cms_state(state)
+    if old and old != stored:
+        old_path = M4G_MEDIA_DIR / old
+        if old_path.is_file():
+            old_path.unlink()
+
+
+def clear_adherent_logo(adherent_id: str) -> None:
+    adherents = _ensure_adherents_in_state()
+    for row in adherents:
+        if str(row.get("id")) != adherent_id:
+            continue
+        old = Path(str(row.pop("logo", "") or "")).name
+        state = _load_state_raw()
+        state["adherents"] = adherents
+        save_cms_state(state)
+        if old:
+            old_path = M4G_MEDIA_DIR / old
+            if old_path.is_file():
+                old_path.unlink()
+        return
+
+
 def build_menu_from_form(
     categories: list[str],
     vendor_ids: list[str],
@@ -1082,6 +1351,7 @@ def build_menu_from_form(
     item_ids: list[str],
     item_names: list[str],
     item_prices: list[str],
+    item_vendors: list[str],
 ) -> list[dict[str, Any]]:
     known_vendors = {vendor["id"] for vendor in cms_vendors()}
     used: set[str] = set()
@@ -1111,7 +1381,17 @@ def build_menu_from_form(
         item_id = wanted if wanted and wanted not in used else _unique_id(clean_name, used)
         if wanted and wanted not in used:
             used.add(wanted)
-        section["items"].append({"id": item_id, "name": clean_name, "price_cents": cents})
+        item_vendor = item_vendors[index].strip() if index < len(item_vendors) else ""
+        if item_vendor not in known_vendors:
+            item_vendor = ""
+        row: dict[str, Any] = {
+            "id": item_id,
+            "name": clean_name,
+            "price_cents": cents,
+        }
+        if item_vendor:
+            row["vendor_id"] = item_vendor
+        section["items"].append(row)
     return [
         {"category": section["category"], "vendor_id": section["vendor_id"], "items": section["items"]}
         for section in sections

@@ -12,8 +12,41 @@
 
   <div class="m4g-merch-grid">
     {% for item in merch_items %}
-    <div class="m4g-card m4g-card--padded">
-      {% if item.image %}{{ m4g_figure(item.image, item.title, "product") }}{% endif %}
+    <div class="m4g-card m4g-card--padded"{% if item.model_photos %} data-m4g-merch-card{% endif %}>
+      {% if item.model_photos %}
+      <p class="m4g-merch-models-count"><strong>{{ item.model_photos|length }} modelli</strong> — tocca un modello per ingrandire</p>
+      <div class="m4g-merch-hero" data-m4g-merch-hero>
+        {% for mp in item.model_photos %}
+        <div
+          class="m4g-merch-hero__pane{% if loop.first %} m4g-merch-hero__pane--active{% endif %}"
+          data-m4g-merch-hero-model="{{ mp.model }}"
+          role="button"
+          tabindex="0"
+          aria-label="Ingrandisci modello {{ mp.model }}"
+        >
+          {% if mp.image %}{{ m4g_figure(mp.image, item.title ~ ' modello ' ~ mp.model, "merch-hero", "", false, "100vw") }}{% endif %}
+          <p class="m4g-merch-hero__label">Modello <span>{{ mp.model }}</span></p>
+        </div>
+        {% endfor %}
+      </div>
+      <div class="m4g-merch-models" role="list" aria-label="Scegli modello">
+        {% for mp in item.model_photos %}
+        <button
+          type="button"
+          class="m4g-merch-model{% if loop.first %} m4g-merch-model--active{% endif %}"
+          role="listitem"
+          data-m4g-merch-model="{{ mp.model }}"
+          aria-pressed="{% if loop.first %}true{% else %}false{% endif %}"
+          aria-label="Modello {{ mp.model }}"
+        >
+          {% if mp.image %}{{ m4g_figure(mp.image, item.title ~ ' modello ' ~ mp.model, "merch-thumb") }}{% endif %}
+          <span class="m4g-merch-model__name">{{ mp.model }}</span>
+        </button>
+        {% endfor %}
+      </div>
+      {% elif item.image %}
+      {{ m4g_figure(item.image, item.title, "product") }}
+      {% endif %}
       <h2>{{ item.title }}</h2>
       <p class="m4g-muted">{{ item.blurb }}</p>
       <p><strong>{{ price_fn(item.price_cents) }} €</strong></p>
@@ -28,7 +61,7 @@
         <div class="m4g-form__row">
           {% if item.models %}
           <label>Modello
-            <select name="model">
+            <select name="model"{% if item.model_photos %} data-m4g-merch-select{% endif %}>
               {% for model in item.models %}<option value="{{ model }}">{{ model }}</option>{% endfor %}
             </select>
           </label>
@@ -51,4 +84,91 @@
 
   <p class="m4g-muted" style="text-align:center;"><a href="/m4g/" class="m4g-link">← Home</a></p>
 </div>
+<div id="m4g-merch-lightbox" class="m4g-merch-lightbox" hidden>
+  <button type="button" class="m4g-merch-lightbox__close" aria-label="Chiudi">×</button>
+  <img class="m4g-merch-lightbox__img" alt="" />
+  <p class="m4g-merch-lightbox__caption"></p>
+</div>
+<script>
+(function () {
+  var lightbox = document.getElementById("m4g-merch-lightbox");
+  var lightboxImg = lightbox && lightbox.querySelector(".m4g-merch-lightbox__img");
+  var lightboxCaption = lightbox && lightbox.querySelector(".m4g-merch-lightbox__caption");
+  var lightboxClose = lightbox && lightbox.querySelector(".m4g-merch-lightbox__close");
+
+  function openLightbox(img, caption) {
+    if (!lightbox || !lightboxImg || !img) return;
+    var full = img.currentSrc || img.src;
+    lightboxImg.src = full;
+    lightboxImg.alt = img.alt || "";
+    if (lightboxCaption) lightboxCaption.textContent = caption || "";
+    lightbox.hidden = false;
+    document.body.classList.add("m4g-merch-lightbox-open");
+    lightboxClose && lightboxClose.focus();
+  }
+
+  function closeLightbox() {
+    if (!lightbox) return;
+    lightbox.hidden = true;
+    lightboxImg && (lightboxImg.src = "");
+    document.body.classList.remove("m4g-merch-lightbox-open");
+  }
+
+  lightboxClose && lightboxClose.addEventListener("click", closeLightbox);
+  lightbox && lightbox.addEventListener("click", function (e) {
+    if (e.target === lightbox) closeLightbox();
+  });
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && lightbox && !lightbox.hidden) closeLightbox();
+  });
+
+  document.querySelectorAll("[data-m4g-merch-card]").forEach(function (card) {
+    var select = card.querySelector("[data-m4g-merch-select]");
+    if (!select) return;
+    var buttons = card.querySelectorAll("[data-m4g-merch-model]");
+    var heroPanes = card.querySelectorAll("[data-m4g-merch-hero-model]");
+    function setActive(model) {
+      buttons.forEach(function (btn) {
+        var on = btn.getAttribute("data-m4g-merch-model") === model;
+        btn.classList.toggle("m4g-merch-model--active", on);
+        btn.setAttribute("aria-pressed", on ? "true" : "false");
+      });
+      heroPanes.forEach(function (pane) {
+        var on = pane.getAttribute("data-m4g-merch-hero-model") === model;
+        pane.classList.toggle("m4g-merch-hero__pane--active", on);
+        pane.setAttribute("aria-hidden", on ? "false" : "true");
+      });
+    }
+    function openHeroLightbox(pane) {
+      var img = pane.querySelector(".m4g-figure__img");
+      var label = pane.querySelector(".m4g-merch-hero__label");
+      openLightbox(img, label ? label.textContent.trim() : "");
+    }
+    buttons.forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var model = btn.getAttribute("data-m4g-merch-model");
+        select.value = model;
+        setActive(model);
+      });
+    });
+    heroPanes.forEach(function (pane) {
+      pane.addEventListener("click", function () {
+        openHeroLightbox(pane);
+      });
+      pane.addEventListener("keydown", function (e) {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          openHeroLightbox(pane);
+        }
+      });
+    });
+    select.addEventListener("change", function () {
+      setActive(select.value);
+    });
+    heroPanes.forEach(function (pane, i) {
+      if (i > 0) pane.setAttribute("aria-hidden", "true");
+    });
+  });
+})();
+</script>
 {% endblock %}
