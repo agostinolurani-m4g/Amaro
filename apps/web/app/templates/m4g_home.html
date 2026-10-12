@@ -119,17 +119,24 @@
       <h2>Realtà che hanno aderito</h2>
       {% if adherents %}
         <div class="m4g-adherents-carousel" data-m4g-adherents-carousel>
-          {% for adherent in adherents %}
-            <div class="m4g-adherents-carousel__slide{% if loop.first %} is-active{% endif %}">
-              {% if adherent.logo_url %}
-                <span class="m4g-adherents-carousel__logo" title="{{ adherent.name }}">
-                  <img src="{{ adherent.logo_url }}" alt="" width="160" height="80" loading="lazy" />
-                </span>
-              {% else %}
-                <span class="m4g-adherents-carousel__name">{{ adherent.name }}</span>
-              {% endif %}
+          <div class="m4g-adherents-carousel__viewport">
+            <div class="m4g-adherents-carousel__track">
+              {% for _copy in [1, 2] %}
+                {% for adherent in adherents %}
+                  <div class="m4g-adherents-carousel__cell{% if adherent.logo_url %} m4g-adherents-carousel__cell--logo{% endif %}">
+                    {% if adherent.logo_url %}
+                      <span class="m4g-adherents-carousel__logo" tabindex="0" aria-label="{{ adherent.name }}">
+                        <span class="m4g-adherents-carousel__tip">{{ adherent.name }}</span>
+                        <img src="{{ adherent.logo_url }}" alt="" width="160" height="80" loading="lazy" />
+                      </span>
+                    {% else %}
+                      <span class="m4g-adherents-carousel__name">{{ adherent.name }}</span>
+                    {% endif %}
+                  </div>
+                {% endfor %}
+              {% endfor %}
             </div>
-          {% endfor %}
+          </div>
         </div>
       {% endif %}
       <a href="mailto:{{ event.contact_email }}?subject=Adesione%20associazione" class="m4g-btn m4g-btn--primary m4g-btn--inline">Vuoi aderire come associazione? Scrivici</a>

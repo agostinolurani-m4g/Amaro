@@ -2,33 +2,16 @@
   const root = document.querySelector("[data-m4g-adherents-carousel]");
   if (!root) return;
 
-  const slides = [...root.querySelectorAll(".m4g-adherents-carousel__slide")];
-  if (slides.length < 2) return;
+  const track = root.querySelector(".m4g-adherents-carousel__track");
+  const viewport = root.querySelector(".m4g-adherents-carousel__viewport");
+  if (!track || !viewport) return;
 
-  let index = 0;
-  let timer = null;
-  const intervalMs = 2500;
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    return;
+  }
 
-  const show = (next) => {
-    slides[index].classList.remove("is-active");
-    index = (next + slides.length) % slides.length;
-    slides[index].classList.add("is-active");
-  };
-
-  const tick = () => show(index + 1);
-
-  const start = () => {
-    if (timer) return;
-    timer = window.setInterval(tick, intervalMs);
-  };
-
-  const stop = () => {
-    if (!timer) return;
-    window.clearInterval(timer);
-    timer = null;
-  };
-
-  root.addEventListener("mouseenter", stop);
-  root.addEventListener("mouseleave", start);
-  start();
+  const cells = track.querySelectorAll(".m4g-adherents-carousel__cell");
+  if (cells.length < 2) {
+    track.style.animation = "none";
+  }
 })();

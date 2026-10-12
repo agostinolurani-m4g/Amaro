@@ -52,6 +52,7 @@ class M4gPageTests(unittest.TestCase):
         self.assertNotIn("bar e cucina", body.lower())
         self.assertIn("Realtà che hanno aderito", body)
         self.assertIn("data-m4g-adherents-carousel", body)
+        self.assertIn("m4g-adherents-carousel__track", body)
         self.assertIn("m4g-adherents-carousel.js", body)
         self.assertIn("Amaro", body)
         self.assertIn("Il Forno di Lambrate", body)
