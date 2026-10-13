@@ -457,6 +457,28 @@ M4G_EVENT = {
         "socks": m4g_responsive("calze_m4g", "calze_m4g.jpeg", 1600, 1200, sizes="(max-width: 768px) 100vw, 22rem"),
         "tshirt": m4g_responsive("magliette_m4g", "magliette_m4g.png", 2068, 1210, sizes="(max-width: 768px) 100vw, 22rem"),
     },
+    "legal": {
+        "bar": (
+            "Distribuzione di cibo e bevande a fronte di un'offerta destinata "
+            "alla raccolta fondi Move4Gaza"
+        ),
+        "merch": (
+            "Distribuzione di merchandising a fronte di un'offerta destinata "
+            "alla raccolta fondi Move4Gaza"
+        ),
+        "all_donations": (
+            "Tutti i pagamenti effettuati su questo sito, compresi quelli per cibo, "
+            "bevande e merchandising, sono donazioni a favore della raccolta fondi Move4Gaza."
+        ),
+        "food_proceeds": "Tutto il ricavato verrà donato a Gaza Sunbirds.",
+        "merch_proceeds": "Tutto il ricavato verrà donato a Gaza Sunbirds.",
+        "skip_queue": (
+            "Paga online: salti la coda alla cassa e vai direttamente al bar / stand cibo."
+        ),
+        "merch_no_delivery": (
+            "Nessuna consegna: il merch si ritira solo all'evento, allo stand Merch."
+        ),
+    },
 }
 
 FOOD_VENDORS = [

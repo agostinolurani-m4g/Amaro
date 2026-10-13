@@ -1,56 +1,126 @@
 {% extends "m4g_base.html" %}
-{% block title %}I tuoi banner — Move for Gaza{% endblock %}
+{% block title %}Il tuo ordine — Move for Gaza{% endblock %}
 {% block content %}
 <section class="m4g-hero m4g-hero--compact">
   <div class="m4g-wrap">
     <p class="m4g-hero__eyebrow">Ordine {{ order.reference }}</p>
-    <h1>{% if pending %}Pagamento in verifica{% else %}Banner in cassa{% endif %}</h1>
-    <p class="m4g-muted">
-      {% if pending %}
-        Codice <strong>{{ short_code }}</strong> — attendi la conferma dello staff. La pagina si aggiorna da sola.
-      {% else %}
-        Un banner per ogni consumazione. Mostra al banco: doppio tap per invalidare.
-      {% endif %}
-    </p>
+    <h1>
+      {% if view_state == 'awaiting_check' %}Pagamento in verifica
+      {% elif view_state == 'unpaid' %}Completa il pagamento
+      {% elif view_state == 'closed' %}Ordine non attivo
+      {% else %}Banner in cassa{% endif %}
+    </h1>
   </div>
 </section>
-<div class="m4g-wrap m4g-consumptions" {% if pending %}data-m4g-pending-order="{{ order.reference }}"{% endif %}>
-  {% if pending %}
-    <article class="m4g-consumption m4g-consumption--pending">
-      <p class="m4g-consumption__eyebrow">Move for Gaza</p>
-      <h2 class="m4g-consumption__title">In verifica</h2>
-      <p class="m4g-consumption__item">Codice {{ short_code }}</p>
-      <ul class="m4g-voucher__lines">
-        {% for item in items %}
-          <li><span>{{ item.quantity }}× {{ item.name }}</span></li>
-        {% endfor %}
-      </ul>
-      <p class="m4g-muted m4g-consumption__hint">Non ancora valido al banco</p>
-    </article>
-  {% else %}
-    {% for v in vouchers %}
-      <article
-        class="m4g-consumption {% if v.status == 'redeemed' %}m4g-consumption--redeemed{% endif %}"
-        data-order-ref="{{ order.reference }}"
-        data-token="{{ v.token }}"
-        data-status="{{ v.status }}"
-      >
+
+<div class="m4g-wrap m4g-order-status">
+  <div class="m4g-order-status__intro">
+    {% if order_kind == 'merch' %}
+      <p class="m4g-notice m4g-notice--warn">{{ m4g.legal.merch_no_delivery }}</p>
+    {% else %}
+      <p class="m4g-notice m4g-notice--queue">{{ m4g.legal.skip_queue }}</p>
+    {% endif %}
+    {% if view_state == 'awaiting_check' %}
+      <p class="m4g-order-status__lead">
+        Codice <strong class="m4g-pay-code">{{ short_code }}</strong> — attendi la conferma dello staff.
+        La pagina si aggiorna da sola.
+      </p>
+    {% elif view_state == 'unpaid' %}
+      <p class="m4g-order-status__lead">Il pagamento non è ancora stato completato.</p>
+    {% elif view_state == 'paid' %}
+      <p class="m4g-order-status__lead">
+        Un banner per ogni pezzo. Mostra al banco e fai doppio tap per invalidare.
+        {% if short_code %}Codice pagamento: <strong class="m4g-pay-code">{{ short_code }}</strong>{% endif %}
+      </p>
+      <p class="m4g-legal">{% if order_kind == 'merch' %}{{ m4g.legal.merch }}{% else %}{{ m4g.legal.bar }}{% endif %}</p>
+    {% elif view_state == 'closed' %}
+      <p class="m4g-order-status__lead">Questo ordine non è più valido. Puoi crearne uno nuovo.</p>
+    {% endif %}
+  </div>
+
+  <div
+    class="m4g-consumptions"
+    {% if pending %}data-m4g-pending-order="{{ order.reference }}"{% endif %}
+    data-m4g-order-kind="{{ order_kind }}"
+    data-m4g-order-ref="{{ order.reference }}"
+    data-m4g-order-url="{{ request.url.path }}"
+  >
+    {% if view_state == 'unpaid' %}
+      <article class="m4g-consumption m4g-consumption--pending m4g-consumption--unpaid">
         <p class="m4g-consumption__eyebrow">Move for Gaza</p>
-        <h2 class="m4g-consumption__title">
-          {% if v.status == 'redeemed' %}Consegnato{% else %}Da ritirare{% endif %}
-        </h2>
-        <p class="m4g-consumption__item">{{ v.name }}</p>
-        <p class="m4g-consumption__price">{{ price_fn(v.price_cents) }} €</p>
-        {% if v.status != 'redeemed' %}
-          <p class="m4g-voucher__hint m4g-consumption__hint">Doppio tap per il cameriere</p>
-        {% endif %}
-        <p class="m4g-consumption__error m4g-alert" style="display:none;"></p>
+        <h2 class="m4g-consumption__title">Da pagare</h2>
+        {% if short_code %}<p class="m4g-consumption__code">Codice <span class="m4g-pay-code">{{ short_code }}</span></p>{% endif %}
+        <ul class="m4g-voucher__lines">
+          {% for item in items %}
+            <li><span>{{ item.quantity }}× {{ item.name }}</span></li>
+          {% endfor %}
+        </ul>
+        <p class="m4g-consumption__hint">
+          <a class="m4g-btn m4g-btn--primary" href="{{ payment_resume_url }}">Completa il pagamento</a>
+        </p>
       </article>
-    {% endfor %}
-  {% endif %}
-  <p style="text-align:center;margin-top:1.5rem;">
-    <a class="m4g-link" href="/m4g/bar">Nuovo ordine</a>
-  </p>
+    {% elif view_state == 'awaiting_check' %}
+      <article class="m4g-consumption m4g-consumption--pending">
+        <p class="m4g-consumption__eyebrow">Move for Gaza</p>
+        <h2 class="m4g-consumption__title">In verifica</h2>
+        <p class="m4g-consumption__code">Codice <span class="m4g-pay-code">{{ short_code }}</span></p>
+        <ul class="m4g-voucher__lines">
+          {% for item in items %}
+            <li><span>{{ item.quantity }}× {{ item.name }}</span></li>
+          {% endfor %}
+        </ul>
+        <p class="m4g-consumption__hint">Non ancora valido al banco</p>
+      </article>
+    {% elif view_state == 'closed' %}
+      <article class="m4g-consumption m4g-consumption--pending m4g-consumption--closed">
+        <p class="m4g-consumption__eyebrow">Move for Gaza</p>
+        <h2 class="m4g-consumption__title">Ordine chiuso</h2>
+        <p class="m4g-consumption__hint">
+          {% if order_kind == 'merch' %}
+            <a class="m4g-link" href="/m4g/merch">Nuovo ordine merch</a>
+          {% else %}
+            <a class="m4g-link" href="/m4g/bar">Nuovo ordine</a>
+          {% endif %}
+        </p>
+      </article>
+    {% else %}
+      {% for v in vouchers %}
+        <article
+          class="m4g-consumption {% if v.status == 'redeemed' %}m4g-consumption--redeemed{% endif %}"
+          data-order-ref="{{ order.reference }}"
+          data-token="{{ v.token }}"
+          data-status="{{ v.status }}"
+        >
+          <p class="m4g-consumption__eyebrow">Move for Gaza · Banner {{ v.index }} di {{ v.total }}</p>
+          <h2 class="m4g-consumption__title">
+            {% if v.status == 'redeemed' %}Consegnato{% else %}Da ritirare{% endif %}
+          </h2>
+          <p class="m4g-consumption__stand">
+            Recati allo stand <strong>{{ v.stand }}</strong> per prendere il tuo <strong>{{ v.name }}</strong>.
+          </p>
+          <p class="m4g-consumption__item">{{ v.name }}</p>
+          <p class="m4g-consumption__price">{{ price_fn(v.price_cents) }} €</p>
+          {% if short_code %}
+            <p class="m4g-consumption__code">Codice pagamento <span class="m4g-pay-code">{{ short_code }}</span> · Banner <span class="m4g-pay-code">{{ v.banner_id }}</span></p>
+          {% endif %}
+          {% if v.status != 'redeemed' %}
+            <p class="m4g-voucher__hint m4g-consumption__hint">Doppio tap per il cameriere</p>
+          {% endif %}
+          <p class="m4g-consumption__error m4g-alert" style="display:none;"></p>
+        </article>
+      {% endfor %}
+    {% endif %}
+    {% if view_state == 'paid' %}
+      <p class="m4g-order-status__footer">
+        {% if order_kind == 'merch' %}
+          <a class="m4g-link" href="/m4g/merch">Nuovo ordine merch</a>
+        {% else %}
+          <a class="m4g-link" href="/m4g/bar">Nuovo ordine</a>
+        {% endif %}
+      </p>
+    {% endif %}
+  </div>
 </div>
-<script src="{{ url_for('static', path='js/m4g-bar.js') }}"></script>
+<script src="{{ url_for('static', path='js/m4g-bar.js') }}" defer></script>
+<script src="{{ url_for('static', path='js/m4g-order-recall.js') }}" defer></script>
 {% endblock %}

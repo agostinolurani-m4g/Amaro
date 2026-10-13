@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Cassa bar — Move for Gaza</title>
+    <title>Cassa — Move for Gaza</title>
     <link rel="stylesheet" href="{{ url_for('static', path='css/m4g-bar.css') }}" />
     <style>
       .m4g-cms-wrap { max-width: 40rem; margin: 0 auto; padding: 1rem 1rem 4rem; }
@@ -19,16 +19,30 @@
       .m4g-cassa-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.75rem; }
       .m4g-cassa-actions .m4g-btn { flex: 1 1 8rem; min-height: 3rem; font-size: 1rem; }
       .m4g-cms-head { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-bottom: 1rem; }
+      .m4g-cassa-tabs { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
+      .m4g-cassa-tabs a {
+        padding: 0.5rem 0.85rem;
+        border: 2px solid var(--m4g-ink);
+        border-radius: 0.35rem;
+        text-decoration: none;
+        font-weight: 700;
+        color: var(--m4g-ink);
+      }
+      .m4g-cassa-tabs a.is-active { background: var(--m4g-green); color: #fff; }
     </style>
   </head>
   <body class="m4g-body">
     <div class="m4g-cms-wrap">
       <div class="m4g-cms-head">
         <div>
-          <h1 style="margin:0;">Cassa bar</h1>
+          <h1 style="margin:0;">Cassa {% if kind == 'merch' %}merch{% else %}bar{% endif %}</h1>
           <p class="m4g-muted"><a class="m4g-link" href="/m4g/gestione">← Gestione</a></p>
         </div>
       </div>
+      <nav class="m4g-cassa-tabs" aria-label="Sezione cassa">
+        <a href="/m4g/gestione/cassa?kind=bar" class="{% if kind == 'bar' %}is-active{% endif %}">Bar &amp; cucina</a>
+        <a href="/m4g/gestione/cassa?kind=merch" class="{% if kind == 'merch' %}is-active{% endif %}">Merch</a>
+      </nav>
       {% if message == 'paid' %}
         <p class="m4g-alert" style="background:#e8f5e9;">Pagamento confermato — banner attivi.</p>
       {% elif message == 'rejected' %}
@@ -45,8 +59,8 @@
           <p class="m4g-cassa-code">{{ order.short_code or '—' }}</p>
           <p class="m4g-cassa-card__meta">
             {{ price_fn(order.amount_cents) }} € · {{ order.payment_method or '?' }} · {{ order.reference }}
+            {% if order.email %} · {{ order.email }}{% endif %}
           </p>
-          <p class="m4g-cassa-card__meta">{{ order.items_json }}</p>
           <div class="m4g-cassa-actions">
             <form method="post" action="/m4g/gestione/bar-paid">
               <input type="hidden" name="reference" value="{{ order.reference }}" />
@@ -60,7 +74,7 @@
         </article>
       {% endfor %}
 
-      <h2 style="margin-top:2rem;">Eligible (banner da ritirare)</h2>
+      <h2 style="margin-top:2rem;">Banner da ritirare</h2>
       {% if not eligible %}
         <p class="m4g-muted">Nessun ordine con banner validi.</p>
       {% endif %}
@@ -69,6 +83,7 @@
           <p class="m4g-cassa-code">{{ order.short_code or order.reference }}</p>
           <p class="m4g-cassa-card__meta">
             {{ remaining }} banner · {{ price_fn(order.amount_cents) }} €
+            {% if order.email %} · {{ order.email }}{% endif %}
           </p>
         </article>
       {% endfor %}

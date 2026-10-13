@@ -17,8 +17,13 @@ from .m4g_common import (
     compute_fundraising_stats,
     format_price,
     load_consumption_vouchers,
+    order_consumptions_path,
+    order_kind,
+    order_payment_resume_path,
     parse_payload,
     prepare_nexi_payment,
+    REDEEM_OUTCOME_ALREADY_REDEEMED,
+    REDEEM_OUTCOME_CLAIMED,
     redeem_consumption_token,
     expire_stale_bar_orders,
     generate_bar_short_code,
@@ -330,53 +335,6 @@ def m4g_merch_form(request: Request) -> HTMLResponse:
     )
 
 
-@router.post("/m4g/merch", response_class=HTMLResponse)
-async def m4g_merch_submit(
-    request: Request,
-    session: Session = Depends(get_session),
-    item: str = Form(""),
-    first_name: str = Form(""),
-    last_name: str = Form(""),
-    email: str = Form(""),
-    phone: str = Form(""),
-    quantity: int = Form(1),
-    size: str = Form(""),
-    model: str = Form(""),
-    notes: str = Form(""),
-) -> HTMLResponse:
-    if not cms_show_merch():
-        raise HTTPException(status_code=404, detail="Pagina non disponibile")
-    product = cms_merch_item(item.strip())
-    if product is None:
-        raise HTTPException(status_code=400, detail="Articolo non valido")
-    if not first_name.strip() or not last_name.strip() or not email.strip():
-        raise HTTPException(status_code=400, detail="Compila nome, cognome ed email")
-    qty = max(1, min(20, quantity))
-    if product["sizes"] and size.strip() not in product["sizes"]:
-        raise HTTPException(status_code=400, detail="Taglia non valida")
-    if product["models"] and model.strip() not in product["models"]:
-        raise HTTPException(status_code=400, detail="Modello non valido")
-    amount_cents = int(product["price_cents"]) * qty
-    reg, payment = _start_checkout(
-        activity="merch",
-        session=session,
-        first_name=first_name,
-        last_name=last_name,
-        email=email,
-        phone=phone,
-        payload={
-            "item": product["slot"],
-            "item_title": product["title"],
-            "quantity": qty,
-            "size": size.strip(),
-            "model": model.strip(),
-            "notes": notes.strip(),
-        },
-        amount_cents=amount_cents,
-    )
-    return _render_payment(request, reg, payment)
-
-
 @router.get("/m4g/menu", response_class=HTMLResponse)
 def m4g_menu_redirect() -> RedirectResponse:
     return RedirectResponse("/m4g/bar", status_code=302)
@@ -665,6 +623,57 @@ def m4g_confirmation(
 # --- Bar e cucina (ordini con carrello) ---
 
 
+def _merch_line_name(product: dict[str, Any], model: str, size: str) -> str:
+    title = str(product["title"])
+    bits = [title]
+    if model:
+        bits.append(f"modello {model}")
+    if size:
+        bits.append(f"taglia {size}")
+    return " · ".join(bits)
+
+
+def _parse_merch_cart_json(cart_json: str) -> list[dict[str, Any]]:
+    try:
+        raw = json.loads(cart_json or "[]")
+    except json.JSONDecodeError as exc:
+        raise HTTPException(status_code=400, detail="Carrello non valido") from exc
+    if not isinstance(raw, list) or not raw:
+        raise HTTPException(status_code=400, detail="Seleziona almeno un articolo")
+    normalized: list[dict[str, Any]] = []
+    for entry in raw:
+        if not isinstance(entry, dict):
+            continue
+        slot = str(entry.get("slot", "")).strip()
+        product = cms_merch_item(slot)
+        if not product:
+            raise HTTPException(status_code=400, detail=f"Articolo non valido: {slot}")
+        quantity = int(entry.get("quantity", 0))
+        if quantity <= 0:
+            continue
+        model = str(entry.get("model", "")).strip()
+        size = str(entry.get("size", "")).strip()
+        if product["models"] and model not in product["models"]:
+            raise HTTPException(status_code=400, detail="Modello non valido")
+        if product["sizes"] and size not in product["sizes"]:
+            raise HTTPException(status_code=400, detail="Taglia non valida")
+        line_id = f"{slot}|{model}|{size}"
+        normalized.append(
+            {
+                "id": line_id,
+                "slot": slot,
+                "model": model,
+                "size": size,
+                "name": _merch_line_name(product, model, size),
+                "price_cents": int(product["price_cents"]),
+                "quantity": min(quantity, 20),
+            }
+        )
+    if not normalized:
+        raise HTTPException(status_code=400, detail="Seleziona almeno un articolo")
+    return normalized
+
+
 def _parse_cart_json(cart_json: str) -> list[dict[str, Any]]:
     try:
         raw = json.loads(cart_json or "[]")
@@ -751,6 +760,7 @@ def bar_checkout_page(
     short_code = generate_bar_short_code(session)
     order = BarOrder(
         reference=reference,
+        kind="bar",
         items_json=json.dumps(items, ensure_ascii=False),
         amount_cents=amount_cents,
         payment_status="pending",
@@ -760,31 +770,232 @@ def bar_checkout_page(
     session.add(order)
     session.commit()
     session.refresh(order)
+    return _render_order_payment_page(request, order, session)
+
+
+def _render_order_payment_page(
+    request: Request,
+    order: BarOrder,
+    session: Session,
+) -> HTMLResponse:
+    try:
+        items = json.loads(order.items_json or "[]")
+    except json.JSONDecodeError:
+        items = []
+    if not isinstance(items, list):
+        items = []
+    amount_cents = int(order.amount_cents or 0)
+    reference = order.reference
     payment = prepare_nexi_payment(
         amount_cents=amount_cents,
         reference=reference,
-        description="Move for Gaza — bar evento",
+        description=(
+            "Move for Gaza — merch evento"
+            if order_kind(order) == "merch"
+            else "Move for Gaza — bar evento"
+        ),
+        email=order.email,
     )
     alt = alt_payment_context(
         amount_cents=amount_cents,
-        item_name="Move for Gaza — Bar & cucina",
+        item_name=(
+            "Move for Gaza — Merch"
+            if order_kind(order) == "merch"
+            else "Move for Gaza — Bar & cucina"
+        ),
         reference=reference,
         request=request,
         donate=False,
     )
+    template = (
+        "m4g_merch_payment.html"
+        if order_kind(order) == "merch"
+        else "m4g_bar_payment.html"
+    )
+    manual_base = "/m4g/merch" if order_kind(order) == "merch" else "/m4g/bar"
     return templates.TemplateResponse(
-        "m4g_bar_payment.html",
+        template,
         {
             "request": request,
             "items": items,
             "total": format_price(amount_cents),
             "reference": reference,
-            "short_code": short_code,
+            "short_code": order.short_code or "",
+            "order_email": order.email or "",
             "payment": payment,
             "price_fn": format_price,
             "bar_order_note": True,
+            "manual_payment_base": manual_base,
             **alt,
         },
+    )
+
+
+@router.get("/m4g/bar/{reference}/paga", response_class=HTMLResponse)
+def bar_order_resume_payment(
+    request: Request,
+    reference: str,
+    session: Session = Depends(get_session),
+) -> HTMLResponse:
+    if not cms_show_bar():
+        raise HTTPException(status_code=404, detail="Pagina non disponibile")
+    order = session.query(BarOrder).filter_by(reference=reference).first()
+    if not order or order_kind(order) != "bar" or order.payment_status != "pending":
+        raise HTTPException(status_code=404, detail="Ordine non trovato")
+    return _render_order_payment_page(request, order, session)
+
+
+@router.get("/m4g/merch/{reference}/paga", response_class=HTMLResponse)
+def merch_order_resume_payment(
+    request: Request,
+    reference: str,
+    session: Session = Depends(get_session),
+) -> HTMLResponse:
+    if not cms_show_merch():
+        raise HTTPException(status_code=404, detail="Pagina non disponibile")
+    order = session.query(BarOrder).filter_by(reference=reference).first()
+    if not order or order_kind(order) != "merch" or order.payment_status != "pending":
+        raise HTTPException(status_code=404, detail="Ordine non trovato")
+    return _render_order_payment_page(request, order, session)
+
+
+@router.post("/m4g/merch/checkout", response_class=HTMLResponse)
+def merch_checkout_page(
+    request: Request,
+    cart_json: str = Form("[]"),
+    session: Session = Depends(get_session),
+) -> HTMLResponse:
+    if not cms_show_merch():
+        raise HTTPException(status_code=404, detail="Pagina non disponibile")
+    items = _parse_merch_cart_json(cart_json)
+    amount_cents = sum(item["price_cents"] * item["quantity"] for item in items)
+    reference = build_payment_reference("MRC")
+    short_code = generate_bar_short_code(session)
+    order = BarOrder(
+        reference=reference,
+        kind="merch",
+        items_json=json.dumps(items, ensure_ascii=False),
+        amount_cents=amount_cents,
+        payment_status="pending",
+        voucher_status="none",
+        short_code=short_code,
+    )
+    session.add(order)
+    session.commit()
+    session.refresh(order)
+    return _render_order_payment_page(request, order, session)
+
+
+@router.post("/m4g/merch/{reference}/manual")
+def merch_manual_payment_confirm(
+    reference: str,
+    method: str = Form(""),
+    session: Session = Depends(get_session),
+) -> RedirectResponse:
+    if not cms_show_merch():
+        raise HTTPException(status_code=404, detail="Pagina non disponibile")
+    order = session.query(BarOrder).filter_by(reference=reference).first()
+    if not order or order_kind(order) != "merch" or order.payment_status != "pending":
+        raise HTTPException(status_code=400, detail="Ordine non valido")
+    if not (order.email or "").strip():
+        raise HTTPException(status_code=400, detail="Inserisci l'email prima di pagare")
+    clean = method.strip().lower()
+    if clean not in ("satispay", "paypal"):
+        raise HTTPException(status_code=400, detail="Metodo non valido")
+    order.payment_method = clean
+    order.payment_status = "awaiting_check"
+    session.commit()
+    return RedirectResponse(
+        f"/m4g/merch/ordine/{order.reference}/codici",
+        status_code=302,
+    )
+
+
+@router.post("/m4g/ordine/{reference}/email")
+def order_save_email(
+    reference: str,
+    email: str = Form(""),
+    session: Session = Depends(get_session),
+) -> JSONResponse:
+    from . import m4g_mail
+
+    order = session.query(BarOrder).filter_by(reference=reference).first()
+    if not order or order.payment_status not in (
+        "pending",
+        "awaiting_check",
+        "paid",
+    ):
+        raise HTTPException(status_code=404, detail="Ordine non trovato")
+    clean = email.strip()
+    if not clean or "@" not in clean:
+        raise HTTPException(status_code=400, detail="Email non valida")
+    order.email = clean
+    session.commit()
+    session.refresh(order)
+    m4g_mail.send_order_confirmation_email(order, session)
+    return JSONResponse({"ok": True, "email": order.email})
+
+
+def _order_view_state(order: BarOrder) -> str:
+    status = order.payment_status or ""
+    if status == "awaiting_check":
+        return "awaiting_check"
+    if status == "pending":
+        return "unpaid"
+    if status in ("failed", "rejected", "expired"):
+        return "closed"
+    if status == "paid":
+        return "paid"
+    return "closed"
+
+
+def _consumptions_template_context(
+    request: Request,
+    order: BarOrder,
+    *,
+    vouchers: list[dict[str, Any]],
+    items: list[dict[str, Any]],
+) -> dict[str, Any]:
+    view = _order_view_state(order)
+    return {
+        "request": request,
+        "order": order,
+        "order_kind": order_kind(order),
+        "view_state": view,
+        "pending": view == "awaiting_check",
+        "vouchers": vouchers,
+        "items": items,
+        "short_code": order.short_code or "",
+        "payment_resume_url": order_payment_resume_path(order),
+        "price_fn": format_price,
+    }
+
+
+def _render_order_status_page(
+    request: Request,
+    order: BarOrder,
+) -> HTMLResponse:
+    view = _order_view_state(order)
+    try:
+        items = json.loads(order.items_json or "[]")
+    except json.JSONDecodeError:
+        items = []
+    if not isinstance(items, list):
+        items = []
+    vouchers: list[dict[str, Any]] = []
+    if view == "paid":
+        vouchers = load_consumption_vouchers(order)
+        if not vouchers:
+            raise HTTPException(status_code=404, detail="Nessun banner disponibile")
+    items_for_template = items if view in ("awaiting_check", "unpaid") else []
+    return templates.TemplateResponse(
+        "m4g_bar_consumptions.html",
+        _consumptions_template_context(
+            request,
+            order,
+            vouchers=vouchers,
+            items=items_for_template,
+        ),
     )
 
 
@@ -813,6 +1024,8 @@ def bar_manual_payment_confirm(
     order = session.query(BarOrder).filter_by(reference=reference).first()
     if not order or order.payment_status != "pending":
         raise HTTPException(status_code=400, detail="Ordine non valido")
+    if not (order.email or "").strip():
+        raise HTTPException(status_code=400, detail="Inserisci l'email prima di pagare")
     clean = method.strip().lower()
     if clean not in ("satispay", "paypal"):
         raise HTTPException(status_code=400, detail="Metodo non valido")
@@ -941,42 +1154,21 @@ def bar_order_consumptions_page(
     session: Session = Depends(get_session),
 ) -> HTMLResponse:
     order = session.query(BarOrder).filter_by(reference=reference).first()
-    if not order:
+    if not order or order_kind(order) == "merch":
         raise HTTPException(status_code=404, detail="Ordine non trovato")
-    if order.payment_status == "awaiting_check":
-        try:
-            items = json.loads(order.items_json or "[]")
-        except json.JSONDecodeError:
-            items = []
-        return templates.TemplateResponse(
-            "m4g_bar_consumptions.html",
-            {
-                "request": request,
-                "order": order,
-                "vouchers": [],
-                "items": items,
-                "pending": True,
-                "short_code": order.short_code or "",
-                "price_fn": format_price,
-            },
-        )
-    if order.payment_status != "paid":
+    return _render_order_status_page(request, order)
+
+
+@router.get("/m4g/merch/ordine/{reference}/codici", response_class=HTMLResponse)
+def merch_order_codes_page(
+    request: Request,
+    reference: str,
+    session: Session = Depends(get_session),
+) -> HTMLResponse:
+    order = session.query(BarOrder).filter_by(reference=reference).first()
+    if not order or order_kind(order) != "merch":
         raise HTTPException(status_code=404, detail="Ordine non trovato")
-    vouchers = load_consumption_vouchers(order)
-    if not vouchers:
-        raise HTTPException(status_code=404, detail="Nessun banner disponibile")
-    return templates.TemplateResponse(
-        "m4g_bar_consumptions.html",
-        {
-            "request": request,
-            "order": order,
-            "vouchers": vouchers,
-            "items": [],
-            "pending": False,
-            "short_code": order.short_code or "",
-            "price_fn": format_price,
-        },
-    )
+    return _render_order_status_page(request, order)
 
 
 @router.get("/m4g/ordine/{reference}/stato")
@@ -992,7 +1184,7 @@ def bar_order_status(
         session.refresh(order)
     payload: dict[str, Any] = {"payment_status": order.payment_status}
     if order.payment_status == "paid":
-        payload["consumi_url"] = f"/m4g/ordine/{order.reference}/consumi"
+        payload["consumi_url"] = order_consumptions_path(order)
     return JSONResponse(payload)
 
 
@@ -1016,11 +1208,24 @@ def bar_consumption_redeem(
     order = session.query(BarOrder).filter_by(reference=reference).first()
     if not order or order.payment_status != "paid":
         raise HTTPException(status_code=404, detail="Ordine non trovato")
-    entry = redeem_consumption_token(order, token, session)
-    if not entry:
+    outcome, entry = redeem_consumption_token(order, token, session)
+    if outcome == REDEEM_OUTCOME_ALREADY_REDEEMED and entry:
+        return JSONResponse(
+            status_code=409,
+            content={
+                "outcome": REDEEM_OUTCOME_ALREADY_REDEEMED,
+                "detail": "Banner già usato",
+                "token": token,
+                "reference": reference,
+                "status": entry.get("status"),
+                "name": entry.get("name"),
+            },
+        )
+    if outcome != REDEEM_OUTCOME_CLAIMED or not entry:
         raise HTTPException(status_code=404, detail="Banner non trovato")
     return JSONResponse(
         {
+            "outcome": REDEEM_OUTCOME_CLAIMED,
             "token": token,
             "reference": reference,
             "status": entry.get("status"),

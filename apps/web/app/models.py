@@ -233,6 +233,8 @@ class BarOrder(Base):
 
     id: Mapped[int] = Column(Integer, primary_key=True)
     reference: Mapped[str] = Column(String(40), unique=True, nullable=False)
+    kind: Mapped[str] = Column(String(10), default="bar", nullable=False)
+    email: Mapped[str | None] = Column(String(140))
     items_json: Mapped[str] = Column(Text, nullable=False)
     amount_cents: Mapped[int] = Column(Integer, nullable=False)
     payment_status: Mapped[str] = Column(String(20), default="pending")
@@ -245,6 +247,8 @@ class BarOrder(Base):
         DateTime(timezone=True), server_default=func.now()
     )
     paid_at: Mapped[DateTime | None] = Column(DateTime(timezone=True))
+    order_email_sent_at: Mapped[DateTime | None] = Column(DateTime(timezone=True))
+    confirmation_email_to: Mapped[str | None] = Column(String(140))
     redeemed_at: Mapped[DateTime | None] = Column(DateTime(timezone=True))
 
 

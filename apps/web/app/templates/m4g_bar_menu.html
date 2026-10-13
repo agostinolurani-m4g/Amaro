@@ -12,6 +12,11 @@
   </header>
 
   <div class="m4g-wrap m4g-wrap--wide m4g-bar-page">
+    <div id="m4g-order-recall-bar" data-m4g-order-recall="bar" hidden></div>
+    <div class="m4g-notices m4g-notices--bar m4g-notices--bar-compact">
+      <p class="m4g-notice m4g-notice--queue">{{ m4g.legal.skip_queue }} {{ m4g.legal.food_proceeds }}</p>
+      <p class="m4g-legal">{{ m4g.legal.bar }}</p>
+    </div>
     {% if payment_failed %}
       <div class="m4g-alert">Pagamento annullato o non riuscito. Riprova quando vuoi.</div>
     {% endif %}
@@ -116,6 +121,7 @@
   <div class="m4g-checkout m4g-checkout--bar">
     <form id="m4g-checkout-form" class="m4g-checkout__inner" method="post" action="/m4g/bar/checkout">
       <input type="hidden" name="cart_json" id="m4g-cart-json" value="[]" />
+      <p class="m4g-checkout__legal">{{ m4g.legal.bar }}</p>
       <div class="m4g-checkout__total">
         <p class="m4g-checkout__label">Totale</p>
         <p class="m4g-checkout__amount" id="m4g-total">0,00 €</p>
@@ -126,4 +132,5 @@
   </div>
 
   <script src="{{ url_for('static', path='js/m4g-bar.js') }}" defer></script>
+  <script src="{{ url_for('static', path='js/m4g-order-recall.js') }}" defer></script>
 {% endblock %}

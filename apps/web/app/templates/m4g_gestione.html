@@ -177,7 +177,11 @@
         <div class="m4g-cms-dash">
           <p><strong>Totale raccolto:</strong> {{ price_fn(stats.total_cents) }} €</p>
           <p><strong>Bar in verifica:</strong> {{ awaiting_count }} · <strong>Eligible:</strong> {{ eligible_count }}</p>
-          <p><a class="m4g-link" href="/m4g/gestione/cassa">Apri cassa bar →</a></p>
+          <p>
+            <a class="m4g-link" href="/m4g/gestione/cassa?kind=bar">Cassa bar →</a>
+            ·
+            <a class="m4g-link" href="/m4g/gestione/cassa?kind=merch">Cassa merch →</a>
+          </p>
           <p>
             <a class="m4g-link" href="/m4g/gestione/export/iscrizioni.csv">Export iscrizioni CSV</a>
             ·
@@ -292,16 +296,10 @@
       </section>
 
       <section id="cms-ordini" class="m4g-card m4g-card--padded m4g-regs" style="margin-bottom:1rem;">
-        <h2>{% if show_hidden %}Ordini merch — non pagati, nascosti{% else %}Ordini merch{% endif %}</h2>
-        <p class="m4g-muted">Stesse regole delle iscrizioni: correggi l'importo se serve, poi segna pagato. «Non pagata» toglie la riga dall'elenco senza cancellarla.</p>
-        {% if show_hidden %}
-          <p><a class="m4g-link" href="/m4g/gestione#cms-ordini">Torna all'elenco ordini</a></p>
-        {% else %}
-          <p><a class="m4g-link" href="/m4g/gestione?show_hidden=1#cms-ordini">Vedi ordini merch non pagati, nascosti</a></p>
-        {% endif %}
+        <h2>Ordini merch</h2>
+        <p class="m4g-muted">Pagamenti Satispay/PayPal: conferma in <a class="m4g-link" href="/m4g/gestione/cassa?kind=merch">cassa merch</a>. Dopo il pagamento l'acquirente riceve i banner digitali.</p>
         <form method="get" action="/m4g/gestione" class="m4g-form" style="margin:0.75rem 0;">
-          {% if show_hidden %}<input type="hidden" name="show_hidden" value="1" />{% endif %}
-          <label>Cerca<input name="merch_q" value="{{ merch_q }}" placeholder="Codice, nome, email, prodotto, taglia" /></label>
+          <label>Cerca<input name="merch_q" value="{{ merch_q }}" placeholder="Codice, email, prodotto" /></label>
           <button type="submit" class="m4g-btn m4g-btn--secondary m4g-btn--inline">Cerca</button>
         </form>
         {% if not merch_orders %}
@@ -316,79 +314,44 @@
                 <th>Quando</th>
                 <th>Codice</th>
                 <th>Prodotto</th>
-                <th>Modello</th>
-                <th>Taglia</th>
+                <th>Codice</th>
                 <th>Qtà</th>
-                <th>Note</th>
-                <th>Nome</th>
-                <th>Cognome</th>
                 <th>Email</th>
-                <th>Telefono</th>
                 <th>€</th>
                 <th>Stato</th>
                 <th>Mail</th>
-                <th>Azioni</th>
+                <th>Banner</th>
               </tr>
             </thead>
             <tbody>
-              {% for reg in merch_orders %}
-              {% set mf = merch_fields_fn(reg) %}
+              {% for order in merch_orders %}
+              {% set mf = merch_fields_fn(order) %}
               <tr>
-                <td>{{ when_fn(reg.created_at) }}</td>
-                <td>{{ reg.reference }}</td>
+                <td>{{ when_fn(order.created_at) }}</td>
+                <td>{{ order.reference }}</td>
                 <td>{{ mf.product }}</td>
-                <td>{{ mf.model }}</td>
-                <td>{{ mf.size }}</td>
+                <td>{{ order.short_code or "—" }}</td>
                 <td>{{ mf.quantity }}</td>
-                <td class="m4g-regs__detail">{{ mf.notes }}</td>
-                <td>{{ reg.first_name }}</td>
-                <td>{{ reg.last_name }}</td>
-                <td>{{ reg.email or "" }}</td>
-                <td>{{ reg.phone or "" }}</td>
-                <td>{{ price_fn(reg.amount_cents) }}</td>
-                <td>{{ status_labels.get(reg.payment_status, reg.payment_status) }}</td>
+                <td>{{ order.email or "" }}</td>
+                <td>{{ price_fn(order.amount_cents) }}</td>
+                <td>{{ status_labels.get(order.payment_status, order.payment_status) }}</td>
                 <td class="m4g-muted">
-                  {% if reg.paid_email_sent_at %}
-                    inviata {{ when_fn(reg.paid_email_sent_at) }}
-                  {% elif reg.payment_status == 'paid' and reg.email %}
+                  {% if order.order_email_sent_at %}
+                    inviata {{ when_fn(order.order_email_sent_at) }}
+                  {% elif order.payment_status == 'paid' and order.email %}
                     in attesa
                   {% else %}
                     —
                   {% endif %}
                 </td>
                 <td>
-                  <span class="m4g-cms-list__actions">
-                    <form method="post" action="/m4g/gestione/registration-amount" class="m4g-cms-amount">
-                      <input type="hidden" name="reference" value="{{ reg.reference }}" />
-                      <input type="hidden" name="from_merch" value="1" />
-                      {% if show_hidden %}<input type="hidden" name="show_hidden" value="1" />{% endif %}
-                      <input type="hidden" name="merch_q" value="{{ merch_q }}" />
-                      <input name="amount_eur" type="text" inputmode="decimal" value="{{ price_fn(reg.amount_cents) }}" aria-label="Importo pagato in euro" />
-                      <button type="submit" class="m4g-btn m4g-btn--secondary">Salva</button>
-                    </form>
-                    {% if show_hidden %}
-                    <form method="post" action="/m4g/gestione/registration-restore">
-                      <input type="hidden" name="reference" value="{{ reg.reference }}" />
-                      <button type="submit" class="m4g-btn m4g-btn--secondary">Ripristina</button>
-                    </form>
-                    {% else %}
-                      {% if reg.payment_status == 'pending' %}
-                      <form method="post" action="/m4g/gestione/registration-paid">
-                        <input type="hidden" name="reference" value="{{ reg.reference }}" />
-                        <button type="submit" class="m4g-btn m4g-btn--primary">Pagato</button>
-                      </form>
-                      {% elif reg.payment_status == 'paid' and reg.email and not reg.paid_email_sent_at %}
-                      <form method="post" action="/m4g/gestione/registration-send-email">
-                        <input type="hidden" name="reference" value="{{ reg.reference }}" />
-                        <button type="submit" class="m4g-btn m4g-btn--primary">Invia email</button>
-                      </form>
-                      {% endif %}
-                      <form method="post" action="/m4g/gestione/registration-hide">
-                        <input type="hidden" name="reference" value="{{ reg.reference }}" />
-                        <button type="submit" class="m4g-btn m4g-btn--secondary">Non pagata</button>
-                      </form>
-                    {% endif %}
-                  </span>
+                  {% if order.payment_status == 'paid' %}
+                    <a class="m4g-link" href="/m4g/merch/ordine/{{ order.reference }}/codici" target="_blank" rel="noreferrer">Apri</a>
+                  {% elif order.payment_status == 'awaiting_check' %}
+                    <span class="m4g-muted">In cassa</span>
+                  {% else %}
+                    —
+                  {% endif %}
                 </td>
               </tr>
               {% endfor %}

@@ -131,6 +131,18 @@
     renderCart();
   }
 
+  function markConsumptionRejected(root) {
+    root.dataset.status = 'rejected';
+    root.classList.add('m4g-consumption--rejected');
+    root.classList.remove('m4g-consumption--redeemed');
+    const title = root.querySelector('.m4g-consumption__title, #m4g-voucher-title');
+    if (title) title.textContent = 'Già usato';
+    const hint = root.querySelector('.m4g-consumption__hint, .m4g-voucher__hint, #m4g-redeem-hint');
+    if (hint) hint.textContent = 'Non consegnare';
+    const errorEl = root.querySelector('.m4g-consumption__error, #m4g-voucher-error');
+    if (errorEl) errorEl.style.display = 'none';
+  }
+
   function bindDoubleTapRedeem(root, redeemUrl) {
     let lastTap = 0;
     let redeeming = false;
@@ -152,8 +164,16 @@
           method: 'POST',
           headers: { Accept: 'application/json' },
         });
+        const data = await response.json().catch(() => ({}));
+        if (response.status === 409 || data.outcome === 'already_redeemed') {
+          markConsumptionRejected(root);
+          redeeming = false;
+          return;
+        }
         if (!response.ok) {
-          const data = await response.json().catch(() => ({}));
+          throw new Error(data.detail || 'Non è stato possibile invalidare il banner');
+        }
+        if (data.outcome && data.outcome !== 'claimed') {
           throw new Error(data.detail || 'Non è stato possibile invalidare il banner');
         }
         window.location.reload();

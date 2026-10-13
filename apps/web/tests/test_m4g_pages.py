@@ -385,6 +385,11 @@ class M4gPageTests(unittest.TestCase):
             )
             self.assertIsNotNone(code_match)
             short_code = code_match.group(1)
+            email_save = self.client.post(
+                f"/m4g/ordine/{reference}/email",
+                data={"email": "bar-manual@example.test"},
+            )
+            self.assertEqual(email_save.status_code, 200)
             manual = self.client.post(
                 f"/m4g/bar/{reference}/manual",
                 data={"method": "satispay"},
@@ -403,6 +408,7 @@ class M4gPageTests(unittest.TestCase):
             self.assertIn(paid.status_code, (302, 303))
             consumi = self.client.get(f"/m4g/ordine/{reference}/consumi")
             self.assertIn("Da ritirare", consumi.text)
+            self.assertIn("Recati allo stand", consumi.text)
             token_match = re.search(r'data-token="([^"]+)"', consumi.text)
             self.assertIsNotNone(token_match)
             token = token_match.group(1)
@@ -410,9 +416,66 @@ class M4gPageTests(unittest.TestCase):
                 f"/m4g/ordine/{reference}/consumo/{token}/redeem"
             )
             self.assertEqual(redeem.status_code, 200)
+            redeem_body = redeem.json()
+            self.assertEqual(redeem_body.get("outcome"), "claimed")
+            self.assertEqual(redeem_body.get("status"), "redeemed")
+            redeem_again = self.client.post(
+                f"/m4g/ordine/{reference}/consumo/{token}/redeem"
+            )
+            self.assertEqual(redeem_again.status_code, 409)
+            again_body = redeem_again.json()
+            self.assertEqual(again_body.get("outcome"), "already_redeemed")
             cassa = admin.get("/m4g/gestione/cassa")
             self.assertEqual(cassa.status_code, 200)
             self.assertNotIn(short_code, cassa.text.split("Da verificare")[1].split("Eligible")[0])
+        finally:
+            reset_catalog()
+
+    def test_bar_redeem_two_banners_same_order(self) -> None:
+        from app import m4g_auth
+        from app.m4g_cms import reset_catalog
+
+        import re
+
+        admin = TestClient(app)
+        admin.post(
+            "/m4g/gestione/login",
+            data={"password": m4g_auth.M4G_ADMIN_PASSWORD},
+            follow_redirects=False,
+        )
+        try:
+            admin.post(
+                "/m4g/gestione/pages",
+                data={"show_bar": "1", "show_merch": "1", "show_total": "1"},
+                follow_redirects=False,
+            )
+            checkout = self.client.post(
+                "/m4g/bar/checkout",
+                data={"cart_json": '[{"id":"acqua","quantity":2}]'},
+            )
+            self.assertEqual(checkout.status_code, 200)
+            match = re.search(r'/m4g/bar/(BAR[A-F0-9]+)/manual', checkout.text)
+            self.assertIsNotNone(match)
+            reference = match.group(1)
+            self.client.post(
+                f"/m4g/bar/{reference}/manual",
+                data={"method": "satispay"},
+                follow_redirects=False,
+            )
+            admin.post(
+                "/m4g/gestione/bar-paid",
+                data={"reference": reference},
+                follow_redirects=False,
+            )
+            consumi = self.client.get(f"/m4g/ordine/{reference}/consumi")
+            tokens = re.findall(r'data-token="([^"]+)"', consumi.text)
+            self.assertEqual(len(tokens), 2)
+            for token in tokens:
+                response = self.client.post(
+                    f"/m4g/ordine/{reference}/consumo/{token}/redeem"
+                )
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(response.json().get("outcome"), "claimed")
         finally:
             reset_catalog()
 
@@ -543,28 +606,27 @@ class M4gPageTests(unittest.TestCase):
         self.assertIn("product", merch_ok.text)
 
     def test_gestione_merch_orders_section(self) -> None:
+        import re
+
         from app.database import SessionLocal
         from app.m4g_cms import set_page_visibility
-        from app.models import M4gRegistration
+        from app.models import BarOrder
 
         email = "ordine-merch@example.test"
         try:
             set_page_visibility(show_merch=True)
-            order = self.client.post(
-                "/m4g/merch",
+            checkout = self.client.post(
+                "/m4g/merch/checkout",
                 data={
-                    "item": "socks",
-                    "first_name": "Mina",
-                    "last_name": "MerchTest",
-                    "email": email,
-                    "phone": "3339998877",
-                    "quantity": "2",
-                    "size": "L",
-                    "model": "2",
-                    "notes": "Consegna in giornata",
+                    "cart_json": '[{"slot":"socks","model":"2","size":"L","quantity":2}]',
                 },
             )
-            self.assertEqual(order.status_code, 200)
+            self.assertEqual(checkout.status_code, 200)
+            self.assertIn("Nessuna consegna", checkout.text)
+            self.assertIn('id="m4g-order-email"', checkout.text)
+            ref_match = re.search(r"Riferimento: <code>(MRC[A-F0-9]+)</code>", checkout.text)
+            self.assertIsNotNone(ref_match)
+            reference = ref_match.group(1)
             admin = TestClient(app)
             admin.post(
                 "/m4g/gestione/login",
@@ -575,32 +637,171 @@ class M4gPageTests(unittest.TestCase):
             self.assertEqual(gestione.status_code, 200)
             self.assertIn('id="cms-ordini"', gestione.text)
             self.assertIn("Ordini merch", gestione.text)
-            iscrizioni_html = gestione.text.split('id="cms-iscrizioni"', 1)[1].split(
-                'id="cms-ordini"', 1
-            )[0]
             ordini_html = gestione.text.split('id="cms-ordini"', 1)[1].split(
                 "Sito pubblico", 1
             )[0]
-            self.assertNotIn("MerchTest", iscrizioni_html)
-            self.assertNotIn("Calze solidali", iscrizioni_html)
-            self.assertIn("MerchTest", ordini_html)
+            self.assertIn(email, ordini_html)
             self.assertIn("Calze solidali", ordini_html)
-            self.assertIn("Consegna in giornata", ordini_html)
-            self.assertIn("3339998877", ordini_html)
-            self.assertIn("<th>Taglia</th>", ordini_html)
             merch_csv = admin.get("/m4g/gestione/export/merch.csv")
             self.assertIn("Calze solidali", merch_csv.text)
             self.assertIn(email, merch_csv.text)
-            self.assertIn("Consegna in giornata", merch_csv.text)
+            self.assertIn(reference, merch_csv.text)
         finally:
             session = SessionLocal()
             try:
-                session.query(M4gRegistration).filter(
-                    M4gRegistration.email == email
-                ).delete()
+                session.query(BarOrder).filter(BarOrder.email == email).delete()
                 session.commit()
             finally:
                 session.close()
+
+    def test_bar_legal_and_multi_voucher_codes(self) -> None:
+        import re
+
+        from app import m4g_auth
+        from app.database import SessionLocal
+        from app.m4g_cms import reset_catalog
+        from app.m4g_common import mark_bar_order_paid
+        from app.models import BarOrder
+
+        admin = TestClient(app)
+        admin.post(
+            "/m4g/gestione/login",
+            data={"password": m4g_auth.M4G_ADMIN_PASSWORD},
+            follow_redirects=False,
+        )
+        try:
+            admin.post(
+                "/m4g/gestione/pages",
+                data={"show_bar": "1", "show_merch": "1", "show_total": "1"},
+                follow_redirects=False,
+            )
+            bar = self.client.get("/m4g/bar")
+            self.assertIn("salti la coda", bar.text.lower())
+            self.assertIn("raccolta fondi Move4Gaza", bar.text)
+            self.assertIn("donazioni", bar.text.lower())
+            checkout = self.client.post(
+                "/m4g/bar/checkout",
+                data={"cart_json": '[{"id":"birra-piccola","quantity":3}]'},
+            )
+            self.assertEqual(checkout.status_code, 200)
+            match = re.search(r"Riferimento: <code>(BAR[A-F0-9]+)</code>", checkout.text)
+            self.assertIsNotNone(match)
+            reference = match.group(1)
+            session = SessionLocal()
+            try:
+                order = session.query(BarOrder).filter_by(reference=reference).first()
+                self.assertIsNotNone(order)
+                mark_bar_order_paid(order, session)
+            finally:
+                session.close()
+            consumi = self.client.get(f"/m4g/ordine/{reference}/consumi")
+            self.assertEqual(consumi.status_code, 200)
+            self.assertIn("Recati allo stand", consumi.text)
+            tokens = re.findall(r'data-token="([^"]+)"', consumi.text)
+            self.assertEqual(len(tokens), 3)
+            self.assertEqual(len(set(tokens)), 3)
+            codes = re.findall(r'class="m4g-pay-code">([A-Z0-9]{5})</code>', consumi.text)
+            self.assertGreaterEqual(len(codes), 1)
+            self.assertTrue(all(code == codes[0] for code in codes))
+        finally:
+            reset_catalog()
+
+    def test_order_confirmation_email_once(self) -> None:
+        from unittest.mock import patch
+
+        from app.database import SessionLocal
+        from app.m4g_cms import reset_catalog
+        from app.models import BarOrder
+
+        with patch("app.m4g_mail._smtp_send", return_value=True) as send_mock:
+            checkout = self.client.post(
+                "/m4g/bar/checkout",
+                data={"cart_json": '[{"id":"acqua","quantity":1}]'},
+            )
+            self.assertEqual(checkout.status_code, 200)
+            import re
+
+            ref_match = re.search(r'data-m4g-payment-order-ref="(BAR[A-F0-9]+)"', checkout.text)
+            self.assertIsNotNone(ref_match)
+            reference = ref_match.group(1)
+            addr = "conferma-ordine@example.test"
+            ok1 = self.client.post(
+                f"/m4g/ordine/{reference}/email", data={"email": addr}
+            )
+            ok2 = self.client.post(
+                f"/m4g/ordine/{reference}/email", data={"email": addr}
+            )
+            self.assertEqual(ok1.status_code, 200)
+            self.assertEqual(ok2.status_code, 200)
+            self.assertEqual(send_mock.call_count, 1)
+            body = send_mock.call_args[0][2]
+            self.assertIn("/m4g/ordine/", body)
+            self.assertIn("/paga", body)
+        session = SessionLocal()
+        try:
+            session.query(BarOrder).filter(BarOrder.reference == reference).delete()
+            session.commit()
+        finally:
+            session.close()
+            reset_catalog()
+
+    def test_cassa_awaiting_without_items_json(self) -> None:
+        from app import m4g_auth
+        from app.database import SessionLocal
+        from app.m4g_cms import reset_catalog
+        from app.models import BarOrder
+
+        admin = TestClient(app)
+        admin.post(
+            "/m4g/gestione/login",
+            data={"password": m4g_auth.M4G_ADMIN_PASSWORD},
+            follow_redirects=False,
+        )
+        reference = None
+        try:
+            checkout = self.client.post(
+                "/m4g/merch/checkout",
+                data={"cart_json": '[{"slot":"socks","model":"1","size":"S","quantity":1}]'},
+            )
+            import re
+
+            ref_match = re.search(r'data-m4g-payment-order-ref="(MRC[A-F0-9]+)"', checkout.text)
+            reference = ref_match.group(1)
+            self.client.post(
+                f"/m4g/ordine/{reference}/email",
+                data={"email": "cassa@example.test"},
+            )
+            self.client.post(
+                f"/m4g/merch/{reference}/manual",
+                data={"method": "satispay"},
+                follow_redirects=False,
+            )
+            cassa = admin.get("/m4g/gestione/cassa?kind=merch")
+            self.assertEqual(cassa.status_code, 200)
+            self.assertIn("cassa@example.test", cassa.text)
+            self.assertNotIn("price_cents", cassa.text)
+        finally:
+            if reference:
+                session = SessionLocal()
+                try:
+                    session.query(BarOrder).filter_by(reference=reference).delete()
+                    session.commit()
+                finally:
+                    session.close()
+            reset_catalog()
+
+    def test_merch_page_no_delivery_notice(self) -> None:
+        from app.m4g_cms import set_page_visibility
+
+        try:
+            set_page_visibility(show_merch=True)
+            page = self.client.get("/m4g/merch")
+            self.assertEqual(page.status_code, 200)
+            self.assertIn("Nessuna consegna", page.text)
+            self.assertIn("ricavato verrà donato", page.text)
+            self.assertIn("m4g-merch-checkout-form", page.text)
+        finally:
+            set_page_visibility(show_merch=True)
 
     def test_other_amount_on_donation_and_registration(self) -> None:
         from app.database import SessionLocal

@@ -29,6 +29,7 @@
     {% block content %}{% endblock %}
     <footer class="m4g-footer">
       <p>{{ m4g.title }} — {{ m4g.location }}</p>
+      <p class="m4g-footer__legal">{{ m4g.legal.all_donations }}</p>
       <p class="m4g-muted">
         A sostegno di
         <a href="{{ m4g.beneficiary_url }}" class="m4g-link" target="_blank" rel="noreferrer">{{ m4g.beneficiary_name }}</a>

@@ -22,6 +22,7 @@ PAGES = [
     ("/m4g/bar", "bar"),
     ("/m4g/donazione", "donazione"),
     ("/m4g/merch", "merch"),
+    ("/m4g/bar?tipo=bere", "bar-bere"),
 ]
 
 VIEWPORTS = [

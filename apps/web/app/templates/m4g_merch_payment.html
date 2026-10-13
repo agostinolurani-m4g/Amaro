@@ -1,0 +1,73 @@
+{% extends "m4g_base.html" %}
+
+{% block title %}Pagamento — Merch{% endblock %}
+
+{% block content %}
+  <div
+    class="m4g-payment m4g-payment--wide"
+    data-m4g-payment-order-ref="{{ reference }}"
+    data-m4g-order-kind="merch"
+  >
+    <p class="m4g-hero__eyebrow" style="color: var(--m4g-muted);">Merch</p>
+    <h1>Pagamento ordine</h1>
+    <p class="m4g-notice m4g-notice--warn">{{ m4g.legal.merch_no_delivery }}</p>
+    <p class="m4g-notice m4g-notice--donate">{{ m4g.legal.merch_proceeds }}</p>
+    <p class="m4g-legal">{{ m4g.legal.merch }}</p>
+    <p>Importo totale: <strong>{{ total }} €</strong> · Codice <strong class="m4g-pay-code">{{ short_code }}</strong></p>
+    <ul class="m4g-voucher__lines">
+      {% for item in items %}
+        <li>
+          <span>{{ item.quantity }}× {{ item.name }}</span>
+          <span>{{ price_fn(item.price_cents * item.quantity) }} €</span>
+        </li>
+      {% endfor %}
+    </ul>
+    <div class="m4g-form m4g-order-email">
+      <label for="m4g-order-email">Email
+        <input type="email" name="email" id="m4g-order-email" value="{{ order_email or '' }}" required autocomplete="email" />
+      </label>
+      <p class="m4g-muted">Ti inviamo subito una mail con il link a questa pagina e ai banner.</p>
+    </div>
+    {% with bar_order_note = true %}
+      {% include "m4g_partials_payment_methods.html" %}
+    {% endwith %}
+    <p class="m4g-muted m4g-payment__donation">{{ m4g.legal.all_donations }}</p>
+    <p class="m4g-muted" style="margin-top:1rem;">Riferimento: <code>{{ reference }}</code></p>
+    <p style="margin-top: 1rem;">
+      <a class="m4g-link" href="/m4g/merch">← Torna al carrello</a>
+    </p>
+  </div>
+  <script src="{{ url_for('static', path='js/m4g-order-recall.js') }}" defer></script>
+  <script>
+  (function () {
+    var input = document.getElementById("m4g-order-email");
+    if (!input) return;
+    var ref = "{{ reference }}";
+    var saveUrl = "/m4g/ordine/" + encodeURIComponent(ref) + "/email";
+    function saveEmail() {
+      var email = (input.value || "").trim();
+      if (!email) {
+        input.reportValidity();
+        return Promise.reject(new Error("email"));
+      }
+      return fetch(saveUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" },
+        body: "email=" + encodeURIComponent(email),
+      }).then(function (r) {
+        if (!r.ok) throw new Error("save");
+        return r.json();
+      });
+    }
+    input.addEventListener("change", function () { saveEmail().catch(function () {}); });
+    document.querySelectorAll(".m4g-pay-nexi, .m4g-pay-manual__confirm, form[action*='/manual']").forEach(function (form) {
+      form.addEventListener("submit", function (e) {
+        e.preventDefault();
+        saveEmail()
+          .then(function () { HTMLFormElement.prototype.submit.call(form); })
+          .catch(function () { input.focus(); });
+      });
+    });
+  })();
+  </script>
+{% endblock %}

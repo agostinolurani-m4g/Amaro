@@ -54,7 +54,12 @@ from .m4g_cms import (
 )
 from .m4g_common import (
     bar_orders_awaiting_check,
+    bar_orders_awaiting_check_for_kind,
     bar_orders_eligible,
+    bar_orders_eligible_for_kind,
+    list_merch_bar_orders,
+    merch_bar_order_fields,
+    order_kind,
     compute_fundraising_stats,
     format_price,
     format_rome,
@@ -184,9 +189,7 @@ def m4g_gestione_page(
             "registrations": list_m4g_registrations(
                 session, reg_q, hidden=show_hidden, exclude_activity="merch"
             ),
-            "merch_orders": list_m4g_registrations(
-                session, merch_q, hidden=show_hidden, activity="merch"
-            ),
+            "merch_orders": list_merch_bar_orders(session, merch_q),
             "show_hidden": show_hidden,
             "activity_labels": {
                 "bike": "Bici",
@@ -203,7 +206,7 @@ def m4g_gestione_page(
             },
             "when_fn": format_rome,
             "detail_fn": registration_signup_detail,
-            "merch_fields_fn": merch_order_fields,
+            "merch_fields_fn": merch_bar_order_fields,
             "reg_q": reg_q,
             "merch_q": merch_q,
             **_admin_dashboard(session),
@@ -452,12 +455,16 @@ def m4g_gestione_cassa(
     denied = _require_admin(request)
     if denied:
         return denied
-    awaiting = bar_orders_awaiting_check(session)
-    eligible = bar_orders_eligible(session)
+    kind = (request.query_params.get("kind") or "bar").strip().lower()
+    if kind not in ("bar", "merch"):
+        kind = "bar"
+    awaiting = bar_orders_awaiting_check_for_kind(session, kind)
+    eligible = bar_orders_eligible_for_kind(session, kind)
     return templates.TemplateResponse(
         "m4g_gestione_cassa.html",
         {
             "request": request,
+            "kind": kind,
             "awaiting": awaiting,
             "eligible": eligible,
             "price_fn": format_price,
@@ -478,6 +485,10 @@ def m4g_gestione_bar_paid(
     order = session.query(BarOrder).filter_by(reference=reference.strip()).first()
     if order and order.payment_status == "awaiting_check":
         mark_bar_order_paid(order, session)
+        kind = order_kind(order)
+        return RedirectResponse(
+            f"/m4g/gestione/cassa?kind={kind}&msg=paid", status_code=302
+        )
     return RedirectResponse("/m4g/gestione/cassa?msg=paid", status_code=302)
 
 
@@ -491,9 +502,13 @@ def m4g_gestione_bar_reject(
     if denied:
         return denied
     order = session.query(BarOrder).filter_by(reference=reference.strip()).first()
+    kind = "bar"
     if order:
+        kind = order_kind(order)
         reject_bar_order(order, session)
-    return RedirectResponse("/m4g/gestione/cassa?msg=rejected", status_code=302)
+    return RedirectResponse(
+        f"/m4g/gestione/cassa?kind={kind}&msg=rejected", status_code=302
+    )
 
 
 @admin_router.post("/m4g/gestione/registration-paid")
@@ -783,33 +798,33 @@ def m4g_export_merch(
             "phone",
             "amount_eur",
             "payment_status",
-            "hidden",
-            "paid_email_sent_at",
+            "short_code",
+            "order_email_sent_at",
         ]
     )
-    for reg in (
-        session.query(M4gRegistration)
-        .filter(M4gRegistration.activity == "merch")
-        .order_by(M4gRegistration.created_at.desc())
+    for order in (
+        session.query(BarOrder)
+        .filter(BarOrder.kind == "merch")
+        .order_by(BarOrder.created_at.desc())
     ):
-        fields = merch_order_fields(reg)
+        fields = merch_bar_order_fields(order)
         writer.writerow(
             [
-                reg.created_at,
-                reg.reference,
+                order.created_at,
+                order.reference,
                 fields["product"],
                 fields["model"],
                 fields["size"],
                 fields["quantity"],
                 fields["notes"],
-                reg.first_name or "",
-                reg.last_name or "",
-                reg.email or "",
-                reg.phone or "",
-                f"{(reg.amount_cents or 0) / 100:.2f}",
-                reg.payment_status,
-                "1" if reg.hidden else "0",
-                reg.paid_email_sent_at or "",
+                "",
+                "",
+                order.email or "",
+                "",
+                f"{(order.amount_cents or 0) / 100:.2f}",
+                order.payment_status,
+                order.short_code or "",
+                order.order_email_sent_at or "",
             ]
         )
     buffer.seek(0)

@@ -11,12 +11,12 @@ from urllib.parse import quote, urlencode
 
 from fastapi import Request
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import func, inspect, text
+from sqlalchemy import func, inspect, text, update
 from sqlalchemy.orm import Session
 
 from .config import settings
 from .database import engine
-from .m4g_cms import cms_show_bar, cms_show_merch, cms_show_total
+from .m4g_cms import cms_menu_item_stand_label, cms_show_bar, cms_show_merch, cms_show_total
 from .m4g_config import M4G_EVENT
 from .models import BarOrder, M4gRegistration
 from .nexi import NexiXpayClient
@@ -183,6 +183,10 @@ def alt_payment_context(
 VOUCHER_STATUS_VALID = "valid"
 VOUCHER_STATUS_REDEEMED = "redeemed"
 
+REDEEM_OUTCOME_CLAIMED = "claimed"
+REDEEM_OUTCOME_ALREADY_REDEEMED = "already_redeemed"
+_MAX_REDEEM_CAS_RETRIES = 5
+
 BAR_SHORT_CODE_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ"
 AWAITING_CHECK_MAX_HOURS = 3
 
@@ -232,11 +236,17 @@ def reject_bar_order(order: BarOrder, session: Session) -> None:
         session.commit()
 
 
+def _bar_kind_filter():
+    from sqlalchemy import or_
+
+    return or_(BarOrder.kind == "bar", BarOrder.kind.is_(None), BarOrder.kind == "")
+
+
 def bar_orders_awaiting_check(session: Session) -> list[BarOrder]:
     expire_stale_bar_orders(session)
     return (
         session.query(BarOrder)
-        .filter(BarOrder.payment_status == "awaiting_check")
+        .filter(BarOrder.payment_status == "awaiting_check", _bar_kind_filter())
         .order_by(BarOrder.created_at.desc())
         .all()
     )
@@ -251,7 +261,7 @@ def bar_orders_eligible(session: Session) -> list[tuple[BarOrder, int]]:
     rows: list[tuple[BarOrder, int]] = []
     for order in (
         session.query(BarOrder)
-        .filter(BarOrder.payment_status == "paid")
+        .filter(BarOrder.payment_status == "paid", _bar_kind_filter())
         .order_by(BarOrder.paid_at.desc())
     ):
         remaining = bar_order_valid_voucher_count(order)
@@ -319,6 +329,101 @@ def merch_order_fields(reg: M4gRegistration) -> dict[str, str]:
     }
 
 
+def merch_bar_order_fields(order: BarOrder) -> dict[str, str]:
+    try:
+        items = json.loads(order.items_json or "[]")
+    except json.JSONDecodeError:
+        items = []
+    if not isinstance(items, list):
+        items = []
+    lines: list[str] = []
+    total_qty = 0
+    for entry in items:
+        if not isinstance(entry, dict):
+            continue
+        quantity = int(entry.get("quantity", 0) or 0)
+        total_qty += quantity
+        name = str(entry.get("name") or "Articolo")
+        lines.append(f"{quantity}× {name}" if quantity > 1 else name)
+    return {
+        "product": "; ".join(lines),
+        "model": "",
+        "size": "",
+        "quantity": str(total_qty) if total_qty else "",
+        "notes": "",
+    }
+
+
+def order_kind(order: BarOrder) -> str:
+    return (order.kind or "bar").strip().lower()
+
+
+def order_consumptions_path(order: BarOrder) -> str:
+    if order_kind(order) == "merch":
+        return f"/m4g/merch/ordine/{order.reference}/codici"
+    return f"/m4g/ordine/{order.reference}/consumi"
+
+
+def order_payment_resume_path(order: BarOrder) -> str:
+    if order_kind(order) == "merch":
+        return f"/m4g/merch/{order.reference}/paga"
+    return f"/m4g/bar/{order.reference}/paga"
+
+
+def voucher_stand_for_order(order: BarOrder, item_id: str) -> str:
+    if order_kind(order) == "merch":
+        return "Merch"
+    return cms_menu_item_stand_label(item_id)
+
+
+def list_merch_bar_orders(
+    session: Session,
+    query: str = "",
+    limit: int = 2000,
+) -> list[BarOrder]:
+    q = session.query(BarOrder).filter(BarOrder.kind == "merch")
+    needle = query.strip().lower()
+    if needle:
+        like = f"%{needle}%"
+        q = q.filter(
+            (BarOrder.reference.ilike(like))
+            | (BarOrder.email.ilike(like))
+            | (BarOrder.short_code.ilike(like))
+            | (BarOrder.items_json.ilike(like))
+        )
+    return q.order_by(BarOrder.created_at.desc()).limit(limit).all()
+
+
+def bar_orders_awaiting_check_for_kind(
+    session: Session, kind: str
+) -> list[BarOrder]:
+    expire_stale_bar_orders(session)
+    clean = kind.strip().lower()
+    q = session.query(BarOrder).filter(BarOrder.payment_status == "awaiting_check")
+    if clean == "merch":
+        q = q.filter(BarOrder.kind == "merch")
+    else:
+        q = q.filter(_bar_kind_filter())
+    return q.order_by(BarOrder.created_at.desc()).all()
+
+
+def bar_orders_eligible_for_kind(
+    session: Session, kind: str
+) -> list[tuple[BarOrder, int]]:
+    rows: list[tuple[BarOrder, int]] = []
+    clean = kind.strip().lower()
+    q = session.query(BarOrder).filter(BarOrder.payment_status == "paid")
+    if clean == "merch":
+        q = q.filter(BarOrder.kind == "merch")
+    else:
+        q = q.filter(_bar_kind_filter())
+    for order in q.order_by(BarOrder.paid_at.desc()):
+        remaining = bar_order_valid_voucher_count(order)
+        if remaining > 0:
+            rows.append((order, remaining))
+    return rows
+
+
 def list_m4g_registrations(
     session: Session,
     query: str = "",
@@ -363,8 +468,9 @@ def build_consumption_vouchers(order: BarOrder) -> list[dict[str, Any]]:
             continue
         quantity = int(entry.get("quantity", 0))
         name = str(entry.get("name", "Articolo"))
-        item_id = str(entry.get("id", ""))
+        item_id = str(entry.get("id") or entry.get("slot") or "")
         price_cents = int(entry.get("price_cents", 0))
+        stand = voucher_stand_for_order(order, item_id)
         for _ in range(max(0, min(quantity, 50))):
             vouchers.append(
                 {
@@ -372,6 +478,7 @@ def build_consumption_vouchers(order: BarOrder) -> list[dict[str, Any]]:
                     "name": name,
                     "item_id": item_id,
                     "price_cents": price_cents,
+                    "stand": stand,
                     "status": VOUCHER_STATUS_VALID,
                 }
             )
@@ -386,7 +493,29 @@ def load_consumption_vouchers(order: BarOrder) -> list[dict[str, Any]]:
         data = json.loads(raw)
     except json.JSONDecodeError:
         return []
-    return data if isinstance(data, list) else []
+    if not isinstance(data, list):
+        return []
+    return enrich_consumption_vouchers(order, data)
+
+
+def enrich_consumption_vouchers(
+    order: BarOrder, vouchers: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    total = len(vouchers)
+    enriched: list[dict[str, Any]] = []
+    for index, entry in enumerate(vouchers):
+        if not isinstance(entry, dict):
+            continue
+        row = dict(entry)
+        item_id = str(row.get("item_id") or "")
+        if not row.get("stand"):
+            row["stand"] = voucher_stand_for_order(order, item_id)
+        row["index"] = index + 1
+        row["total"] = total
+        token = str(row.get("token") or "")
+        row["banner_id"] = token[-6:].upper() if len(token) >= 6 else token
+        enriched.append(row)
+    return enriched
 
 
 def save_consumption_vouchers(
@@ -396,29 +525,74 @@ def save_consumption_vouchers(
     session.commit()
 
 
+def _parse_consumption_vouchers_raw(raw: str | None) -> list[dict[str, Any]]:
+    if not raw:
+        return []
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        return []
+    if not isinstance(data, list):
+        return []
+    return [dict(entry) for entry in data if isinstance(entry, dict)]
+
+
+def _consumption_entry_for_token(
+    vouchers: list[dict[str, Any]], token: str
+) -> dict[str, Any] | None:
+    for entry in vouchers:
+        if entry.get("token") == token:
+            return entry
+    return None
+
+
 def redeem_consumption_token(
     order: BarOrder, token: str, session: Session
-) -> dict[str, Any] | None:
-    vouchers = load_consumption_vouchers(order)
-    for entry in vouchers:
-        if entry.get("token") != token:
-            continue
-        if entry.get("status") == VOUCHER_STATUS_REDEEMED:
-            return entry
-        if entry.get("status") != VOUCHER_STATUS_VALID:
-            return None
-        entry["status"] = VOUCHER_STATUS_REDEEMED
-        entry["redeemed_at"] = datetime.utcnow().isoformat()
-        save_consumption_vouchers(order, vouchers, session)
+) -> tuple[str | None, dict[str, Any] | None]:
+    for _ in range(_MAX_REDEEM_CAS_RETRIES):
+        session.refresh(order)
+        expected_json = order.consumption_tokens_json
+        if not expected_json:
+            return None, None
+        vouchers = _parse_consumption_vouchers_raw(expected_json)
+        target = _consumption_entry_for_token(vouchers, token)
+        if target is None:
+            return None, None
+        status = target.get("status")
+        if status == VOUCHER_STATUS_REDEEMED:
+            return REDEEM_OUTCOME_ALREADY_REDEEMED, dict(target)
+        if status != VOUCHER_STATUS_VALID:
+            return None, None
+
+        target["status"] = VOUCHER_STATUS_REDEEMED
+        target["redeemed_at"] = datetime.utcnow().isoformat()
+        new_json = json.dumps(vouchers, ensure_ascii=False)
         remaining = sum(
             1 for v in vouchers if v.get("status") == VOUCHER_STATUS_VALID
         )
+        values: dict[str, Any] = {"consumption_tokens_json": new_json}
         if remaining == 0:
-            order.voucher_status = VOUCHER_STATUS_REDEEMED
-            order.redeemed_at = datetime.utcnow()
-            session.commit()
-        return entry
-    return None
+            values["voucher_status"] = VOUCHER_STATUS_REDEEMED
+            values["redeemed_at"] = datetime.utcnow()
+
+        result = session.execute(
+            update(BarOrder)
+            .where(BarOrder.id == order.id)
+            .where(BarOrder.consumption_tokens_json == expected_json)
+            .values(**values)
+        )
+        session.commit()
+        if result.rowcount == 1:
+            return REDEEM_OUTCOME_CLAIMED, dict(target)
+
+    session.refresh(order)
+    vouchers = _parse_consumption_vouchers_raw(order.consumption_tokens_json)
+    target = _consumption_entry_for_token(vouchers, token)
+    if target is None:
+        return None, None
+    if target.get("status") == VOUCHER_STATUS_REDEEMED:
+        return REDEEM_OUTCOME_ALREADY_REDEEMED, dict(target)
+    return None, None
 
 
 def mark_bar_order_paid(order: BarOrder, session: Session) -> str:
@@ -484,8 +658,11 @@ def apply_m4g_payment_by_reference(
     if order:
         if success:
             mark_bar_order_paid(order, session)
-            return {"redirect_url": f"{base}/m4g/ordine/{order.reference}/consumi"}
+            path = order_consumptions_path(order)
+            return {"redirect_url": f"{base}{path}"}
         mark_bar_order_failed(order, session)
+        if order_kind(order) == "merch":
+            return {"redirect_url": f"{base}/m4g/merch?payment=failed"}
         return {"redirect_url": f"{base}/m4g/bar?payment=failed"}
 
     reg = session.query(M4gRegistration).filter_by(reference=ref).first()
@@ -595,12 +772,24 @@ def ensure_bar_order_schema() -> None:
         "voucher_token": "TEXT",
         "voucher_status": "TEXT",
         "paid_at": "DATETIME",
+        "order_email_sent_at": "DATETIME",
+        "confirmation_email_to": "TEXT",
         "redeemed_at": "DATETIME",
         "consumption_tokens_json": "TEXT",
         "payment_method": "TEXT",
         "short_code": "TEXT",
+        "kind": "TEXT NOT NULL DEFAULT 'bar'",
+        "email": "TEXT",
     }
     with engine.begin() as conn:
         for column, ddl in required_columns.items():
             if column not in columns:
                 conn.execute(text(f"ALTER TABLE bar_orders ADD COLUMN {column} {ddl}"))
+        columns = {col["name"] for col in inspector.get_columns("bar_orders")}
+        if "order_email_sent_at" in columns and "paid_email_sent_at" in columns:
+            conn.execute(
+                text(
+                    "UPDATE bar_orders SET order_email_sent_at = paid_email_sent_at "
+                    "WHERE order_email_sent_at IS NULL AND paid_email_sent_at IS NOT NULL"
+                )
+            )

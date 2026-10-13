@@ -36,11 +36,11 @@
       <p class="m4g-pay-methods__links">
         <a class="m4g-btn m4g-btn--paypal m4g-btn--pay" href="{{ paypal_url }}" target="_blank" rel="noreferrer">Apri PayPal</a>
       </p>
-      <form method="post" action="/m4g/bar/{{ reference }}/manual" class="m4g-form m4g-pay-manual__confirm">
+      <form method="post" action="{{ manual_payment_base | default('/m4g/bar') }}/{{ reference }}/manual" class="m4g-form m4g-pay-manual__confirm">
         <input type="hidden" name="method" value="satispay" />
         <button type="submit" class="m4g-btn m4g-btn--primary m4g-btn--inline">Ho pagato con Satispay</button>
       </form>
-      <form method="post" action="/m4g/bar/{{ reference }}/manual" class="m4g-form">
+      <form method="post" action="{{ manual_payment_base | default('/m4g/bar') }}/{{ reference }}/manual" class="m4g-form">
         <input type="hidden" name="method" value="paypal" />
         <button type="submit" class="m4g-btn m4g-btn--secondary m4g-btn--inline">Ho pagato con PayPal</button>
       </form>

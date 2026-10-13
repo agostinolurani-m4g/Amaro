@@ -1249,6 +1249,16 @@ def cms_menu_by_id() -> dict[str, dict[str, Any]]:
     return catalog
 
 
+def cms_menu_item_stand_label(item_id: str) -> str:
+    groups = {group["id"]: group["label"] for group in cms_menu_groups()}
+    for section in cms_menu():
+        for item in section["items"]:
+            if str(item["id"]) == item_id:
+                kind = str(section.get("kind") or "cibo")
+                return groups.get(kind, kind)
+    return groups.get("cibo", "Cibo")
+
+
 def save_menu(sections: list[dict[str, Any]]) -> None:
     state = _load_state_raw()
     state["menu"] = sections
