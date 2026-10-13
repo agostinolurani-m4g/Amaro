@@ -31,12 +31,20 @@
       </div>
     </section>
 
-    <div id="m4g-menu">
+    <nav class="m4g-menu-tabs" role="tablist" aria-label="Cibo o bevande">
+      <button type="button" class="m4g-menu-tabs__btn" role="tab" data-menu-tab="cibo" aria-selected="{% if menu_tipo == 'cibo' %}true{% else %}false{% endif %}">Cibo</button>
+      <button type="button" class="m4g-menu-tabs__btn" role="tab" data-menu-tab="bere" aria-selected="{% if menu_tipo == 'bere' %}true{% else %}false{% endif %}">Bevande</button>
+    </nav>
+
+    <div id="m4g-menu" data-menu-tipo="{{ menu_tipo }}">
       {% for section in menu %}
-        <section class="m4g-card">
+        <section class="m4g-card m4g-menu-section" data-menu-kind="{{ section.kind }}"{% if section.kind != menu_tipo %} hidden{% endif %}>
           <div class="m4g-card__head">{{ section.category }}</div>
           {% for item in section['items'] %}
             <div class="m4g-item" data-item-id="{{ item.id }}" data-price-cents="{{ item.price_cents }}">
+              {% if item.producer_logo %}
+                <img class="m4g-item__logo" src="{{ item.producer_logo }}" alt="" width="40" height="40" loading="lazy" />
+              {% endif %}
               <div class="m4g-item__info">
                 <p class="m4g-item__name">{{ item.name }}</p>
                 {% if item.producer_name %}

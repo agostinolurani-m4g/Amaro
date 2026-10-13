@@ -695,6 +695,23 @@ def _parse_cart_json(cart_json: str) -> list[dict[str, Any]]:
     return normalized
 
 
+def _menu_tipo_from_request(request: Request) -> str:
+    raw = str(request.query_params.get("tipo") or "").strip().lower()
+    return "bere" if raw == "bere" else "cibo"
+
+
+def _m4g_qr_image_url(target_url: str) -> str:
+    return (
+        "https://api.qrserver.com/v1/create-qr-code/?size=320x320&data="
+        + quote(target_url, safe="")
+    )
+
+
+def _m4g_absolute_url(request: Request, path: str) -> str:
+    base = str(request.base_url).rstrip("/")
+    return f"{base}{path}"
+
+
 @router.get("/m4g/bar", response_class=HTMLResponse)
 def bar_menu_page(request: Request) -> HTMLResponse:
     if not cms_show_bar():
@@ -707,6 +724,7 @@ def bar_menu_page(request: Request) -> HTMLResponse:
             "menu": menu_with_producer_names(cms_menu(), vendors),
             "event": M4G_EVENT,
             "vendors": vendors,
+            "menu_tipo": _menu_tipo_from_request(request),
             "payment_failed": _payment_failed(request),
             "price_fn": format_price,
         },
@@ -805,15 +823,108 @@ def bar_manual_payment_confirm(
 def bar_qr_page(request: Request) -> HTMLResponse:
     if not cms_show_bar():
         raise HTTPException(status_code=404, detail="Pagina non disponibile")
-    base = str(request.base_url).rstrip("/")
-    bar_url = f"{base}/m4g/bar"
-    qr_url = (
-        "https://api.qrserver.com/v1/create-qr-code/?size=320x320&data="
-        + quote(bar_url, safe="")
-    )
+    target_url = _m4g_absolute_url(request, "/m4g/bar")
     return templates.TemplateResponse(
         "m4g_bar_qr.html",
-        {"request": request, "bar_url": bar_url, "qr_url": qr_url},
+        {
+            "request": request,
+            "bar_url": target_url,
+            "qr_url": _m4g_qr_image_url(target_url),
+        },
+    )
+
+
+@router.get("/m4g/qr", response_class=HTMLResponse)
+def m4g_qr_index(request: Request) -> HTMLResponse:
+    links: list[dict[str, str]] = [
+        {"href": "/m4g/qr/donazione", "label": "Donazione"},
+    ]
+    if cms_show_bar():
+        links.append({"href": "/m4g/qr/cibo", "label": "Menu cibo"})
+        links.append({"href": "/m4g/qr/bere", "label": "Menu bevande"})
+    if cms_show_merch():
+        links.append({"href": "/m4g/qr/merch", "label": "Merch"})
+    return templates.TemplateResponse(
+        "m4g_qr_index.html",
+        {"request": request, "links": links},
+    )
+
+
+@router.get("/m4g/qr/donazione", response_class=HTMLResponse)
+def m4g_qr_donation(request: Request) -> HTMLResponse:
+    target_url = _m4g_absolute_url(request, "/m4g/donazione")
+    return templates.TemplateResponse(
+        "m4g_qr_page.html",
+        {
+            "request": request,
+            "page_title": "QR Donazione",
+            "heading": "QR Donazione",
+            "hint": "Stampa o mostra questo codice per la pagina donazioni.",
+            "target_url": target_url,
+            "qr_url": _m4g_qr_image_url(target_url),
+            "open_href": "/m4g/donazione",
+            "open_label": "Apri donazione",
+        },
+    )
+
+
+@router.get("/m4g/qr/cibo", response_class=HTMLResponse)
+def m4g_qr_food(request: Request) -> HTMLResponse:
+    if not cms_show_bar():
+        raise HTTPException(status_code=404, detail="Pagina non disponibile")
+    target_url = _m4g_absolute_url(request, "/m4g/bar?tipo=cibo")
+    return templates.TemplateResponse(
+        "m4g_qr_page.html",
+        {
+            "request": request,
+            "page_title": "QR Menu cibo",
+            "heading": "QR Menu cibo",
+            "hint": "Apre il menù bar sulla scheda Cibo.",
+            "target_url": target_url,
+            "qr_url": _m4g_qr_image_url(target_url),
+            "open_href": "/m4g/bar?tipo=cibo",
+            "open_label": "Apri menu cibo",
+        },
+    )
+
+
+@router.get("/m4g/qr/bere", response_class=HTMLResponse)
+def m4g_qr_drinks(request: Request) -> HTMLResponse:
+    if not cms_show_bar():
+        raise HTTPException(status_code=404, detail="Pagina non disponibile")
+    target_url = _m4g_absolute_url(request, "/m4g/bar?tipo=bere")
+    return templates.TemplateResponse(
+        "m4g_qr_page.html",
+        {
+            "request": request,
+            "page_title": "QR Menu bevande",
+            "heading": "QR Menu bevande",
+            "hint": "Apre il menù bar sulla scheda Bevande.",
+            "target_url": target_url,
+            "qr_url": _m4g_qr_image_url(target_url),
+            "open_href": "/m4g/bar?tipo=bere",
+            "open_label": "Apri menu bevande",
+        },
+    )
+
+
+@router.get("/m4g/qr/merch", response_class=HTMLResponse)
+def m4g_qr_merch(request: Request) -> HTMLResponse:
+    if not cms_show_merch():
+        raise HTTPException(status_code=404, detail="Pagina non disponibile")
+    target_url = _m4g_absolute_url(request, "/m4g/merch")
+    return templates.TemplateResponse(
+        "m4g_qr_page.html",
+        {
+            "request": request,
+            "page_title": "QR Merch",
+            "heading": "QR Merch",
+            "hint": "Stampa o mostra questo codice per la pagina merch.",
+            "target_url": target_url,
+            "qr_url": _m4g_qr_image_url(target_url),
+            "open_href": "/m4g/merch",
+            "open_label": "Apri merch",
+        },
     )
 
 

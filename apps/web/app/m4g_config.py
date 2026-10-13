@@ -310,10 +310,118 @@ M4G_EVENT = {
         "cf": "",
         "address": "Gaza / London (team & fiscal hosts)",
         "blurb": (
-            "Gaza Sunbirds è la squadra paraciclistica della Palestina e, negli ultimi 22 mesi, "
+            "Gaza Sunbirds è la squadra paraciclistica della Palestina e, da anni, "
             "ha ottenuto riconoscimento a livello globale per le sue coraggiose missioni di soccorso "
             "e per i risultati sportivi internazionali."
         ),
+        "update": {
+            "title": "Cosa hanno fatto i Sunbirds dall'ultimo evento",
+            "intro": (
+                "Da ottobre 2025 i Sunbirds sono stati meno visibili, ma non si sono mai fermati. "
+                "Ecco, in numeri e nelle loro parole, cosa hanno fatto."
+            ),
+            "intro_quote": "the work has never stopped.",
+            "quote_attrib": "Gaza Sunbirds Team",
+            "blocks": [
+                {
+                    "key": "humanitarian",
+                    "title": "Aiuti umanitari a Gaza",
+                    "stats": [
+                        {
+                            "value": "~30 t",
+                            "label": "di pane al mese (2 t ogni due giorni)",
+                        },
+                        {
+                            "value": "10–20 t",
+                            "label": "di cibo in più al mese, in base alla disponibilità",
+                        },
+                        {
+                            "value": "~6",
+                            "label": "serate cinema per bambini e famiglie, da maggio",
+                        },
+                        {
+                            "value": "7–8",
+                            "label": "pizza party, da maggio",
+                        },
+                    ],
+                    "segments": [
+                        {
+                            "lead": (
+                                "Dal 2025 distribuzioni regolari di cibo insieme a "
+                                "World Central Kitchen."
+                            ),
+                            "quotes": [
+                                (
+                                    "Since October 2025, we’ve been working with World Central "
+                                    "Kitchen to deliver regular food assistance across Gaza."
+                                ),
+                                (
+                                    "We’re currently distributing approximately 2 tonnes of "
+                                    "bread every two days, equivalent to around 30 tonnes per "
+                                    "month, alongside an additional 10–20 tonnes of food "
+                                    "distributions each month, depending on availability."
+                                ),
+                            ],
+                        },
+                        {
+                            "lead": (
+                                "Oltre al cibo, momenti di normalità per bambini e famiglie."
+                            ),
+                            "quotes": [
+                                (
+                                    "creating opportunities for children to enjoy themselves "
+                                    "and experience some moments of normality amid everything "
+                                    "happening around them."
+                                ),
+                            ],
+                        },
+                    ],
+                },
+                {
+                    "key": "sport",
+                    "title": "Sport e atleti",
+                    "stats": [
+                        {"value": "9", "label": "atletə in Belgio"},
+                        {"value": "5", "label": "atletə in Egitto"},
+                        {
+                            "value": "2",
+                            "label": "prime cicliste in allenamento in Belgio",
+                        },
+                        {
+                            "value": "~280",
+                            "label": "punti UCI nel 2026, massimo nella storia del team",
+                        },
+                    ],
+                    "segments": [
+                        {
+                            "lead": (
+                                "I programmi sportivi continuano a crescere. Alaa Al-Dali è "
+                                "stato invitato a rappresentare la Palestina ai Giochi "
+                                "Paralimpici asiatici in Giappone ad ottobre, verso Los Angeles "
+                                "2028."
+                            ),
+                            "quotes": [
+                                "a major step forward for Palestinian para-cycling.",
+                            ],
+                        },
+                    ],
+                },
+            ],
+            "next_title": "Cosa viene dopo",
+            "next_lead": (
+                "Stagione ciclistica 2027, ripartenza dei programmi sportivi locali a Gaza, "
+                "primo progetto pilota di sport al femminile a novembre. In più, la "
+                "ristrutturazione dell’organizzazione:"
+            ),
+            "next_quote": (
+                "We’ve been restructuring the organisation, strengthening our programmes "
+                "and working to build a more sustainable future for the team."
+            ),
+            "closing_quote": (
+                "Your support is helping us deliver food in Gaza, create opportunities for "
+                "Palestinian athletes, and continue building a future for Palestinian sport."
+            ),
+        },
         "video": {
             "src": static_m4g("video/sunbirds-hd.mp4"),
             "poster": static_m4g("opt/bene_aid-1280.webp"),

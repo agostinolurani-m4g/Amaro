@@ -80,6 +80,24 @@ class M4gPageTests(unittest.TestCase):
             "https://www.amarobici.it/m4g/bici?from=poster",
         )
 
+    def test_chi_siamo_sunbirds_update_section(self) -> None:
+        from app.m4g_config import M4G_EVENT
+
+        response = self.client.get("/m4g/chi-siamo")
+        self.assertEqual(response.status_code, 200)
+        body = response.text
+        update = M4G_EVENT["beneficiary"]["update"]
+        self.assertIn("Cosa hanno fatto i Sunbirds dall", body)
+        humanitarian_title = update["blocks"][0]["title"]
+        sport_title = update["blocks"][1]["title"]
+        self.assertIn(humanitarian_title, body)
+        self.assertIn(sport_title, body)
+        self.assertLess(body.index(humanitarian_title), body.index(sport_title))
+        wck_quote = update["blocks"][0]["segments"][0]["quotes"][0]
+        self.assertIn(wck_quote, body)
+        self.assertIn('data-block="humanitarian"', body)
+        self.assertIn('data-block="sport"', body)
+
     def test_giornata_page(self) -> None:
         response = self.client.get("/m4g/giornata")
         self.assertEqual(response.status_code, 200)
@@ -152,6 +170,7 @@ class M4gPageTests(unittest.TestCase):
                 data={
                     "sec_category": "Pranzo — Cucina Test",
                     "sec_vendor": "cucina-test",
+                    "sec_kind": "cibo",
                     "item_section": ["0", "0"],
                     "item_id": ["piatto-test", "pizza-test"],
                     "item_name": ["Lasagna solidale", "Margherita"],
@@ -167,8 +186,13 @@ class M4gPageTests(unittest.TestCase):
             self.assertIn("8.50", page.text)
             self.assertIn("Cucina Test", page.text)
             self.assertIn("m4g-item__producer", page.text)
+            self.assertIn("m4g-menu-tabs", page.text)
+            self.assertIn('data-menu-kind="cibo"', page.text)
             self.assertIn("Margherita", page.text)
             self.assertIn("Forno Test", page.text)
+            bere_tab = self.client.get("/m4g/bar?tipo=bere")
+            self.assertEqual(bere_tab.status_code, 200)
+            self.assertIn('data-menu-tipo="bere"', bere_tab.text)
             checkout = self.client.post(
                 "/m4g/bar/checkout",
                 data={"cart_json": '[{"id":"piatto-test","quantity":2}]'},
@@ -441,6 +465,7 @@ class M4gPageTests(unittest.TestCase):
             self.assertEqual(logo.status_code, 200)
             bar = self.client.get("/m4g/bar")
             self.assertIn("/m4g/cms/media/", bar.text)
+            self.assertIn("m4g-item__logo", bar.text)
             reset_resp = admin.post(
                 "/m4g/gestione/vendor-logo-reset",
                 data={"vendor_id": "cucina-franca"},
@@ -448,6 +473,27 @@ class M4gPageTests(unittest.TestCase):
             self.assertEqual(reset_resp.status_code, 200)
         finally:
             reset_catalog()
+
+    def test_m4g_qr_pages(self) -> None:
+        index = self.client.get("/m4g/qr")
+        self.assertEqual(index.status_code, 200)
+        self.assertIn("/m4g/qr/donazione", index.text)
+        self.assertIn("/m4g/qr/cibo", index.text)
+        self.assertIn("/m4g/qr/bere", index.text)
+        self.assertIn("/m4g/qr/merch", index.text)
+        donation = self.client.get("/m4g/qr/donazione")
+        self.assertEqual(donation.status_code, 200)
+        self.assertIn("api.qrserver.com", donation.text)
+        self.assertIn("/m4g/donazione", donation.text)
+        food = self.client.get("/m4g/qr/cibo")
+        self.assertEqual(food.status_code, 200)
+        self.assertIn("tipo=cibo", food.text)
+        drinks = self.client.get("/m4g/qr/bere")
+        self.assertEqual(drinks.status_code, 200)
+        self.assertIn("tipo=bere", drinks.text)
+        merch = self.client.get("/m4g/qr/merch")
+        self.assertEqual(merch.status_code, 200)
+        self.assertIn("/m4g/merch", merch.text)
 
     def test_admin_password_separate_from_site_preview(self) -> None:
         from app import m4g_auth
@@ -489,7 +535,69 @@ class M4gPageTests(unittest.TestCase):
         bar_ok = admin.get("/m4g/gestione/export/bar.csv")
         self.assertEqual(bar_ok.status_code, 200)
         self.assertIn("short_code", bar_ok.text)
+        merch_ok = admin.get("/m4g/gestione/export/merch.csv")
+        self.assertEqual(merch_ok.status_code, 200)
+        self.assertIn("product", merch_ok.text)
 
+    def test_gestione_merch_orders_section(self) -> None:
+        from app.database import SessionLocal
+        from app.m4g_cms import set_page_visibility
+        from app.models import M4gRegistration
+
+        email = "ordine-merch@example.test"
+        try:
+            set_page_visibility(show_merch=True)
+            order = self.client.post(
+                "/m4g/merch",
+                data={
+                    "item": "socks",
+                    "first_name": "Mina",
+                    "last_name": "MerchTest",
+                    "email": email,
+                    "phone": "3339998877",
+                    "quantity": "2",
+                    "size": "L",
+                    "model": "2",
+                    "notes": "Consegna in giornata",
+                },
+            )
+            self.assertEqual(order.status_code, 200)
+            admin = TestClient(app)
+            admin.post(
+                "/m4g/gestione/login",
+                data={"password": M4G_TEST_PASSWORD},
+                follow_redirects=False,
+            )
+            gestione = admin.get("/m4g/gestione")
+            self.assertEqual(gestione.status_code, 200)
+            self.assertIn('id="cms-ordini"', gestione.text)
+            self.assertIn("Ordini merch", gestione.text)
+            iscrizioni_html = gestione.text.split('id="cms-iscrizioni"', 1)[1].split(
+                'id="cms-ordini"', 1
+            )[0]
+            ordini_html = gestione.text.split('id="cms-ordini"', 1)[1].split(
+                "Sito pubblico", 1
+            )[0]
+            self.assertNotIn("MerchTest", iscrizioni_html)
+            self.assertNotIn("Calze solidali", iscrizioni_html)
+            self.assertIn("MerchTest", ordini_html)
+            self.assertIn("Calze solidali", ordini_html)
+            self.assertIn("Consegna in giornata", ordini_html)
+            self.assertIn("3339998877", ordini_html)
+            self.assertIn("<th>Taglia</th>", ordini_html)
+            merch_csv = admin.get("/m4g/gestione/export/merch.csv")
+            self.assertIn("Calze solidali", merch_csv.text)
+            self.assertIn(email, merch_csv.text)
+            self.assertIn("Consegna in giornata", merch_csv.text)
+        finally:
+            session = SessionLocal()
+            try:
+                session.query(M4gRegistration).filter(
+                    M4gRegistration.email == email
+                ).delete()
+                session.commit()
+            finally:
+                session.close()
 
     def test_other_amount_on_donation_and_registration(self) -> None:
         from app.database import SessionLocal

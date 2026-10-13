@@ -5,6 +5,7 @@ from __future__ import annotations
 import csv
 import io
 from collections import Counter
+from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, StreamingResponse
@@ -58,6 +59,7 @@ from .m4g_common import (
     mark_registration_paid,
     hide_registration_unpaid,
     list_m4g_registrations,
+    merch_order_fields,
     registration_signup_detail,
     restore_registration,
     reject_bar_order,
@@ -158,6 +160,7 @@ def m4g_gestione_page(
             },
         )
     reg_q = request.query_params.get("reg_q", "")
+    merch_q = request.query_params.get("merch_q", "")
     show_hidden = request.query_params.get("show_hidden") == "1"
     return templates.TemplateResponse(
         "m4g_gestione.html",
@@ -175,7 +178,10 @@ def m4g_gestione_page(
             "menu": cms_menu(),
             "message": request.query_params.get("msg"),
             "registrations": list_m4g_registrations(
-                session, reg_q, hidden=show_hidden
+                session, reg_q, hidden=show_hidden, exclude_activity="merch"
+            ),
+            "merch_orders": list_m4g_registrations(
+                session, merch_q, hidden=show_hidden, activity="merch"
             ),
             "show_hidden": show_hidden,
             "activity_labels": {
@@ -193,7 +199,9 @@ def m4g_gestione_page(
             },
             "when_fn": format_rome,
             "detail_fn": registration_signup_detail,
+            "merch_fields_fn": merch_order_fields,
             "reg_q": reg_q,
+            "merch_q": merch_q,
             **_admin_dashboard(session),
         },
     )
@@ -267,6 +275,7 @@ def m4g_gestione_menu(
     request: Request,
     sec_category: list[str] = Form(default=[]),
     sec_vendor: list[str] = Form(default=[]),
+    sec_kind: list[str] = Form(default=[]),
     item_section: list[str] = Form(default=[]),
     item_id: list[str] = Form(default=[]),
     item_name: list[str] = Form(default=[]),
@@ -280,6 +289,7 @@ def m4g_gestione_menu(
         sections = build_menu_from_form(
             sec_category,
             sec_vendor,
+            sec_kind,
             item_section,
             item_id,
             item_name,
@@ -481,7 +491,8 @@ def m4g_gestione_registration_paid(
     reg = session.query(M4gRegistration).filter_by(reference=reference.strip()).first()
     if reg and reg.payment_status == "pending":
         mark_registration_paid(reg, session)
-    return RedirectResponse("/m4g/gestione?msg=reg-paid", status_code=302)
+    anchor = _registration_section_anchor(reg)
+    return RedirectResponse(f"/m4g/gestione?msg=reg-paid#{anchor}", status_code=302)
 
 
 @admin_router.post("/m4g/gestione/registration-send-email")
@@ -495,15 +506,16 @@ def m4g_gestione_registration_send_email(
         return denied
     ref = reference.strip()
     reg = session.query(M4gRegistration).filter_by(reference=ref).first()
+    anchor = _registration_section_anchor(reg)
     if not reg or reg.payment_status != "paid" or reg.paid_email_sent_at is not None:
-        return RedirectResponse("/m4g/gestione?msg=reg-email-skip#cms-iscrizioni", status_code=302)
+        return RedirectResponse(f"/m4g/gestione?msg=reg-email-skip#{anchor}", status_code=302)
     if not (reg.email or "").strip():
-        return RedirectResponse("/m4g/gestione?msg=reg-email-noaddr#cms-iscrizioni", status_code=302)
+        return RedirectResponse(f"/m4g/gestione?msg=reg-email-noaddr#{anchor}", status_code=302)
     from . import m4g_mail
 
     ok = m4g_mail.send_paid_confirmation(reg, session)
     msg = "reg-email-ok" if ok else "reg-email-fail"
-    return RedirectResponse(f"/m4g/gestione?msg={msg}#cms-iscrizioni", status_code=302)
+    return RedirectResponse(f"/m4g/gestione?msg={msg}#{anchor}", status_code=302)
 
 
 def _parse_admin_euro(raw: str) -> int | None:
@@ -516,10 +528,29 @@ def _parse_admin_euro(raw: str) -> int | None:
     return int(round(euro * 100))
 
 
-def _registration_list_redirect(show_hidden: str, msg: str) -> RedirectResponse:
-    hidden = "&show_hidden=1" if show_hidden in ("1", "true", "on") else ""
+def _registration_section_anchor(reg: M4gRegistration | None) -> str:
+    if reg is not None and reg.activity == "merch":
+        return "cms-ordini"
+    return "cms-iscrizioni"
+
+
+def _registration_list_redirect(
+    show_hidden: str,
+    msg: str,
+    *,
+    anchor: str = "cms-iscrizioni",
+    reg_q: str = "",
+    merch_q: str = "",
+) -> RedirectResponse:
+    parts = [f"msg={msg}"]
+    if show_hidden in ("1", "true", "on"):
+        parts.append("show_hidden=1")
+    if anchor == "cms-ordini" and merch_q.strip():
+        parts.append(f"merch_q={quote(merch_q.strip())}")
+    elif reg_q.strip():
+        parts.append(f"reg_q={quote(reg_q.strip())}")
     return RedirectResponse(
-        f"/m4g/gestione?msg={msg}{hidden}#cms-iscrizioni",
+        f"/m4g/gestione?{'&'.join(parts)}#{anchor}",
         status_code=302,
     )
 
@@ -530,19 +561,32 @@ def m4g_gestione_registration_amount(
     reference: str = Form(""),
     amount_eur: str = Form(""),
     show_hidden: str = Form(""),
+    reg_q: str = Form(""),
+    merch_q: str = Form(""),
+    from_merch: str = Form(""),
     session: Session = Depends(get_session),
 ) -> RedirectResponse:
     denied = _require_admin(request)
     if denied:
         return denied
+    reg = session.query(M4gRegistration).filter_by(reference=reference.strip()).first()
+    anchor = (
+        "cms-ordini"
+        if from_merch in ("1", "true", "on")
+        else _registration_section_anchor(reg)
+    )
     cents = _parse_admin_euro(amount_eur)
     if cents is None:
-        return _registration_list_redirect(show_hidden, "amount")
-    reg = session.query(M4gRegistration).filter_by(reference=reference.strip()).first()
+        return _registration_list_redirect(
+            show_hidden, "amount", anchor=anchor, reg_q=reg_q, merch_q=merch_q
+        )
     if reg:
         reg.amount_cents = cents
         session.commit()
-    return _registration_list_redirect(show_hidden, "amount-ok")
+        anchor = _registration_section_anchor(reg)
+    return _registration_list_redirect(
+        show_hidden, "amount-ok", anchor=anchor, reg_q=reg_q, merch_q=merch_q
+    )
 
 
 @admin_router.post("/m4g/gestione/registration-hide")
@@ -557,7 +601,8 @@ def m4g_gestione_registration_hide(
     reg = session.query(M4gRegistration).filter_by(reference=reference.strip()).first()
     if reg:
         hide_registration_unpaid(reg, session)
-    return RedirectResponse("/m4g/gestione?msg=reg-hidden#cms-iscrizioni", status_code=302)
+    anchor = _registration_section_anchor(reg)
+    return RedirectResponse(f"/m4g/gestione?msg=reg-hidden#{anchor}", status_code=302)
 
 
 @admin_router.post("/m4g/gestione/registration-restore")
@@ -572,7 +617,8 @@ def m4g_gestione_registration_restore(
     reg = session.query(M4gRegistration).filter_by(reference=reference.strip()).first()
     if reg:
         restore_registration(reg, session)
-    return RedirectResponse("/m4g/gestione?msg=reg-restored#cms-iscrizioni", status_code=302)
+    anchor = _registration_section_anchor(reg)
+    return RedirectResponse(f"/m4g/gestione?msg=reg-restored#{anchor}", status_code=302)
 
 
 @admin_router.post("/m4g/gestione/adherents")
@@ -692,6 +738,68 @@ def m4g_export_registrations(
         iter([buffer.getvalue()]),
         media_type="text/csv; charset=utf-8",
         headers={"Content-Disposition": 'attachment; filename="m4g-iscrizioni.csv"'},
+    )
+
+
+@admin_router.get("/m4g/gestione/export/merch.csv", response_model=None)
+def m4g_export_merch(
+    request: Request,
+    session: Session = Depends(get_session),
+) -> RedirectResponse | StreamingResponse:
+    denied = _require_admin(request)
+    if denied:
+        return denied
+    buffer = io.StringIO()
+    writer = csv.writer(buffer)
+    writer.writerow(
+        [
+            "created_at",
+            "reference",
+            "product",
+            "model",
+            "size",
+            "quantity",
+            "notes",
+            "first_name",
+            "last_name",
+            "email",
+            "phone",
+            "amount_eur",
+            "payment_status",
+            "hidden",
+            "paid_email_sent_at",
+        ]
+    )
+    for reg in (
+        session.query(M4gRegistration)
+        .filter(M4gRegistration.activity == "merch")
+        .order_by(M4gRegistration.created_at.desc())
+    ):
+        fields = merch_order_fields(reg)
+        writer.writerow(
+            [
+                reg.created_at,
+                reg.reference,
+                fields["product"],
+                fields["model"],
+                fields["size"],
+                fields["quantity"],
+                fields["notes"],
+                reg.first_name or "",
+                reg.last_name or "",
+                reg.email or "",
+                reg.phone or "",
+                f"{(reg.amount_cents or 0) / 100:.2f}",
+                reg.payment_status,
+                "1" if reg.hidden else "0",
+                reg.paid_email_sent_at or "",
+            ]
+        )
+    buffer.seek(0)
+    return StreamingResponse(
+        iter([buffer.getvalue()]),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="m4g-merch.csv"'},
     )
 
 

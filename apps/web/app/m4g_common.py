@@ -307,18 +307,36 @@ def registration_signup_detail(reg: M4gRegistration) -> str:
     return " · ".join(bit for bit in bits if bit)
 
 
+def merch_order_fields(reg: M4gRegistration) -> dict[str, str]:
+    data = parse_payload(reg.payload_json)
+    qty = data.get("quantity")
+    return {
+        "product": str(data.get("item_title") or data.get("item") or ""),
+        "model": str(data.get("model") or ""),
+        "size": str(data.get("size") or ""),
+        "quantity": str(qty) if qty is not None and qty != "" else "",
+        "notes": str(data.get("notes") or ""),
+    }
+
+
 def list_m4g_registrations(
     session: Session,
     query: str = "",
     limit: int = 2000,
     *,
     hidden: bool = False,
+    activity: str | None = None,
+    exclude_activity: str | None = None,
 ) -> list[M4gRegistration]:
     q = session.query(M4gRegistration)
     if hidden:
         q = q.filter(M4gRegistration.hidden.is_(True))
     else:
         q = q.filter(M4gRegistration.hidden.isnot(True))
+    if activity is not None:
+        q = q.filter(M4gRegistration.activity == activity)
+    if exclude_activity is not None:
+        q = q.filter(M4gRegistration.activity != exclude_activity)
     needle = query.strip().lower()
     if needle:
         like = f"%{needle}%"

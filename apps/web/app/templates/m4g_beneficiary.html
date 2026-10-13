@@ -30,7 +30,7 @@
     </div>
   </section>
 
-  <section class="m4g-card m4g-card--padded m4g-feature m4g-feature--reverse">
+  <section class="m4g-card m4g-card--padded m4g-feature m4g-feature--reverse m4g-feature--compact-media">
     <div class="m4g-feature__body">
       <h2>Km e minuti</h2>
       <p class="m4g-prose">
@@ -47,6 +47,45 @@
     <div class="m4g-feature__media">
       {{ m4g_figure(event.beneficiary.images.chi, "Ciclista Gaza Sunbirds", "portrait", "chi") }}
     </div>
+  </section>
+
+  {% set sunbirds_update = event.beneficiary['update'] %}
+  <section class="m4g-card m4g-card--padded m4g-sunbirds-update">
+    <h2>{{ sunbirds_update.title }}</h2>
+    <p class="m4g-prose">{{ sunbirds_update.intro }}</p>
+    <blockquote class="m4g-quote" lang="en">
+      <p>“{{ sunbirds_update.intro_quote }}”</p>
+      <footer>— {{ sunbirds_update.quote_attrib }}</footer>
+    </blockquote>
+    {% for block in sunbirds_update.blocks %}
+    <div class="m4g-sunbirds-update__block" data-block="{{ block.key }}">
+      <h3>{{ block.title }}</h3>
+      <div class="m4g-numbers">
+        {% for stat in block.stats %}
+        <article><strong>{{ stat.value }}</strong><span>{{ stat.label }}</span></article>
+        {% endfor %}
+      </div>
+      {% for segment in block.segments %}
+      <p class="m4g-prose">{{ segment.lead }}</p>
+      {% for quote in segment.quotes %}
+      <blockquote class="m4g-quote" lang="en">
+        <p>“{{ quote }}”</p>
+        <footer>— {{ sunbirds_update.quote_attrib }}</footer>
+      </blockquote>
+      {% endfor %}
+      {% endfor %}
+    </div>
+    {% endfor %}
+    <h3>{{ sunbirds_update.next_title }}</h3>
+    <p class="m4g-prose">{{ sunbirds_update.next_lead }}</p>
+    <blockquote class="m4g-quote" lang="en">
+      <p>“{{ sunbirds_update.next_quote }}”</p>
+      <footer>— {{ sunbirds_update.quote_attrib }}</footer>
+    </blockquote>
+    <blockquote class="m4g-quote m4g-quote--closing" lang="en">
+      <p>“{{ sunbirds_update.closing_quote }}”</p>
+      <footer>— {{ sunbirds_update.quote_attrib }}</footer>
+    </blockquote>
   </section>
 
   <section class="m4g-card m4g-card--padded m4g-feature">

@@ -1,0 +1,17 @@
+{% extends "m4g_base.html" %}
+
+{% block title %}{{ page_title }} — Move for Gaza{% endblock %}
+
+{% block content %}
+  <div class="m4g-qr">
+    <p class="m4g-hero__eyebrow" style="color: var(--m4g-muted);">Staff evento</p>
+    <h1>{{ heading }}</h1>
+    <p class="m4g-muted">{{ hint }}</p>
+    <img src="{{ qr_url }}" alt="QR code {{ heading }}" width="320" height="320" />
+    <p style="margin-top: 1rem; word-break: break-all;"><a class="m4g-link" href="{{ target_url }}">{{ target_url }}</a></p>
+    <p style="margin-top: 1.5rem;">
+      <a class="m4g-btn m4g-btn--secondary" href="{{ open_href }}">{{ open_label }}</a>
+      <a class="m4g-btn m4g-btn--secondary" href="/m4g/qr" style="margin-left: 0.5rem;">Tutti i QR</a>
+    </p>
+  </div>
+{% endblock %}

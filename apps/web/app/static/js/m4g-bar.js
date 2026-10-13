@@ -1,6 +1,36 @@
 (function () {
   const menuRoot = document.getElementById('m4g-menu');
   if (menuRoot) {
+    const tabRoot = document.querySelector('.m4g-menu-tabs');
+    const sections = menuRoot.querySelectorAll('.m4g-menu-section');
+
+    const applyMenuTab = (kind) => {
+      const active = kind === 'bere' ? 'bere' : 'cibo';
+      sections.forEach((section) => {
+        const match = section.dataset.menuKind === active;
+        section.hidden = !match;
+      });
+      tabRoot?.querySelectorAll('[data-menu-tab]').forEach((btn) => {
+        const selected = btn.dataset.menuTab === active;
+        btn.setAttribute('aria-selected', selected ? 'true' : 'false');
+      });
+      const url = new URL(window.location.href);
+      if (url.searchParams.get('tipo') !== active) {
+        url.searchParams.set('tipo', active);
+        window.history.replaceState({}, '', url);
+      }
+    };
+
+    const initial =
+      new URL(window.location.href).searchParams.get('tipo') === 'bere'
+        ? 'bere'
+        : menuRoot.dataset.menuTipo || 'cibo';
+    applyMenuTab(initial);
+
+    tabRoot?.querySelectorAll('[data-menu-tab]').forEach((btn) => {
+      btn.addEventListener('click', () => applyMenuTab(btn.dataset.menuTab || 'cibo'));
+    });
+
     const cart = {};
     const totalEl = document.getElementById('m4g-total');
     const countEl = document.getElementById('m4g-items-count');

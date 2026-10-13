@@ -1,0 +1,17 @@
+{% extends "m4g_base.html" %}
+
+{% block title %}QR stampa — Move for Gaza{% endblock %}
+
+{% block content %}
+  <div class="m4g-qr-index">
+    <p class="m4g-hero__eyebrow" style="color: var(--m4g-muted);">Staff evento</p>
+    <h1>QR da stampare</h1>
+    <p class="m4g-muted">Apri ogni pagina per stampare il codice da esporre in sede.</p>
+    <ul>
+      {% for link in links %}
+        <li><a class="m4g-btn m4g-btn--secondary m4g-btn--inline" href="{{ link.href }}">{{ link.label }}</a></li>
+      {% endfor %}
+    </ul>
+    <p style="margin-top: 1.5rem;"><a class="m4g-link" href="/m4g/gestione">← Gestionale</a></p>
+  </div>
+{% endblock %}

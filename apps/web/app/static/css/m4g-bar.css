@@ -133,6 +133,15 @@ body.m4g-body {
   border-bottom: none;
 }
 
+.m4g-item__logo {
+  width: 2.5rem;
+  height: 2.5rem;
+  flex-shrink: 0;
+  object-fit: contain;
+  border-radius: 0.35rem;
+  background: #fff;
+}
+
 .m4g-item__info {
   flex: 1;
   min-width: 0;
@@ -734,11 +743,54 @@ body.m4g-body {
   word-break: break-all;
 }
 
+.m4g-menu-tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin: 1rem 0 0.5rem;
+}
+
+.m4g-menu-tabs__btn {
+  flex: 1;
+  padding: 0.65rem 1rem;
+  border: 2px solid var(--m4g-ink);
+  border-radius: 0.35rem;
+  background: #fff;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 3px 3px 0 var(--m4g-green);
+}
+
+.m4g-menu-tabs__btn[aria-selected="true"] {
+  background: var(--m4g-green);
+  color: #fff;
+  border-color: var(--m4g-green-dark);
+}
+
+.m4g-menu-section[hidden] {
+  display: none !important;
+}
+
 .m4g-qr {
   max-width: 24rem;
   margin: 2rem auto;
   text-align: center;
   padding: 1rem;
+}
+
+.m4g-qr-index {
+  max-width: 28rem;
+  margin: 2rem auto;
+  padding: 1rem;
+}
+
+.m4g-qr-index ul {
+  list-style: none;
+  margin: 1rem 0 0;
+  padding: 0;
+}
+
+.m4g-qr-index li {
+  margin-bottom: 0.75rem;
 }
 
 .m4g-qr img {
@@ -1732,6 +1784,52 @@ body.m4g-body {
   margin-bottom: 0;
 }
 
+.m4g-sunbirds-update {
+  margin-top: 1rem;
+}
+
+.m4g-sunbirds-update__block {
+  margin-top: 1.5rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid rgba(44, 36, 28, 0.12);
+}
+
+.m4g-sunbirds-update__block:first-of-type {
+  margin-top: 1rem;
+  padding-top: 0;
+  border-top: none;
+}
+
+.m4g-sunbirds-update h3 {
+  margin: 0 0 0.75rem;
+  font-size: 1.15rem;
+}
+
+.m4g-quote {
+  margin: 0.75rem 0 1rem;
+  padding: 0.75rem 1rem;
+  border-left: 3px solid var(--m4g-ink, #141414);
+  background: rgba(44, 36, 28, 0.04);
+  color: #2c241c;
+}
+
+.m4g-quote p {
+  margin: 0;
+  font-style: italic;
+  line-height: 1.6;
+}
+
+.m4g-quote footer {
+  margin-top: 0.5rem;
+  font-size: 0.85rem;
+  font-style: normal;
+  color: #5a5048;
+}
+
+.m4g-quote--closing {
+  margin-top: 1.25rem;
+}
+
 .m4g-feature {
   display: grid;
   gap: 1.25rem;
@@ -1770,6 +1868,22 @@ body.m4g-body {
   max-width: 100%;
   min-height: 0;
   height: auto;
+}
+
+.m4g-feature--compact-media .m4g-feature__media {
+  max-width: 11rem;
+  margin-inline: auto;
+}
+
+@media (min-width: 768px) {
+  .m4g-feature--compact-media {
+    grid-template-columns: 1fr minmax(0, 12rem);
+    gap: 1.5rem;
+  }
+
+  .m4g-feature--compact-media.m4g-feature--reverse .m4g-feature__media {
+    justify-self: end;
+  }
 }
 
 .m4g-cta-band {

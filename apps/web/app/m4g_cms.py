@@ -1051,6 +1051,17 @@ def clear_vendor_logo(vendor_id: str) -> None:
         return
 
 
+_MENU_DRINK_KEYWORDS = ("birra", "bevande", "bere", "vino", "drink", "cocktail")
+
+
+def infer_menu_kind(category: str) -> str:
+    lower = category.lower()
+    for keyword in _MENU_DRINK_KEYWORDS:
+        if keyword in lower:
+            return "bere"
+    return "cibo"
+
+
 def _default_menu() -> list[dict[str, Any]]:
     sections: list[dict[str, Any]] = []
     for section in BAR_MENU:
@@ -1063,10 +1074,12 @@ def _default_menu() -> list[dict[str, Any]]:
                     "price_cents": int(item["price_cents"]),
                 }
             )
+        category = str(section["category"])
         sections.append(
             {
-                "category": str(section["category"]),
+                "category": category,
                 "vendor_id": str(section.get("vendor_id") or ""),
+                "kind": infer_menu_kind(category),
                 "items": items,
             }
         )
@@ -1114,7 +1127,10 @@ def cms_menu() -> list[dict[str, Any]]:
         vendor_id = str(section.get("vendor_id") or "")
         if vendor_id not in vendor_ids:
             vendor_id = ""
-        sections.append({"category": category, "vendor_id": vendor_id, "items": items})
+        kind = str(section.get("kind") or "").strip()
+        if kind not in ("cibo", "bere"):
+            kind = infer_menu_kind(category)
+        sections.append({"category": category, "vendor_id": vendor_id, "kind": kind, "items": items})
     return sections
 
 
@@ -1122,18 +1138,25 @@ def menu_with_producer_names(
     sections: list[dict[str, Any]],
     vendors: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
-    by_id = {str(v["id"]): str(v["name"]) for v in vendors}
+    by_id = {str(v["id"]): v for v in vendors}
     enriched: list[dict[str, Any]] = []
     for section in sections:
         section_vendor = str(section.get("vendor_id") or "")
+        kind = str(section.get("kind") or infer_menu_kind(str(section.get("category") or "")))
         items_out: list[dict[str, Any]] = []
         for item in section["items"]:
             effective = str(item.get("vendor_id") or "").strip() or section_vendor
-            if effective not in by_id:
-                effective = ""
-            producer_name = by_id.get(effective) if effective else None
-            items_out.append({**item, "producer_name": producer_name})
-        enriched.append({**section, "items": items_out})
+            vendor_row = by_id.get(effective) if effective in by_id else None
+            producer_name = str(vendor_row["name"]) if vendor_row else None
+            producer_logo = vendor_row.get("logo_url") if vendor_row else None
+            items_out.append(
+                {
+                    **item,
+                    "producer_name": producer_name,
+                    "producer_logo": producer_logo,
+                }
+            )
+        enriched.append({**section, "kind": kind, "items": items_out})
     return enriched
 
 
@@ -1347,6 +1370,7 @@ def clear_adherent_logo(adherent_id: str) -> None:
 def build_menu_from_form(
     categories: list[str],
     vendor_ids: list[str],
+    section_kinds: list[str],
     item_sections: list[str],
     item_ids: list[str],
     item_names: list[str],
@@ -1363,7 +1387,11 @@ def build_menu_from_form(
         vendor_id = vendor_ids[index].strip() if index < len(vendor_ids) else ""
         if vendor_id not in known_vendors:
             vendor_id = ""
-        sections.append({"category": title, "vendor_id": vendor_id, "items": [], "index": index})
+        raw_kind = section_kinds[index].strip() if index < len(section_kinds) else ""
+        kind = raw_kind if raw_kind in ("cibo", "bere") else infer_menu_kind(title)
+        sections.append(
+            {"category": title, "vendor_id": vendor_id, "kind": kind, "items": [], "index": index}
+        )
     by_index = {section["index"]: section for section in sections}
     for index, name in enumerate(item_names):
         clean_name = name.strip()
@@ -1393,7 +1421,12 @@ def build_menu_from_form(
             row["vendor_id"] = item_vendor
         section["items"].append(row)
     return [
-        {"category": section["category"], "vendor_id": section["vendor_id"], "items": section["items"]}
+        {
+            "category": section["category"],
+            "vendor_id": section["vendor_id"],
+            "kind": section["kind"],
+            "items": section["items"],
+        }
         for section in sections
         if section["items"]
     ]
