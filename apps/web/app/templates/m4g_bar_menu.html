@@ -11,60 +11,109 @@
     </div>
   </header>
 
-  <div class="m4g-wrap m4g-wrap--wide">
+  <div class="m4g-wrap m4g-wrap--wide m4g-bar-page">
     {% if payment_failed %}
       <div class="m4g-alert">Pagamento annullato o non riuscito. Riprova quando vuoi.</div>
     {% endif %}
 
     <section class="m4g-card m4g-card--padded m4g-vendors">
-      <h2>Chi cucina</h2>
-      <div class="m4g-vendors__grid">
+      <h2 class="m4g-vendors__title">Chi cucina</h2>
+      <div class="m4g-vendors__grid" aria-label="Fornitori">
         {% for vendor in vendors %}
           <article class="m4g-vendor">
             {% if vendor.logo_url %}
-              <img class="m4g-vendor-logo" src="{{ vendor.logo_url }}" alt="" width="72" height="72" loading="lazy" />
+              <img class="m4g-vendor-logo" src="{{ vendor.logo_url }}" alt="" width="56" height="56" loading="lazy" />
             {% endif %}
-            <h3>{{ vendor.name }}{% if vendor.placeholder %} <span class="m4g-muted">(da confermare)</span>{% endif %}</h3>
-            <p class="m4g-muted">{{ vendor.blurb }}</p>
+            <div class="m4g-vendor__body">
+              <h3>{{ vendor.name }}{% if vendor.placeholder %} <span class="m4g-muted">(da confermare)</span>{% endif %}</h3>
+              <p class="m4g-muted">{{ vendor.blurb }}</p>
+            </div>
           </article>
         {% endfor %}
       </div>
+      <div class="m4g-vendors-marquee" data-m4g-vendors-marquee>
+        <div class="m4g-vendors-marquee__viewport">
+          <div class="m4g-vendors-marquee__track">
+            {% for _copy in [1, 2] %}
+              {% for vendor in vendors %}
+                <article class="m4g-vendor m4g-vendor--marquee"{% if _copy == 2 %} aria-hidden="true"{% endif %}>
+                  {% if vendor.logo_url %}
+                    <img class="m4g-vendor-logo" src="{{ vendor.logo_url }}" alt="" width="56" height="56" loading="lazy" />
+                  {% endif %}
+                  <div class="m4g-vendor__body">
+                    <h3>{{ vendor.name }}</h3>
+                    <p class="m4g-muted">{{ vendor.blurb }}</p>
+                  </div>
+                </article>
+              {% endfor %}
+            {% endfor %}
+          </div>
+        </div>
+      </div>
     </section>
 
-    <nav class="m4g-menu-tabs" role="tablist" aria-label="Cibo o bevande">
-      <button type="button" class="m4g-menu-tabs__btn" role="tab" data-menu-tab="cibo" aria-selected="{% if menu_tipo == 'cibo' %}true{% else %}false{% endif %}">Cibo</button>
-      <button type="button" class="m4g-menu-tabs__btn" role="tab" data-menu-tab="bere" aria-selected="{% if menu_tipo == 'bere' %}true{% else %}false{% endif %}">Bevande</button>
-    </nav>
+    {% set ns = namespace(has_tabs=false) %}
+    {% for group in menu_groups %}
+      {% set group_sections = menu | selectattr('kind', 'equalto', group.id) | list %}
+      {% if group_sections %}
+        {% set ns.has_tabs = true %}
+      {% endif %}
+    {% endfor %}
+
+    {% if ns.has_tabs %}
+      <nav class="m4g-menu-tabs" role="tablist" aria-label="Vai alle sezioni del menu">
+        {% for group in menu_groups %}
+          {% set group_sections = menu | selectattr('kind', 'equalto', group.id) | list %}
+          {% if group_sections %}
+            <a
+              href="#menu-{{ group.id }}"
+              class="m4g-menu-tabs__btn"
+              role="tab"
+              data-menu-tab="{{ group.id }}"
+              aria-selected="{% if menu_tipo == group.id %}true{% else %}false{% endif %}"
+            >{{ group.label }}</a>
+          {% endif %}
+        {% endfor %}
+      </nav>
+    {% endif %}
 
     <div id="m4g-menu" data-menu-tipo="{{ menu_tipo }}">
-      {% for section in menu %}
-        <section class="m4g-card m4g-menu-section" data-menu-kind="{{ section.kind }}"{% if section.kind != menu_tipo %} hidden{% endif %}>
-          <div class="m4g-card__head">{{ section.category }}</div>
-          {% for item in section['items'] %}
-            <div class="m4g-item" data-item-id="{{ item.id }}" data-price-cents="{{ item.price_cents }}">
-              {% if item.producer_logo %}
-                <img class="m4g-item__logo" src="{{ item.producer_logo }}" alt="" width="40" height="40" loading="lazy" />
-              {% endif %}
-              <div class="m4g-item__info">
-                <p class="m4g-item__name">{{ item.name }}</p>
-                {% if item.producer_name %}
-                  <p class="m4g-item__producer m4g-muted">{{ item.producer_name }}</p>
-                {% endif %}
-                <p class="m4g-item__price">{{ price_fn(item.price_cents) }} €</p>
-              </div>
-              <div class="m4g-qty">
-                <button type="button" class="m4g-qty__minus" aria-label="Meno">−</button>
-                <span class="m4g-qty__value">0</span>
-                <button type="button" class="m4g-qty__plus" aria-label="Più">+</button>
-              </div>
-            </div>
-          {% endfor %}
-        </section>
+      {% for group in menu_groups %}
+        {% set group_sections = menu | selectattr('kind', 'equalto', group.id) | list %}
+        {% if group_sections %}
+          <div id="menu-{{ group.id }}" class="m4g-menu-block" data-menu-kind="{{ group.id }}">
+            <h2 class="m4g-menu-block__title">{{ group.label }}</h2>
+            {% for section in group_sections %}
+              <section class="m4g-card m4g-menu-section" data-menu-kind="{{ section.kind }}">
+                <div class="m4g-card__head">{{ section.category }}</div>
+                {% for item in section['items'] %}
+                  <div class="m4g-item" data-item-id="{{ item.id }}" data-price-cents="{{ item.price_cents }}">
+                    {% if item.producer_logo %}
+                      <img class="m4g-item__logo" src="{{ item.producer_logo }}" alt="" width="40" height="40" loading="lazy" />
+                    {% endif %}
+                    <div class="m4g-item__info">
+                      <p class="m4g-item__name">{{ item.name }}</p>
+                      {% if item.producer_name %}
+                        <p class="m4g-item__producer m4g-muted">{{ item.producer_name }}</p>
+                      {% endif %}
+                      <p class="m4g-item__price">{{ price_fn(item.price_cents) }} €</p>
+                    </div>
+                    <div class="m4g-qty">
+                      <button type="button" class="m4g-qty__minus" aria-label="Meno">−</button>
+                      <span class="m4g-qty__value">0</span>
+                      <button type="button" class="m4g-qty__plus" aria-label="Più">+</button>
+                    </div>
+                  </div>
+                {% endfor %}
+              </section>
+            {% endfor %}
+          </div>
+        {% endif %}
       {% endfor %}
     </div>
   </div>
 
-  <div class="m4g-checkout">
+  <div class="m4g-checkout m4g-checkout--bar">
     <form id="m4g-checkout-form" class="m4g-checkout__inner" method="post" action="/m4g/bar/checkout">
       <input type="hidden" name="cart_json" id="m4g-cart-json" value="[]" />
       <div class="m4g-checkout__total">
@@ -72,9 +121,9 @@
         <p class="m4g-checkout__amount" id="m4g-total">0,00 €</p>
         <p class="m4g-checkout__meta" id="m4g-items-count">Nessun articolo</p>
       </div>
-      <button type="submit" class="m4g-btn m4g-btn--primary m4g-btn--nexi" id="m4g-pay-btn" disabled>Vai al pagamento</button>
+      <button type="submit" class="m4g-btn m4g-btn--primary m4g-btn--nexi m4g-btn--checkout" id="m4g-pay-btn" disabled>Vai al pagamento</button>
     </form>
   </div>
 
-  <script src="{{ url_for('static', path='js/m4g-bar.js') }}"></script>
+  <script src="{{ url_for('static', path='js/m4g-bar.js') }}" defer></script>
 {% endblock %}

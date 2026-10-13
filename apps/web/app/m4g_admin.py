@@ -17,6 +17,7 @@ from .m4g_cms import (
     add_media_file,
     build_adherents_from_form,
     build_menu_from_form,
+    build_menu_groups_from_form,
     build_vendors_from_form,
     clear_adherent_logo,
     clear_vendor_logo,
@@ -26,6 +27,7 @@ from .m4g_cms import (
     clear_merch_image,
     clear_route_gpx,
     cms_menu,
+    cms_menu_groups,
     cms_merch_items,
     cms_show_bar,
     cms_show_merch,
@@ -37,6 +39,7 @@ from .m4g_cms import (
     remove_media_file,
     save_adherents,
     save_menu,
+    save_menu_groups,
     save_merch_item,
     delete_merch_item,
     save_route_fields,
@@ -176,6 +179,7 @@ def m4g_gestione_page(
             "vendors": cms_vendors(),
             "adherents": cms_adherents(),
             "menu": cms_menu(),
+            "menu_groups": cms_menu_groups(),
             "message": request.query_params.get("msg"),
             "registrations": list_m4g_registrations(
                 session, reg_q, hidden=show_hidden, exclude_activity="merch"
@@ -268,6 +272,19 @@ def m4g_gestione_vendors(
         return denied
     save_vendors(build_vendors_from_form(v_id, v_name, v_blurb, v_status))
     return RedirectResponse("/m4g/gestione?msg=kitchen", status_code=302)
+
+
+@admin_router.post("/m4g/gestione/menu-groups")
+def m4g_gestione_menu_groups(
+    request: Request,
+    tab_id: list[str] = Form(default=[]),
+    tab_label: list[str] = Form(default=[]),
+) -> RedirectResponse:
+    denied = _require_admin(request)
+    if denied:
+        return denied
+    save_menu_groups(build_menu_groups_from_form(tab_id, tab_label))
+    return RedirectResponse("/m4g/gestione?msg=menu-tabs#cms-menu", status_code=302)
 
 
 @admin_router.post("/m4g/gestione/menu")

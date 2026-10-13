@@ -1,35 +1,75 @@
 (function () {
+  const vendorsMarquee = document.querySelector('[data-m4g-vendors-marquee]');
+  if (vendorsMarquee) {
+    const track = vendorsMarquee.querySelector('.m4g-vendors-marquee__track');
+    const cells = track?.querySelectorAll('.m4g-vendor--marquee:not([aria-hidden])') || [];
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      track?.querySelectorAll('.m4g-vendor--marquee[aria-hidden="true"]').forEach((el) => {
+        el.remove();
+      });
+    } else if (cells.length < 2 && track) {
+      track.style.animation = 'none';
+    }
+  }
+
   const menuRoot = document.getElementById('m4g-menu');
   if (menuRoot) {
     const tabRoot = document.querySelector('.m4g-menu-tabs');
-    const sections = menuRoot.querySelectorAll('.m4g-menu-section');
+    const blocks = {};
+    menuRoot.querySelectorAll('.m4g-menu-block').forEach((block) => {
+      const kind = block.dataset.menuKind;
+      if (kind) blocks[kind] = block;
+    });
 
-    const applyMenuTab = (kind) => {
-      const active = kind === 'bere' ? 'bere' : 'cibo';
-      sections.forEach((section) => {
-        const match = section.dataset.menuKind === active;
-        section.hidden = !match;
-      });
+    const defaultKind = menuRoot.dataset.menuTipo || Object.keys(blocks)[0] || '';
+
+    const setTabSelected = (kind) => {
       tabRoot?.querySelectorAll('[data-menu-tab]').forEach((btn) => {
-        const selected = btn.dataset.menuTab === active;
+        const selected = btn.dataset.menuTab === kind;
         btn.setAttribute('aria-selected', selected ? 'true' : 'false');
       });
-      const url = new URL(window.location.href);
-      if (url.searchParams.get('tipo') !== active) {
-        url.searchParams.set('tipo', active);
-        window.history.replaceState({}, '', url);
-      }
     };
 
-    const initial =
-      new URL(window.location.href).searchParams.get('tipo') === 'bere'
-        ? 'bere'
-        : menuRoot.dataset.menuTipo || 'cibo';
-    applyMenuTab(initial);
+    const scrollToBlock = (kind, behavior = 'smooth') => {
+      const target = blocks[kind];
+      if (!target) return;
+      target.scrollIntoView({ behavior, block: 'start' });
+      setTabSelected(kind);
+    };
 
     tabRoot?.querySelectorAll('[data-menu-tab]').forEach((btn) => {
-      btn.addEventListener('click', () => applyMenuTab(btn.dataset.menuTab || 'cibo'));
+      btn.addEventListener('click', (event) => {
+        event.preventDefault();
+        scrollToBlock(btn.dataset.menuTab || defaultKind);
+      });
     });
+
+    const visibleBlocks = Object.values(blocks);
+    if (visibleBlocks.length > 1 && tabRoot) {
+      const observer = new IntersectionObserver(
+        (entries) => {
+          const visible = entries
+            .filter((e) => e.isIntersecting)
+            .sort((a, b) => b.intersectionRatio - a.intersectionRatio);
+          if (!visible.length) return;
+          const kind = visible[0].target.dataset.menuKind;
+          if (kind) setTabSelected(kind);
+        },
+        { root: null, rootMargin: '-35% 0px -55% 0px', threshold: [0, 0.1, 0.25] }
+      );
+      visibleBlocks.forEach((block) => observer.observe(block));
+    } else if (visibleBlocks.length === 1) {
+      const kind = visibleBlocks[0].dataset.menuKind;
+      if (kind) setTabSelected(kind);
+    }
+
+    const tipoParam = new URL(window.location.href).searchParams.get('tipo') || '';
+    const initialTipo = blocks[tipoParam] ? tipoParam : defaultKind;
+    if (initialTipo && blocks[initialTipo] && tipoParam) {
+      window.requestAnimationFrame(() => scrollToBlock(initialTipo, 'auto'));
+    } else {
+      setTabSelected(initialTipo);
+    }
 
     const cart = {};
     const totalEl = document.getElementById('m4g-total');

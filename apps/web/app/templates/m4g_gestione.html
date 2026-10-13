@@ -10,6 +10,8 @@
       .m4g-cms-row { display: grid; gap: 0.5rem; margin-bottom: 0.75rem; }
       .m4g-cms-row--vendor { grid-template-columns: 1.1fr 1.4fr 9rem; }
       .m4g-cms-row--item { grid-template-columns: 1fr 1.1fr 7rem; }
+      .m4g-cms-row--menu-tab { grid-template-columns: 1fr auto; align-items: center; }
+      .m4g-cms-tab-id { font-size: 0.8rem; white-space: nowrap; }
       .m4g-cms-section { border: 1px solid #e7e0c8; border-radius: 0.35rem; padding: 0.75rem; margin-bottom: 0.75rem; }
       @media (max-width: 720px) {
         .m4g-cms-row--vendor, .m4g-cms-row--item { grid-template-columns: 1fr; }
@@ -123,6 +125,8 @@
         <p class="m4g-alert" style="background:#e8f5e9;">Chi cucina è aggiornato.</p>
       {% elif message == 'menu' %}
         <p class="m4g-alert" style="background:#e8f5e9;">Menu e prezzi aggiornati.</p>
+      {% elif message == 'menu-tabs' %}
+        <p class="m4g-alert" style="background:#e8f5e9;">Tab del menu bar aggiornati.</p>
       {% elif message == 'price' %}
         <p class="m4g-alert">Un prezzo non è valido. Usa numeri come 4,50.</p>
       {% elif message == 'merch' %}
@@ -541,7 +545,25 @@
       <section id="cms-menu" class="m4g-card m4g-card--padded" style="margin-bottom:1rem;">
         <h2>Menu e prezzi</h2>
         <p class="m4g-muted">Ogni blocco è una categoria del bar. Su ogni voce puoi scegliere un produttore (cucina); se lasci «Eredita categoria», vale la cucina del blocco. I prezzi sono in euro.</p>
-        <form method="post" action="/m4g/gestione/menu" class="m4g-form" style="margin-top:1rem;">
+
+        <h3 style="margin-top:1.25rem;">Tab in pagina bar</h3>
+        <p class="m4g-muted">Testo dei pulsanti che saltano alle sezioni (es. Cibo, Bere, Dolci). Per aggiungerne uno, compila l’ultima riga vuota e salva. L’identificativo tecnico resta invariato se modifichi solo il testo.</p>
+        <form method="post" action="/m4g/gestione/menu-groups" class="m4g-form" style="margin-top:0.75rem;">
+          {% for group in menu_groups %}
+            <div class="m4g-cms-row m4g-cms-row--menu-tab">
+              <input type="hidden" name="tab_id" value="{{ group.id }}" />
+              <input name="tab_label" value="{{ group.label }}" placeholder="Nome tab" aria-label="Nome tab menu" />
+              <span class="m4g-muted m4g-cms-tab-id">id: {{ group.id }}</span>
+            </div>
+          {% endfor %}
+          <div class="m4g-cms-row m4g-cms-row--menu-tab">
+            <input type="hidden" name="tab_id" value="" />
+            <input name="tab_label" value="" placeholder="Nuovo tab (es. Dolci)" aria-label="Nuovo tab menu" />
+          </div>
+          <button type="submit" class="m4g-btn m4g-btn--secondary m4g-btn--inline">Salva tab menu</button>
+        </form>
+
+        <form method="post" action="/m4g/gestione/menu" class="m4g-form" style="margin-top:1.25rem;">
           {% for section in menu %}
             {% set section_index = loop.index0 %}
             <fieldset class="m4g-cms-section">
@@ -553,9 +575,10 @@
                     <option value="{{ vendor.id }}" {% if section.vendor_id == vendor.id %}selected{% endif %}>{{ vendor.name }}</option>
                   {% endfor %}
                 </select>
-                <select name="sec_kind" aria-label="Tipo menù">
-                  <option value="cibo" {% if section.get('kind', 'cibo') == 'cibo' %}selected{% endif %}>Cibo</option>
-                  <option value="bere" {% if section.get('kind') == 'bere' %}selected{% endif %}>Bevande</option>
+                <select name="sec_kind" aria-label="Tab menu">
+                  {% for group in menu_groups %}
+                    <option value="{{ group.id }}" {% if section.get('kind', menu_groups[0].id) == group.id %}selected{% endif %}>{{ group.label }}</option>
+                  {% endfor %}
                 </select>
                 <span class="m4g-muted">prezzo €</span>
               </div>
@@ -596,9 +619,10 @@
                   <option value="{{ vendor.id }}">{{ vendor.name }}</option>
                 {% endfor %}
               </select>
-              <select name="sec_kind" aria-label="Tipo menù">
-                <option value="cibo" selected>Cibo</option>
-                <option value="bere">Bevande</option>
+              <select name="sec_kind" aria-label="Tab menu">
+                {% for group in menu_groups %}
+                  <option value="{{ group.id }}" {% if loop.first %}selected{% endif %}>{{ group.label }}</option>
+                {% endfor %}
               </select>
               <span class="m4g-muted">prezzo €</span>
             </div>

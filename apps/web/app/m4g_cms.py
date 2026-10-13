@@ -34,6 +34,7 @@ _DEFAULT_STATE: dict[str, Any] = {
     "vendors": None,
     "adherents": None,
     "menu": None,
+    "menu_groups": None,
     "route_overrides": {},
     "merch_items": {},
 }
@@ -65,6 +66,8 @@ def _load_state_raw() -> dict[str, Any]:
     out["adherents"] = adherents if isinstance(adherents, list) else None
     menu = data.get("menu")
     out["menu"] = menu if isinstance(menu, list) else None
+    menu_groups = data.get("menu_groups")
+    out["menu_groups"] = menu_groups if isinstance(menu_groups, list) else None
     out["media"] = [str(x) for x in (data.get("media") or []) if x]
     out["route_overrides"] = _clean_route_overrides(data.get("route_overrides"))
     out["merch_items"] = _clean_merch_items(data.get("merch_items"))
@@ -900,6 +903,7 @@ def reset_catalog() -> None:
     state["vendors"] = None
     state["adherents"] = None
     state["menu"] = None
+    state["menu_groups"] = None
     state["show_bar"] = True
     state["show_merch"] = True
     state["show_total"] = True
@@ -1053,6 +1057,82 @@ def clear_vendor_logo(vendor_id: str) -> None:
 
 _MENU_DRINK_KEYWORDS = ("birra", "bevande", "bere", "vino", "drink", "cocktail")
 
+DEFAULT_MENU_GROUPS: list[dict[str, str]] = [
+    {"id": "cibo", "label": "Cibo"},
+    {"id": "bere", "label": "Bevande"},
+]
+
+
+def cms_menu_groups() -> list[dict[str, str]]:
+    stored = _load_state_raw().get("menu_groups")
+    if not isinstance(stored, list):
+        return [dict(row) for row in DEFAULT_MENU_GROUPS]
+    groups: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for row in stored:
+        if not isinstance(row, dict):
+            continue
+        label = str(row.get("label") or "").strip()
+        gid = str(row.get("id") or "").strip()
+        if not label:
+            continue
+        if not gid:
+            gid = _slug(label)
+        if gid in seen:
+            gid = _unique_id(gid, seen)
+        else:
+            seen.add(gid)
+        groups.append({"id": gid, "label": label})
+    return groups if groups else [dict(row) for row in DEFAULT_MENU_GROUPS]
+
+
+def _menu_group_ids() -> set[str]:
+    return {group["id"] for group in cms_menu_groups()}
+
+
+def normalize_menu_kind(kind: str, category: str) -> str:
+    allowed = _menu_group_ids()
+    cleaned = kind.strip()
+    if cleaned in allowed:
+        return cleaned
+    inferred = infer_menu_kind(category)
+    if inferred in allowed:
+        return inferred
+    return next(iter(allowed), "cibo")
+
+
+def build_menu_groups_from_form(tab_ids: list[str], tab_labels: list[str]) -> list[dict[str, str]]:
+    used: set[str] = set()
+    groups: list[dict[str, str]] = []
+    for index, label in enumerate(tab_labels):
+        clean_label = label.strip()
+        if not clean_label:
+            continue
+        raw_id = tab_ids[index].strip() if index < len(tab_ids) else ""
+        if raw_id and raw_id not in used:
+            gid = raw_id
+            used.add(gid)
+        else:
+            base = raw_id or clean_label
+            gid = _unique_id(base, used)
+        groups.append({"id": gid, "label": clean_label})
+    return groups if groups else [dict(row) for row in DEFAULT_MENU_GROUPS]
+
+
+def save_menu_groups(groups: list[dict[str, str]]) -> None:
+    state = _load_state_raw()
+    old_ids = {group["id"] for group in cms_menu_groups()}
+    new_ids = {group["id"] for group in groups}
+    removed = old_ids - new_ids
+    menu = state.get("menu")
+    if removed and isinstance(menu, list) and groups:
+        fallback = groups[0]["id"]
+        for section in menu:
+            if isinstance(section, dict) and str(section.get("kind") or "") in removed:
+                section["kind"] = fallback
+    state["menu_groups"] = groups
+    save_cms_state(state)
+
 
 def infer_menu_kind(category: str) -> str:
     lower = category.lower()
@@ -1127,9 +1207,7 @@ def cms_menu() -> list[dict[str, Any]]:
         vendor_id = str(section.get("vendor_id") or "")
         if vendor_id not in vendor_ids:
             vendor_id = ""
-        kind = str(section.get("kind") or "").strip()
-        if kind not in ("cibo", "bere"):
-            kind = infer_menu_kind(category)
+        kind = normalize_menu_kind(str(section.get("kind") or ""), category)
         sections.append({"category": category, "vendor_id": vendor_id, "kind": kind, "items": items})
     return sections
 
@@ -1142,7 +1220,10 @@ def menu_with_producer_names(
     enriched: list[dict[str, Any]] = []
     for section in sections:
         section_vendor = str(section.get("vendor_id") or "")
-        kind = str(section.get("kind") or infer_menu_kind(str(section.get("category") or "")))
+        kind = normalize_menu_kind(
+            str(section.get("kind") or ""),
+            str(section.get("category") or ""),
+        )
         items_out: list[dict[str, Any]] = []
         for item in section["items"]:
             effective = str(item.get("vendor_id") or "").strip() or section_vendor
@@ -1388,7 +1469,7 @@ def build_menu_from_form(
         if vendor_id not in known_vendors:
             vendor_id = ""
         raw_kind = section_kinds[index].strip() if index < len(section_kinds) else ""
-        kind = raw_kind if raw_kind in ("cibo", "bere") else infer_menu_kind(title)
+        kind = normalize_menu_kind(raw_kind, title)
         sections.append(
             {"category": title, "vendor_id": vendor_id, "kind": kind, "items": [], "index": index}
         )

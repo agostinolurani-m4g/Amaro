@@ -29,6 +29,7 @@ from .m4g_cms import (
     cms_adherents,
     cms_menu,
     cms_menu_by_id,
+    cms_menu_groups,
     menu_with_producer_names,
     cms_merch_item,
     cms_merch_items,
@@ -697,7 +698,11 @@ def _parse_cart_json(cart_json: str) -> list[dict[str, Any]]:
 
 def _menu_tipo_from_request(request: Request) -> str:
     raw = str(request.query_params.get("tipo") or "").strip().lower()
-    return "bere" if raw == "bere" else "cibo"
+    groups = cms_menu_groups()
+    ids = {group["id"] for group in groups}
+    if raw in ids:
+        return raw
+    return groups[0]["id"] if groups else "cibo"
 
 
 def _m4g_qr_image_url(target_url: str) -> str:
@@ -724,6 +729,7 @@ def bar_menu_page(request: Request) -> HTMLResponse:
             "menu": menu_with_producer_names(cms_menu(), vendors),
             "event": M4G_EVENT,
             "vendors": vendors,
+            "menu_groups": cms_menu_groups(),
             "menu_tipo": _menu_tipo_from_request(request),
             "payment_failed": _payment_failed(request),
             "price_fn": format_price,
