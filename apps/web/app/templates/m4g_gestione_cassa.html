@@ -29,6 +29,17 @@
         color: var(--m4g-ink);
       }
       .m4g-cassa-tabs a.is-active { background: var(--m4g-green); color: #fff; }
+      .m4g-cms-pages { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0 0 1rem; }
+      .m4g-cms-pages a {
+        font-weight: 700;
+        padding: 0.45rem 0.8rem;
+        border-radius: 0.35rem;
+        border: 2px solid var(--m4g-ink, #1a1a1a);
+        text-decoration: none;
+        color: inherit;
+        background: #fff;
+      }
+      .m4g-cms-pages a.is-active { background: var(--m4g-green, #009739); color: #fff; border-color: var(--m4g-green, #009739); }
     </style>
   </head>
   <body class="m4g-body">
@@ -36,9 +47,9 @@
       <div class="m4g-cms-head">
         <div>
           <h1 style="margin:0;">Cassa {% if kind == 'merch' %}merch{% else %}bar{% endif %}</h1>
-          <p class="m4g-muted"><a class="m4g-link" href="/m4g/gestione">← Gestione</a></p>
         </div>
       </div>
+      {% include "m4g_partials_gestione_pages.html" %}
       <nav class="m4g-cassa-tabs" aria-label="Sezione cassa">
         <a href="/m4g/gestione/cassa?kind=bar" class="{% if kind == 'bar' %}is-active{% endif %}">Bar &amp; cucina</a>
         <a href="/m4g/gestione/cassa?kind=merch" class="{% if kind == 'merch' %}is-active{% endif %}">Merch</a>

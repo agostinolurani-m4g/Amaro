@@ -1056,6 +1056,7 @@ def bar_qr_page(request: Request) -> HTMLResponse:
 @router.get("/m4g/qr", response_class=HTMLResponse)
 def m4g_qr_index(request: Request) -> HTMLResponse:
     links: list[dict[str, str]] = [
+        {"href": "/m4g/qr/iscrizione", "label": "Iscrizione"},
         {"href": "/m4g/qr/donazione", "label": "Donazione"},
     ]
     if cms_show_bar():
@@ -1066,6 +1067,24 @@ def m4g_qr_index(request: Request) -> HTMLResponse:
     return templates.TemplateResponse(
         "m4g_qr_index.html",
         {"request": request, "links": links},
+    )
+
+
+@router.get("/m4g/qr/iscrizione", response_class=HTMLResponse)
+def m4g_qr_registration(request: Request) -> HTMLResponse:
+    target_url = _m4g_absolute_url(request, "/m4g/iscrizione")
+    return templates.TemplateResponse(
+        "m4g_qr_page.html",
+        {
+            "request": request,
+            "page_title": "QR Iscrizione",
+            "heading": "QR Iscrizione",
+            "hint": "Stampa o mostra questo codice per la pagina iscrizioni.",
+            "target_url": target_url,
+            "qr_url": _m4g_qr_image_url(target_url),
+            "open_href": "/m4g/iscrizione",
+            "open_label": "Apri iscrizione",
+        },
     )
 
 

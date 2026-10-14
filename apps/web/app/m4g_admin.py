@@ -57,6 +57,7 @@ from .m4g_common import (
     bar_orders_awaiting_check_for_kind,
     bar_orders_eligible,
     bar_orders_eligible_for_kind,
+    list_food_bar_orders,
     list_merch_bar_orders,
     merch_bar_order_fields,
     order_kind,
@@ -67,7 +68,6 @@ from .m4g_common import (
     mark_registration_paid,
     hide_registration_unpaid,
     list_m4g_registrations,
-    merch_order_fields,
     registration_signup_detail,
     restore_registration,
     reject_bar_order,
@@ -167,13 +167,11 @@ def m4g_gestione_page(
                 "error": request.query_params.get("error"),
             },
         )
-    reg_q = request.query_params.get("reg_q", "")
-    merch_q = request.query_params.get("merch_q", "")
-    show_hidden = request.query_params.get("show_hidden") == "1"
     return templates.TemplateResponse(
         "m4g_gestione.html",
         {
             "request": request,
+            "gestione_page": "resto",
             "media_files": list_cms_media(),
             "routes": managed_routes(),
             "merch_items": cms_merch_items(),
@@ -186,10 +184,46 @@ def m4g_gestione_page(
             "menu": cms_menu(),
             "menu_groups": cms_menu_groups(),
             "message": request.query_params.get("msg"),
+            **_admin_dashboard(session),
+        },
+    )
+
+
+def _order_status_labels() -> dict[str, str]:
+    return {
+        "paid": "Pagato",
+        "pending": "In attesa",
+        "unpaid": "Non pagata",
+        "awaiting_check": "Da verificare",
+        "rejected": "Rifiutato",
+        "expired": "Scaduto",
+        "failed": "Fallito",
+    }
+
+
+@admin_router.get("/m4g/gestione/ordini", response_class=HTMLResponse, response_model=None)
+def m4g_gestione_ordini(
+    request: Request,
+    session: Session = Depends(get_session),
+) -> RedirectResponse | HTMLResponse:
+    denied = _require_admin(request)
+    if denied:
+        return denied
+    reg_q = request.query_params.get("reg_q", "")
+    merch_q = request.query_params.get("merch_q", "")
+    cibo_q = request.query_params.get("cibo_q", "")
+    show_hidden = request.query_params.get("show_hidden") == "1"
+    return templates.TemplateResponse(
+        "m4g_gestione_ordini.html",
+        {
+            "request": request,
+            "gestione_page": "ordini",
+            "message": request.query_params.get("msg"),
             "registrations": list_m4g_registrations(
                 session, reg_q, hidden=show_hidden, exclude_activity="merch"
             ),
             "merch_orders": list_merch_bar_orders(session, merch_q),
+            "food_orders": list_food_bar_orders(session, cibo_q),
             "show_hidden": show_hidden,
             "activity_labels": {
                 "bike": "Bici",
@@ -199,17 +233,14 @@ def m4g_gestione_page(
                 "donation": "Donazione",
                 "merch": "Merch",
             },
-            "status_labels": {
-                "paid": "Pagato",
-                "pending": "In attesa",
-                "unpaid": "Non pagata",
-            },
+            "status_labels": _order_status_labels(),
             "when_fn": format_rome,
             "detail_fn": registration_signup_detail,
-            "merch_fields_fn": merch_bar_order_fields,
+            "lines_fn": merch_bar_order_fields,
+            "price_fn": format_price,
             "reg_q": reg_q,
             "merch_q": merch_q,
-            **_admin_dashboard(session),
+            "cibo_q": cibo_q,
         },
     )
 
@@ -464,6 +495,7 @@ def m4g_gestione_cassa(
         "m4g_gestione_cassa.html",
         {
             "request": request,
+            "gestione_page": "cassa",
             "kind": kind,
             "awaiting": awaiting,
             "eligible": eligible,
@@ -524,7 +556,7 @@ def m4g_gestione_registration_paid(
     if reg and reg.payment_status == "pending":
         mark_registration_paid(reg, session)
     anchor = _registration_section_anchor(reg)
-    return RedirectResponse(f"/m4g/gestione?msg=reg-paid#{anchor}", status_code=302)
+    return RedirectResponse(f"/m4g/gestione/ordini?msg=reg-paid#{anchor}", status_code=302)
 
 
 @admin_router.post("/m4g/gestione/registration-send-email")
@@ -540,14 +572,14 @@ def m4g_gestione_registration_send_email(
     reg = session.query(M4gRegistration).filter_by(reference=ref).first()
     anchor = _registration_section_anchor(reg)
     if not reg or reg.payment_status != "paid" or reg.paid_email_sent_at is not None:
-        return RedirectResponse(f"/m4g/gestione?msg=reg-email-skip#{anchor}", status_code=302)
+        return RedirectResponse(f"/m4g/gestione/ordini?msg=reg-email-skip#{anchor}", status_code=302)
     if not (reg.email or "").strip():
-        return RedirectResponse(f"/m4g/gestione?msg=reg-email-noaddr#{anchor}", status_code=302)
+        return RedirectResponse(f"/m4g/gestione/ordini?msg=reg-email-noaddr#{anchor}", status_code=302)
     from . import m4g_mail
 
     ok = m4g_mail.send_paid_confirmation(reg, session)
     msg = "reg-email-ok" if ok else "reg-email-fail"
-    return RedirectResponse(f"/m4g/gestione?msg={msg}#{anchor}", status_code=302)
+    return RedirectResponse(f"/m4g/gestione/ordini?msg={msg}#{anchor}", status_code=302)
 
 
 def _parse_admin_euro(raw: str) -> int | None:
@@ -582,7 +614,7 @@ def _registration_list_redirect(
     elif reg_q.strip():
         parts.append(f"reg_q={quote(reg_q.strip())}")
     return RedirectResponse(
-        f"/m4g/gestione?{'&'.join(parts)}#{anchor}",
+        f"/m4g/gestione/ordini?{'&'.join(parts)}#{anchor}",
         status_code=302,
     )
 
@@ -634,7 +666,7 @@ def m4g_gestione_registration_hide(
     if reg:
         hide_registration_unpaid(reg, session)
     anchor = _registration_section_anchor(reg)
-    return RedirectResponse(f"/m4g/gestione?msg=reg-hidden#{anchor}", status_code=302)
+    return RedirectResponse(f"/m4g/gestione/ordini?msg=reg-hidden#{anchor}", status_code=302)
 
 
 @admin_router.post("/m4g/gestione/registration-restore")
@@ -650,7 +682,7 @@ def m4g_gestione_registration_restore(
     if reg:
         restore_registration(reg, session)
     anchor = _registration_section_anchor(reg)
-    return RedirectResponse(f"/m4g/gestione?msg=reg-restored#{anchor}", status_code=302)
+    return RedirectResponse(f"/m4g/gestione/ordini?msg=reg-restored#{anchor}", status_code=302)
 
 
 @admin_router.post("/m4g/gestione/adherents")

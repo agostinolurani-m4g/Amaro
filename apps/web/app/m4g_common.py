@@ -376,21 +376,36 @@ def voucher_stand_for_order(order: BarOrder, item_id: str) -> str:
     return cms_menu_item_stand_label(item_id)
 
 
+def _filter_bar_orders_by_query(q, query: str):
+    needle = query.strip().lower()
+    if not needle:
+        return q
+    like = f"%{needle}%"
+    return q.filter(
+        (BarOrder.reference.ilike(like))
+        | (BarOrder.email.ilike(like))
+        | (BarOrder.short_code.ilike(like))
+        | (BarOrder.items_json.ilike(like))
+    )
+
+
 def list_merch_bar_orders(
     session: Session,
     query: str = "",
     limit: int = 2000,
 ) -> list[BarOrder]:
     q = session.query(BarOrder).filter(BarOrder.kind == "merch")
-    needle = query.strip().lower()
-    if needle:
-        like = f"%{needle}%"
-        q = q.filter(
-            (BarOrder.reference.ilike(like))
-            | (BarOrder.email.ilike(like))
-            | (BarOrder.short_code.ilike(like))
-            | (BarOrder.items_json.ilike(like))
-        )
+    q = _filter_bar_orders_by_query(q, query)
+    return q.order_by(BarOrder.created_at.desc()).limit(limit).all()
+
+
+def list_food_bar_orders(
+    session: Session,
+    query: str = "",
+    limit: int = 2000,
+) -> list[BarOrder]:
+    q = session.query(BarOrder).filter(_bar_kind_filter())
+    q = _filter_bar_orders_by_query(q, query)
     return q.order_by(BarOrder.created_at.desc()).limit(limit).all()
 
 

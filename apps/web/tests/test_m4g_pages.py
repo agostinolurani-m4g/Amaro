@@ -543,10 +543,15 @@ class M4gPageTests(unittest.TestCase):
     def test_m4g_qr_pages(self) -> None:
         index = self.client.get("/m4g/qr")
         self.assertEqual(index.status_code, 200)
+        self.assertIn("/m4g/qr/iscrizione", index.text)
         self.assertIn("/m4g/qr/donazione", index.text)
         self.assertIn("/m4g/qr/cibo", index.text)
         self.assertIn("/m4g/qr/bere", index.text)
         self.assertIn("/m4g/qr/merch", index.text)
+        registration = self.client.get("/m4g/qr/iscrizione")
+        self.assertEqual(registration.status_code, 200)
+        self.assertIn("api.qrserver.com", registration.text)
+        self.assertIn("/m4g/iscrizione", registration.text)
         donation = self.client.get("/m4g/qr/donazione")
         self.assertEqual(donation.status_code, 200)
         self.assertIn("api.qrserver.com", donation.text)
@@ -614,7 +619,7 @@ class M4gPageTests(unittest.TestCase):
 
         email = "ordine-merch@example.test"
         try:
-            set_page_visibility(show_merch=True)
+            set_page_visibility(show_bar=True, show_merch=True, show_total=True)
             checkout = self.client.post(
                 "/m4g/merch/checkout",
                 data={
@@ -627,18 +632,25 @@ class M4gPageTests(unittest.TestCase):
             ref_match = re.search(r"Riferimento: <code>(MRC[A-F0-9]+)</code>", checkout.text)
             self.assertIsNotNone(ref_match)
             reference = ref_match.group(1)
+            saved = self.client.post(
+                f"/m4g/ordine/{reference}/email",
+                data={"email": email},
+            )
+            self.assertEqual(saved.status_code, 200)
             admin = TestClient(app)
             admin.post(
                 "/m4g/gestione/login",
                 data={"password": M4G_TEST_PASSWORD},
                 follow_redirects=False,
             )
-            gestione = admin.get("/m4g/gestione")
+            gestione = admin.get("/m4g/gestione/ordini")
             self.assertEqual(gestione.status_code, 200)
             self.assertIn('id="cms-ordini"', gestione.text)
             self.assertIn("Ordini merch", gestione.text)
+            self.assertIn('id="cms-cibo"', gestione.text)
+            self.assertIn("Ordini cibo", gestione.text)
             ordini_html = gestione.text.split('id="cms-ordini"', 1)[1].split(
-                "Sito pubblico", 1
+                'id="cms-iscrizioni"', 1
             )[0]
             self.assertIn(email, ordini_html)
             self.assertIn("Calze solidali", ordini_html)
@@ -653,6 +665,50 @@ class M4gPageTests(unittest.TestCase):
                 session.commit()
             finally:
                 session.close()
+
+    def test_gestione_food_orders_page(self) -> None:
+        import re
+
+        from app.m4g_cms import set_page_visibility
+
+        set_page_visibility(show_bar=True, show_merch=True, show_total=True)
+        checkout = self.client.post(
+            "/m4g/bar/checkout",
+            data={"cart_json": '[{"id":"piadina","quantity":2}]'},
+        )
+        self.assertEqual(checkout.status_code, 200)
+        ref_match = re.search(r"Riferimento: <code>(BAR[A-F0-9]+)</code>", checkout.text)
+        self.assertIsNotNone(ref_match)
+        reference = ref_match.group(1)
+        self.addCleanup(self._delete_bar_order, reference)
+        admin = TestClient(app)
+        admin.post(
+            "/m4g/gestione/login",
+            data={"password": M4G_TEST_PASSWORD},
+            follow_redirects=False,
+        )
+        resto = admin.get("/m4g/gestione")
+        self.assertEqual(resto.status_code, 200)
+        self.assertNotIn('id="cms-cibo"', resto.text)
+        self.assertIn('href="/m4g/gestione/ordini"', resto.text)
+        ordini = admin.get("/m4g/gestione/ordini")
+        self.assertEqual(ordini.status_code, 200)
+        cibo_html = ordini.text.split('id="cms-cibo"', 1)[1].split('id="cms-ordini"', 1)[0]
+        self.assertIn("Piadina", cibo_html)
+        self.assertIn(reference, cibo_html)
+        self.assertNotIn(reference, ordini.text.split('id="cms-ordini"', 1)[1])
+
+    @staticmethod
+    def _delete_bar_order(reference: str) -> None:
+        from app.database import SessionLocal
+        from app.models import BarOrder
+
+        session = SessionLocal()
+        try:
+            session.query(BarOrder).filter_by(reference=reference).delete()
+            session.commit()
+        finally:
+            session.close()
 
     def test_bar_legal_and_multi_voucher_codes(self) -> None:
         import re
@@ -887,7 +943,7 @@ class M4gPageTests(unittest.TestCase):
             follow_redirects=False,
         )
         self.assertIn(login.status_code, (302, 303))
-        gestione = self.client.get("/m4g/gestione")
+        gestione = self.client.get("/m4g/gestione/ordini")
         self.assertEqual(gestione.status_code, 200)
         self.assertIn("Elenco iscrizioni e donazioni", gestione.text)
         self.assertIn("Ada", gestione.text)
@@ -926,9 +982,9 @@ class M4gPageTests(unittest.TestCase):
             follow_redirects=False,
         )
         self.assertIn(hidden.status_code, (302, 303))
-        visible = self.client.get("/m4g/gestione")
+        visible = self.client.get("/m4g/gestione/ordini")
         self.assertNotIn(ref, visible.text)
-        archive = self.client.get("/m4g/gestione?show_hidden=1")
+        archive = self.client.get("/m4g/gestione/ordini?show_hidden=1")
         self.assertEqual(archive.status_code, 200)
         self.assertIn(ref, archive.text)
         self.assertIn("Non pagata", archive.text)
@@ -953,7 +1009,7 @@ class M4gPageTests(unittest.TestCase):
         )
         self.assertEqual(bike_ok.status_code, 200)
         self.assertIn("25.00 €", bike_ok.text)
-        listed = self.client.get("/m4g/gestione")
+        listed = self.client.get("/m4g/gestione/ordini")
         self.assertIn("64 km", listed.text)
 
         soccer_base = {
@@ -977,7 +1033,7 @@ class M4gPageTests(unittest.TestCase):
         )
         self.assertEqual(soccer_ok.status_code, 200)
         self.assertIn("76.00 €", soccer_ok.text)
-        soccer_list = self.client.get("/m4g/gestione")
+        soccer_list = self.client.get("/m4g/gestione/ordini")
         self.assertIn("Solidal", soccer_list.text)
         self.assertIn("6 giocatori", soccer_list.text)
 

@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="it">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Ordini — Move for Gaza</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='css/m4g-bar.css') }}" />
+    <style>
+      .m4g-cms-wrap { max-width: 52rem; margin: 2rem auto; padding: 0 1rem 3rem; }
+      .m4g-cms-pages { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0 0 1rem; }
+      .m4g-cms-pages a {
+        font-weight: 700;
+        padding: 0.45rem 0.8rem;
+        border-radius: 0.35rem;
+        border: 2px solid var(--m4g-ink, #1a1a1a);
+        text-decoration: none;
+        color: inherit;
+        background: #fff;
+      }
+      .m4g-cms-pages a.is-active { background: var(--m4g-green, #009739); color: #fff; border-color: var(--m4g-green, #009739); }
+      .m4g-regs {
+        width: calc(100vw - 1.5rem);
+        margin-left: calc(50% - 50vw + 0.75rem);
+      }
+      .m4g-regs-scroll {
+        overflow: auto;
+        max-height: 72vh;
+        border: 1px solid #e7e0c8;
+        background: #fff;
+      }
+      .m4g-regs-table {
+        width: max-content;
+        min-width: 100%;
+        border-collapse: collapse;
+        font-size: 0.72rem;
+        line-height: 1.25;
+      }
+      .m4g-regs-table th,
+      .m4g-regs-table td {
+        padding: 0.18rem 0.4rem;
+        border-bottom: 1px solid #eee;
+        text-align: left;
+        white-space: nowrap;
+        vertical-align: middle;
+      }
+      .m4g-regs-table th {
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        background: #faf8f2;
+        font-weight: 600;
+      }
+      .m4g-regs-table td.m4g-regs__detail {
+        white-space: normal;
+        min-width: 11rem;
+        max-width: 20rem;
+      }
+      .m4g-regs-table .m4g-cms-list__actions { display: flex; flex-wrap: nowrap; align-items: center; gap: 0.25rem; }
+      .m4g-regs-table .m4g-btn { padding: 0.15rem 0.4rem; font-size: 0.68rem; }
+      .m4g-cms-amount { display: flex; align-items: center; gap: 0.25rem; margin: 0; }
+      .m4g-regs-table .m4g-cms-amount input {
+        width: 4rem;
+        padding: 0.12rem 0.28rem;
+        border: 1px solid #cbd5e1;
+        border-radius: 0.3rem;
+        font: inherit;
+        font-size: 0.72rem;
+      }
+      .m4g-cms-head { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-bottom: 1rem; }
+      .m4g-cms-nav {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.35rem;
+        padding: 0 0 1rem;
+        margin-bottom: 1rem;
+      }
+      .m4g-cms-nav a {
+        font-size: 0.8rem;
+        padding: 0.35rem 0.55rem;
+        border-radius: 999px;
+        background: #fff;
+        border: 1px solid #e7e0c8;
+        text-decoration: none;
+        color: inherit;
+      }
+    </style>
+  </head>
+  <body class="m4g-body">
+    <div class="m4g-cms-wrap">
+      <div class="m4g-cms-head">
+        <h1>Ordini</h1>
+        <form method="post" action="/m4g/gestione/logout">
+          <button type="submit" class="m4g-btn m4g-btn--secondary">Esci</button>
+        </form>
+      </div>
+      {% include "m4g_partials_gestione_pages.html" %}
+      {% if message == 'reg-paid' %}
+        <p class="m4g-alert" style="background:#e8f5e9;">Iscrizione segnata come pagata.</p>
+      {% elif message == 'reg-email-ok' %}
+        <p class="m4g-alert" style="background:#e8f5e9;">Email di conferma inviata.</p>
+      {% elif message == 'reg-email-fail' %}
+        <p class="m4g-alert">Invio email non riuscito. Controlla SMTP e riprova.</p>
+      {% elif message == 'reg-email-noaddr' %}
+        <p class="m4g-alert">Nessun indirizzo email sull'iscrizione.</p>
+      {% elif message == 'reg-email-skip' %}
+        <p class="m4g-alert">Email già inviata o iscrizione non pagata.</p>
+      {% elif message == 'reg-hidden' %}
+        <p class="m4g-alert" style="background:#e8f5e9;">Segnata come non pagata e tolta dall'elenco.</p>
+      {% elif message == 'reg-restored' %}
+        <p class="m4g-alert" style="background:#e8f5e9;">Rimessa nell'elenco, ancora da pagare.</p>
+      {% elif message == 'amount-ok' %}
+        <p class="m4g-alert" style="background:#e8f5e9;">Importo aggiornato.</p>
+      {% elif message == 'amount' %}
+        <p class="m4g-alert">Importo non valido. Usa un numero maggiore di zero, per esempio 100 o 100,50.</p>
+      {% endif %}
+
+      <nav class="m4g-cms-nav" aria-label="Elenchi ordini">
+        <a href="#cms-cibo">Ordini cibo</a>
+        <a href="#cms-ordini">Ordini merch</a>
+        <a href="#cms-iscrizioni">Iscrizioni</a>
+        <a href="/m4g/gestione/export/bar.csv">Export cibo</a>
+        <a href="/m4g/gestione/export/merch.csv">Export merch</a>
+        <a href="/m4g/gestione/export/iscrizioni.csv">Export iscrizioni</a>
+      </nav>
+
+      <section id="cms-cibo" class="m4g-card m4g-card--padded m4g-regs" style="margin-bottom:1rem;">
+        <h2>Ordini cibo</h2>
+        <p class="m4g-muted">Ordini del menu bar e cucina, cibo e bevande. Pagamenti Satispay/PayPal: conferma in <a class="m4g-link" href="/m4g/gestione/cassa?kind=bar">cassa bar</a>.</p>
+        <form method="get" action="/m4g/gestione/ordini" class="m4g-form" style="margin:0.75rem 0;">
+          <label>Cerca<input name="cibo_q" value="{{ cibo_q }}" placeholder="Codice, email, piatto" /></label>
+          <button type="submit" class="m4g-btn m4g-btn--secondary m4g-btn--inline">Cerca</button>
+        </form>
+        {% if not food_orders %}
+          <p class="m4g-muted">Nessun ordine cibo.</p>
+        {% else %}
+          <p class="m4g-muted">{{ food_orders|length }} in elenco</p>
+        {% endif %}
+        <div class="m4g-regs-scroll">
+          <table class="m4g-regs-table">
+            <thead>
+              <tr>
+                <th>Quando</th>
+                <th>Codice</th>
+                <th>Codice breve</th>
+                <th>Piatti</th>
+                <th>Qtà</th>
+                <th>Email</th>
+                <th>€</th>
+                <th>Pagamento</th>
+                <th>Stato</th>
+                <th>Banner</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for order in food_orders %}
+              {% set lines = lines_fn(order) %}
+              <tr>
+                <td>{{ when_fn(order.created_at) }}</td>
+                <td>{{ order.reference }}</td>
+                <td>{{ order.short_code or "—" }}</td>
+                <td class="m4g-regs__detail">{{ lines.product }}</td>
+                <td>{{ lines.quantity }}</td>
+                <td>{{ order.email or "" }}</td>
+                <td>{{ price_fn(order.amount_cents) }}</td>
+                <td>{{ order.payment_method or "—" }}</td>
+                <td>{{ status_labels.get(order.payment_status, order.payment_status) }}</td>
+                <td>
+                  {% if order.payment_status == 'paid' %}
+                    <a class="m4g-link" href="/m4g/ordine/{{ order.reference }}/consumi" target="_blank" rel="noreferrer">Apri</a>
+                  {% elif order.payment_status == 'awaiting_check' %}
+                    <span class="m4g-muted">In cassa</span>
+                  {% else %}
+                    —
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="cms-ordini" class="m4g-card m4g-card--padded m4g-regs" style="margin-bottom:1rem;">
+        <h2>Ordini merch</h2>
+        <p class="m4g-muted">Pagamenti Satispay/PayPal: conferma in <a class="m4g-link" href="/m4g/gestione/cassa?kind=merch">cassa merch</a>. Dopo il pagamento l'acquirente riceve i banner digitali.</p>
+        <form method="get" action="/m4g/gestione/ordini" class="m4g-form" style="margin:0.75rem 0;">
+          <label>Cerca<input name="merch_q" value="{{ merch_q }}" placeholder="Codice, email, prodotto" /></label>
+          <button type="submit" class="m4g-btn m4g-btn--secondary m4g-btn--inline">Cerca</button>
+        </form>
+        {% if not merch_orders %}
+          <p class="m4g-muted">Nessun ordine merch.</p>
+        {% else %}
+          <p class="m4g-muted">{{ merch_orders|length }} in elenco</p>
+        {% endif %}
+        <div class="m4g-regs-scroll">
+          <table class="m4g-regs-table">
+            <thead>
+              <tr>
+                <th>Quando</th>
+                <th>Codice</th>
+                <th>Prodotto</th>
+                <th>Codice breve</th>
+                <th>Qtà</th>
+                <th>Email</th>
+                <th>€</th>
+                <th>Stato</th>
+                <th>Mail</th>
+                <th>Banner</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for order in merch_orders %}
+              {% set mf = lines_fn(order) %}
+              <tr>
+                <td>{{ when_fn(order.created_at) }}</td>
+                <td>{{ order.reference }}</td>
+                <td>{{ mf.product }}</td>
+                <td>{{ order.short_code or "—" }}</td>
+                <td>{{ mf.quantity }}</td>
+                <td>{{ order.email or "" }}</td>
+                <td>{{ price_fn(order.amount_cents) }}</td>
+                <td>{{ status_labels.get(order.payment_status, order.payment_status) }}</td>
+                <td class="m4g-muted">
+                  {% if order.order_email_sent_at %}
+                    inviata {{ when_fn(order.order_email_sent_at) }}
+                  {% elif order.payment_status == 'paid' and order.email %}
+                    in attesa
+                  {% else %}
+                    —
+                  {% endif %}
+                </td>
+                <td>
+                  {% if order.payment_status == 'paid' %}
+                    <a class="m4g-link" href="/m4g/merch/ordine/{{ order.reference }}/codici" target="_blank" rel="noreferrer">Apri</a>
+                  {% elif order.payment_status == 'awaiting_check' %}
+                    <span class="m4g-muted">In cassa</span>
+                  {% else %}
+                    —
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="cms-iscrizioni" class="m4g-card m4g-card--padded m4g-regs" style="margin-bottom:1rem;">
+        <h2>{% if show_hidden %}Non pagate, nascoste{% else %}Elenco iscrizioni e donazioni{% endif %}</h2>
+        <p class="m4g-muted">Satispay, PayPal e bonifico non aggiornano l'importo da soli. Se ne è arrivato uno diverso, correggilo qui e poi segna pagato. «Non pagata» toglie la riga dall'elenco senza cancellarla.</p>
+        {% if show_hidden %}
+          <p><a class="m4g-link" href="/m4g/gestione/ordini#cms-iscrizioni">Torna all'elenco</a></p>
+        {% else %}
+          <p><a class="m4g-link" href="/m4g/gestione/ordini?show_hidden=1#cms-iscrizioni">Vedi non pagate nascoste</a></p>
+        {% endif %}
+        <form method="get" action="/m4g/gestione/ordini" class="m4g-form" style="margin:0.75rem 0;">
+          {% if show_hidden %}<input type="hidden" name="show_hidden" value="1" />{% endif %}
+          <label>Cerca<input name="reg_q" value="{{ reg_q }}" placeholder="Codice, nome, email, squadra, percorso" /></label>
+          <button type="submit" class="m4g-btn m4g-btn--secondary m4g-btn--inline">Cerca</button>
+        </form>
+        {% if not registrations %}
+          <p class="m4g-muted">Nessuna iscrizione.</p>
+        {% else %}
+          <p class="m4g-muted">{{ registrations|length }} in elenco</p>
+        {% endif %}
+        <div class="m4g-regs-scroll">
+          <table class="m4g-regs-table">
+            <thead>
+              <tr>
+                <th>Quando</th>
+                <th>Codice</th>
+                <th>Attività</th>
+                <th>Iscrizione</th>
+                <th>Nome</th>
+                <th>Cognome</th>
+                <th>Email</th>
+                <th>Telefono</th>
+                <th>€</th>
+                <th>Stato</th>
+                <th>Mail</th>
+                <th>Azioni</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for reg in registrations %}
+              <tr>
+                <td>{{ when_fn(reg.created_at) }}</td>
+                <td>{{ reg.reference }}</td>
+                <td>{{ activity_labels.get(reg.activity, reg.activity) }}</td>
+                <td class="m4g-regs__detail">{{ detail_fn(reg) }}</td>
+                <td>{{ reg.first_name }}</td>
+                <td>{{ reg.last_name }}</td>
+                <td>{{ reg.email or "" }}</td>
+                <td>{{ reg.phone or "" }}</td>
+                <td>{{ price_fn(reg.amount_cents) }}</td>
+                <td>{{ status_labels.get(reg.payment_status, reg.payment_status) }}</td>
+                <td class="m4g-muted">
+                  {% if reg.paid_email_sent_at %}
+                    inviata {{ when_fn(reg.paid_email_sent_at) }}
+                  {% elif reg.payment_status == 'paid' and reg.email %}
+                    in attesa
+                  {% else %}
+                    —
+                  {% endif %}
+                </td>
+                <td>
+                  <span class="m4g-cms-list__actions">
+                    <form method="post" action="/m4g/gestione/registration-amount" class="m4g-cms-amount">
+                      <input type="hidden" name="reference" value="{{ reg.reference }}" />
+                      {% if show_hidden %}<input type="hidden" name="show_hidden" value="1" />{% endif %}
+                      <input type="hidden" name="reg_q" value="{{ reg_q }}" />
+                      <input name="amount_eur" type="text" inputmode="decimal" value="{{ price_fn(reg.amount_cents) }}" aria-label="Importo pagato in euro" />
+                      <button type="submit" class="m4g-btn m4g-btn--secondary">Salva</button>
+                    </form>
+                    {% if show_hidden %}
+                    <form method="post" action="/m4g/gestione/registration-restore">
+                      <input type="hidden" name="reference" value="{{ reg.reference }}" />
+                      <button type="submit" class="m4g-btn m4g-btn--secondary">Ripristina</button>
+                    </form>
+                    {% else %}
+                      {% if reg.payment_status == 'pending' %}
+                      <form method="post" action="/m4g/gestione/registration-paid">
+                        <input type="hidden" name="reference" value="{{ reg.reference }}" />
+                        <button type="submit" class="m4g-btn m4g-btn--primary">Pagato</button>
+                      </form>
+                      {% elif reg.payment_status == 'paid' and reg.email and not reg.paid_email_sent_at %}
+                      <form method="post" action="/m4g/gestione/registration-send-email">
+                        <input type="hidden" name="reference" value="{{ reg.reference }}" />
+                        <button type="submit" class="m4g-btn m4g-btn--primary">Invia email</button>
+                      </form>
+                      {% endif %}
+                      <form method="post" action="/m4g/gestione/registration-hide">
+                        <input type="hidden" name="reference" value="{{ reg.reference }}" />
+                        <button type="submit" class="m4g-btn m4g-btn--secondary">Non pagata</button>
+                      </form>
+                    {% endif %}
+                  </span>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </body>
+</html>
