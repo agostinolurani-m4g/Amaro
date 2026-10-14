@@ -811,7 +811,8 @@ body.m4g-body {
   margin-bottom: 0.75rem;
 }
 
-.m4g-qr img {
+.m4g-qr img,
+.m4g-qr__preview svg {
   max-width: 100%;
   border-radius: 1rem;
   background: #fff;

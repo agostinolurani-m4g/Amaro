@@ -2,11 +2,11 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Callable
 from typing import Any
-from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request, status
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response
 from sqlalchemy.orm import Session
 
 from .database import get_session
@@ -45,6 +45,7 @@ from .m4g_cms import (
     route_gpx_file_path,
 )
 from .m4g_config import ACTIVITIES, LAST_EDITION, M4G_EVENT
+from .m4g_qr import png_bytes, svg_bytes, svg_inline_markup
 from .m4g_share import registration_share_context
 from .models import BarOrder, M4gRegistration
 
@@ -714,16 +715,66 @@ def _menu_tipo_from_request(request: Request) -> str:
     return groups[0]["id"] if groups else "cibo"
 
 
-def _m4g_qr_image_url(target_url: str) -> str:
-    return (
-        "https://api.qrserver.com/v1/create-qr-code/?size=320x320&data="
-        + quote(target_url, safe="")
-    )
-
-
 def _m4g_absolute_url(request: Request, path: str) -> str:
     base = str(request.base_url).rstrip("/")
     return f"{base}{path}"
+
+
+def _m4g_qr_print_assets(
+    request: Request,
+    *,
+    target_path: str,
+    slug: str,
+) -> dict[str, Any]:
+    target_url = _m4g_absolute_url(request, target_path)
+    return {
+        "target_url": target_url,
+        "qr_svg": svg_inline_markup(target_url),
+        "download_svg_href": f"/m4g/qr/{slug}.svg",
+        "download_png_href": f"/m4g/qr/{slug}.png",
+    }
+
+
+def _m4g_qr_slug_config() -> dict[str, tuple[str, Callable[[], bool] | None]]:
+    return {
+        "iscrizione": ("/m4g/iscrizione", None),
+        "donazione": ("/m4g/donazione", None),
+        "cibo": ("/m4g/bar?tipo=cibo", cms_show_bar),
+        "bere": ("/m4g/bar?tipo=bere", cms_show_bar),
+        "merch": ("/m4g/merch", cms_show_merch),
+    }
+
+
+def _m4g_qr_target_for_slug(slug: str) -> tuple[str, Callable[[], bool] | None]:
+    config = _m4g_qr_slug_config()
+    if slug not in config:
+        raise HTTPException(status_code=404, detail="QR non trovato")
+    return config[slug]
+
+
+def _m4g_qr_download_response(
+    request: Request,
+    slug: str,
+    *,
+    kind: str,
+) -> Response:
+    target_path, guard = _m4g_qr_target_for_slug(slug)
+    if guard is not None and not guard():
+        raise HTTPException(status_code=404, detail="Pagina non disponibile")
+    target_url = _m4g_absolute_url(request, target_path)
+    if kind == "svg":
+        body = svg_bytes(target_url)
+        media_type = "image/svg+xml"
+        filename = f"m4g-qr-{slug}.svg"
+    else:
+        body = png_bytes(target_url)
+        media_type = "image/png"
+        filename = f"m4g-qr-{slug}-900dpi-30cm.png"
+    return Response(
+        content=body,
+        media_type=media_type,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.get("/m4g/bar", response_class=HTMLResponse)
@@ -1048,7 +1099,35 @@ def bar_qr_page(request: Request) -> HTMLResponse:
         {
             "request": request,
             "bar_url": target_url,
-            "qr_url": _m4g_qr_image_url(target_url),
+            "qr_svg": svg_inline_markup(target_url),
+            "download_svg_href": "/m4g/bar/qr.svg",
+            "download_png_href": "/m4g/bar/qr.png",
+        },
+    )
+
+
+@router.get("/m4g/bar/qr.svg")
+def bar_qr_download_svg(request: Request) -> Response:
+    if not cms_show_bar():
+        raise HTTPException(status_code=404, detail="Pagina non disponibile")
+    target_url = _m4g_absolute_url(request, "/m4g/bar")
+    return Response(
+        content=svg_bytes(target_url),
+        media_type="image/svg+xml",
+        headers={"Content-Disposition": 'attachment; filename="m4g-qr-bar.svg"'},
+    )
+
+
+@router.get("/m4g/bar/qr.png")
+def bar_qr_download_png(request: Request) -> Response:
+    if not cms_show_bar():
+        raise HTTPException(status_code=404, detail="Pagina non disponibile")
+    target_url = _m4g_absolute_url(request, "/m4g/bar")
+    return Response(
+        content=png_bytes(target_url),
+        media_type="image/png",
+        headers={
+            "Content-Disposition": 'attachment; filename="m4g-qr-bar-900dpi-30cm.png"'
         },
     )
 
@@ -1070,38 +1149,44 @@ def m4g_qr_index(request: Request) -> HTMLResponse:
     )
 
 
+@router.get("/m4g/qr/{slug}.svg")
+def m4g_qr_download_svg(request: Request, slug: str) -> Response:
+    return _m4g_qr_download_response(request, slug, kind="svg")
+
+
+@router.get("/m4g/qr/{slug}.png")
+def m4g_qr_download_png(request: Request, slug: str) -> Response:
+    return _m4g_qr_download_response(request, slug, kind="png")
+
+
 @router.get("/m4g/qr/iscrizione", response_class=HTMLResponse)
 def m4g_qr_registration(request: Request) -> HTMLResponse:
-    target_url = _m4g_absolute_url(request, "/m4g/iscrizione")
     return templates.TemplateResponse(
         "m4g_qr_page.html",
         {
             "request": request,
             "page_title": "QR Iscrizione",
             "heading": "QR Iscrizione",
-            "hint": "Stampa o mostra questo codice per la pagina iscrizioni.",
-            "target_url": target_url,
-            "qr_url": _m4g_qr_image_url(target_url),
+            "hint": "Per cartelloni grandi usa Scarica SVG; il PNG è 30×30 cm a 900 dpi.",
             "open_href": "/m4g/iscrizione",
             "open_label": "Apri iscrizione",
+            **_m4g_qr_print_assets(request, target_path="/m4g/iscrizione", slug="iscrizione"),
         },
     )
 
 
 @router.get("/m4g/qr/donazione", response_class=HTMLResponse)
 def m4g_qr_donation(request: Request) -> HTMLResponse:
-    target_url = _m4g_absolute_url(request, "/m4g/donazione")
     return templates.TemplateResponse(
         "m4g_qr_page.html",
         {
             "request": request,
             "page_title": "QR Donazione",
             "heading": "QR Donazione",
-            "hint": "Stampa o mostra questo codice per la pagina donazioni.",
-            "target_url": target_url,
-            "qr_url": _m4g_qr_image_url(target_url),
+            "hint": "Per cartelloni grandi usa Scarica SVG; il PNG è 30×30 cm a 900 dpi.",
             "open_href": "/m4g/donazione",
             "open_label": "Apri donazione",
+            **_m4g_qr_print_assets(request, target_path="/m4g/donazione", slug="donazione"),
         },
     )
 
@@ -1110,18 +1195,16 @@ def m4g_qr_donation(request: Request) -> HTMLResponse:
 def m4g_qr_food(request: Request) -> HTMLResponse:
     if not cms_show_bar():
         raise HTTPException(status_code=404, detail="Pagina non disponibile")
-    target_url = _m4g_absolute_url(request, "/m4g/bar?tipo=cibo")
     return templates.TemplateResponse(
         "m4g_qr_page.html",
         {
             "request": request,
             "page_title": "QR Menu cibo",
             "heading": "QR Menu cibo",
-            "hint": "Apre il menù bar sulla scheda Cibo.",
-            "target_url": target_url,
-            "qr_url": _m4g_qr_image_url(target_url),
+            "hint": "Apre il menù bar sulla scheda Cibo. Per la stampa grande: SVG o PNG 30 cm a 900 dpi.",
             "open_href": "/m4g/bar?tipo=cibo",
             "open_label": "Apri menu cibo",
+            **_m4g_qr_print_assets(request, target_path="/m4g/bar?tipo=cibo", slug="cibo"),
         },
     )
 
@@ -1130,18 +1213,16 @@ def m4g_qr_food(request: Request) -> HTMLResponse:
 def m4g_qr_drinks(request: Request) -> HTMLResponse:
     if not cms_show_bar():
         raise HTTPException(status_code=404, detail="Pagina non disponibile")
-    target_url = _m4g_absolute_url(request, "/m4g/bar?tipo=bere")
     return templates.TemplateResponse(
         "m4g_qr_page.html",
         {
             "request": request,
             "page_title": "QR Menu bevande",
             "heading": "QR Menu bevande",
-            "hint": "Apre il menù bar sulla scheda Bevande.",
-            "target_url": target_url,
-            "qr_url": _m4g_qr_image_url(target_url),
+            "hint": "Apre il menù bar sulla scheda Bevande. Per la stampa grande: SVG o PNG 30 cm a 900 dpi.",
             "open_href": "/m4g/bar?tipo=bere",
             "open_label": "Apri menu bevande",
+            **_m4g_qr_print_assets(request, target_path="/m4g/bar?tipo=bere", slug="bere"),
         },
     )
 
@@ -1150,18 +1231,16 @@ def m4g_qr_drinks(request: Request) -> HTMLResponse:
 def m4g_qr_merch(request: Request) -> HTMLResponse:
     if not cms_show_merch():
         raise HTTPException(status_code=404, detail="Pagina non disponibile")
-    target_url = _m4g_absolute_url(request, "/m4g/merch")
     return templates.TemplateResponse(
         "m4g_qr_page.html",
         {
             "request": request,
             "page_title": "QR Merch",
             "heading": "QR Merch",
-            "hint": "Stampa o mostra questo codice per la pagina merch.",
-            "target_url": target_url,
-            "qr_url": _m4g_qr_image_url(target_url),
+            "hint": "Per cartelloni grandi usa Scarica SVG; il PNG è 30×30 cm a 900 dpi.",
             "open_href": "/m4g/merch",
             "open_label": "Apri merch",
+            **_m4g_qr_print_assets(request, target_path="/m4g/merch", slug="merch"),
         },
     )
 
