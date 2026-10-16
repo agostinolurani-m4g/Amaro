@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import logging
 import smtplib
+from collections import defaultdict
 from datetime import datetime, timezone
 from email.message import EmailMessage
+from typing import Any
 
 from sqlalchemy.orm import Session
 
@@ -85,33 +87,56 @@ def _confirmation_url(reg: M4gRegistration) -> str:
     return f"{base}{path}" if base else path
 
 
-def _smtp_send(to_addr: str, subject: str, body: str) -> bool:
-    if not settings.smtp_host or not settings.smtp_from:
-        logger.warning("SMTP not configured; skipping M4G email to %s.", to_addr)
-        return False
+def _smtp_connect() -> smtplib.SMTP | smtplib.SMTP_SSL:
+    if settings.smtp_use_ssl:
+        server = smtplib.SMTP_SSL(settings.smtp_host, settings.smtp_port, timeout=30)
+    else:
+        server = smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=30)
+        if settings.smtp_use_tls:
+            server.starttls()
+    if settings.smtp_user and settings.smtp_password:
+        server.login(settings.smtp_user, settings.smtp_password)
+    return server
+
+
+def _build_email_message(
+    to_addr: str,
+    subject: str,
+    body: str,
+    attachments: list[tuple[str, bytes]] | None = None,
+) -> EmailMessage:
     message = EmailMessage()
     message["Subject"] = subject
     message["From"] = settings.smtp_from
     message["To"] = to_addr
     message.set_content(body)
+    for filename, data in attachments or []:
+        message.add_attachment(
+            data,
+            maintype="application",
+            subtype="gpx+xml",
+            filename=filename,
+        )
+    return message
+
+
+def _smtp_send(
+    to_addr: str,
+    subject: str,
+    body: str,
+    attachments: list[tuple[str, bytes]] | None = None,
+) -> bool:
+    if not settings.smtp_host or not settings.smtp_from:
+        logger.warning("SMTP not configured; skipping M4G email to %s.", to_addr)
+        return False
+    message = _build_email_message(to_addr, subject, body, attachments)
     server = None
     try:
-        if settings.smtp_use_ssl:
-            server = smtplib.SMTP_SSL(
-                settings.smtp_host, settings.smtp_port, timeout=30
-            )
-        else:
-            server = smtplib.SMTP(
-                settings.smtp_host, settings.smtp_port, timeout=30
-            )
-            if settings.smtp_use_tls:
-                server.starttls()
-        if settings.smtp_user and settings.smtp_password:
-            server.login(settings.smtp_user, settings.smtp_password)
+        server = _smtp_connect()
         server.send_message(message)
         return True
     except Exception:
-        logger.exception("Failed to send M4G paid confirmation to %s", to_addr)
+        logger.exception("Failed to send M4G email to %s", to_addr)
         return False
     finally:
         if server:
@@ -119,6 +144,178 @@ def _smtp_send(to_addr: str, subject: str, body: str) -> bool:
                 server.quit()
             except Exception:
                 pass
+
+
+_LOGISTICS_SUBJECT = "Info logistiche M4G 2026"
+
+_LOGISTICS_BODY = """Ciao a tuttə!
+
+Domani è il giorno della Move4Gaza. Grazie mille per la tua donazione!!
+
+Non vediamo l'ora di vedervi, condividere e vivere questa giornata con voi!!
+
+Qui sotto le info logistiche per domani — per chi fa sport e per chi viene per i talk.
+
+
+🚴 PERCORSI E ORARI
+────────────────────
+
+Il percorso lungo cambia per la chiusura del Ponte delle Barche: scaricate la nuova traccia da 112 km (in allegato e sul sito). Per accorciare: taglio ad Abbiategrasso e rientro sul Naviglio (circa 95 km).
+
+Portate con voi il GPX del vostro percorso: meglio scaricarlo prima, così non vi perdete domani.
+
+Orari — partenza alla francese (= scaglionata):
+
+  • Bici lungo:  8:30–9:30  (anticipo dalle 8:00 possibile, allestimento in corso)
+  • Bici medio:  8:30–10:00
+  • Bici corto:  10:30–11:00
+  • Corsa:       ore 11:00
+  • Calcio:      9:15–13:00
+
+
+🍽️ PRANZO SOCIALE — dalle 12:30
+────────────────────────────────
+
+Tutto il ricavato del cibo e delle bevande è destinato ai Gaza Sunbirds. Grazie a chi mette il lavoro a disposizione:
+
+  • Piatti caldi: Cucina Franca, Pastamadre, Marco Marini Cuciniere
+  • Pizza e focacce (Bakers United 4 Gaza): Forno di Lambrate, Le Polveri, Panificio Davide Longoni, Tondo Forno Radicale
+  • Birra e vino: Ape Bar, Pico Brew
+
+
+🎤 TALK — ore 15:30
+───────────────────
+
+Presenta Tommaso Proverbio
+
+Ospiti:
+  • Khader Tamimi, presidente della Comunità Palestinesi di Lombardia
+  • Un esponente dei Giovani Palestinesi
+  • Dalia Ismail, giornalista e divulgatrice
+
+Fine prevista tra le 17:00 e le 18:00
+
+
+ℹ️ DA SAPERE
+────────────
+
+  ⛑️ Casco obbligatorio — manifestazione non competitiva
+  🌦️ Controllate il meteo e vestitevi di conseguenza (caldo, freddo o pioggia)
+  🎒 Zaini e bici custoditi: potete lasciarli alla partenza
+  💳 Pagamenti: online, POS, Satispay e PayPal
+  🌐 Altre info: move-4-gaza.com
+
+Per informazioni: +39 366 140 3522
+
+Ci vediamo domani! Grazie mille di esservi iscrittə!!
+
+Move4Gaza
+"""
+
+_LOGISTICS_GPX_FILES: list[tuple[str, str]] = [
+    ("112", "bici-112km.gpx"),
+    ("64", "bici-64km.gpx"),
+    ("20", "bici-25km.gpx"),
+    ("run", "corsa.gpx"),
+]
+
+
+def _logistics_gpx_attachments() -> list[tuple[str, bytes]]:
+    from .m4g_cms import route_gpx_file_path
+
+    out: list[tuple[str, bytes]] = []
+    for route_key, filename in _LOGISTICS_GPX_FILES:
+        path = route_gpx_file_path(route_key)
+        if path is None or not path.is_file():
+            logger.warning("Missing GPX for logistics mail: %s", route_key)
+            continue
+        out.append((filename, path.read_bytes()))
+    return out
+
+
+def build_logistics_email() -> tuple[str, str]:
+    return _LOGISTICS_SUBJECT, _LOGISTICS_BODY
+
+
+def _logistics_pending_query(session: Session):
+    return session.query(M4gRegistration).filter(
+        M4gRegistration.payment_status == "paid",
+        M4gRegistration.hidden.isnot(True),
+        M4gRegistration.activity != "merch",
+        M4gRegistration.logistics_email_sent_at.is_(None),
+    )
+
+
+def logistics_email_pending_summary(session: Session) -> dict[str, int]:
+    regs = _logistics_pending_query(session).all()
+    by_email: dict[str, list[M4gRegistration]] = defaultdict(list)
+    no_email = 0
+    for reg in regs:
+        email = (reg.email or "").strip()
+        if not email:
+            no_email += 1
+            continue
+        by_email[email.lower()].append(reg)
+    return {
+        "recipients": len(by_email),
+        "no_email": no_email,
+    }
+
+
+def send_bulk_logistics_email(session: Session) -> dict[str, Any]:
+    if not settings.smtp_host or not settings.smtp_from:
+        return {"sent": 0, "failed": 0, "no_email": 0, "error": "smtp"}
+
+    attachments = _logistics_gpx_attachments()
+    if len(attachments) != len(_LOGISTICS_GPX_FILES):
+        return {"sent": 0, "failed": 0, "no_email": 0, "error": "gpx"}
+
+    subject, body = build_logistics_email()
+    regs = _logistics_pending_query(session).all()
+    by_email: dict[str, list[M4gRegistration]] = defaultdict(list)
+    no_email = 0
+    for reg in regs:
+        email = (reg.email or "").strip()
+        if not email:
+            no_email += 1
+            continue
+        by_email[email.lower()].append(reg)
+
+    sent = 0
+    failed = 0
+    now = datetime.now(timezone.utc)
+    server = None
+    try:
+        server = _smtp_connect()
+        for email_key, group in by_email.items():
+            to_addr = (group[0].email or "").strip()
+            message = _build_email_message(to_addr, subject, body, attachments)
+            try:
+                server.send_message(message)
+            except Exception:
+                logger.exception("Failed to send logistics email to %s", to_addr)
+                failed += 1
+                continue
+            for reg in group:
+                reg.logistics_email_sent_at = now
+            session.commit()
+            sent += 1
+    except Exception:
+        logger.exception("Failed to open SMTP for bulk logistics email")
+        return {
+            "sent": sent,
+            "failed": failed + len(by_email) - sent,
+            "no_email": no_email,
+            "error": "smtp",
+        }
+    finally:
+        if server:
+            try:
+                server.quit()
+            except Exception:
+                pass
+
+    return {"sent": sent, "failed": failed, "no_email": no_email, "error": None}
 
 
 def build_paid_confirmation(reg: M4gRegistration) -> tuple[str, str]:

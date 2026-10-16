@@ -776,6 +776,13 @@ def ensure_m4g_registration_schema() -> None:
                     "ADD COLUMN paid_email_sent_at DATETIME"
                 )
             )
+        if "logistics_email_sent_at" not in columns:
+            conn.execute(
+                text(
+                    "ALTER TABLE m4g_registrations "
+                    "ADD COLUMN logistics_email_sent_at DATETIME"
+                )
+            )
 
 
 def ensure_bar_order_schema() -> None:

@@ -272,3 +272,4 @@ class M4gRegistration(Base):
     )
     paid_at: Mapped[DateTime | None] = Column(DateTime(timezone=True))
     paid_email_sent_at: Mapped[DateTime | None] = Column(DateTime(timezone=True))
+    logistics_email_sent_at: Mapped[DateTime | None] = Column(DateTime(timezone=True))

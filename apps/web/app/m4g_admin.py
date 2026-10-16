@@ -213,12 +213,21 @@ def m4g_gestione_ordini(
     merch_q = request.query_params.get("merch_q", "")
     cibo_q = request.query_params.get("cibo_q", "")
     show_hidden = request.query_params.get("show_hidden") == "1"
+    from . import m4g_mail
+
+    logistics_summary = m4g_mail.logistics_email_pending_summary(session)
     return templates.TemplateResponse(
         "m4g_gestione_ordini.html",
         {
             "request": request,
             "gestione_page": "ordini",
             "message": request.query_params.get("msg"),
+            "logistics_sent": request.query_params.get("logistics_sent"),
+            "logistics_failed": request.query_params.get("logistics_failed"),
+            "logistics_no_email": request.query_params.get("logistics_no_email"),
+            "logistics_error": request.query_params.get("logistics_error"),
+            "logistics_pending": logistics_summary["recipients"],
+            "logistics_no_email_pending": logistics_summary["no_email"],
             "registrations": list_m4g_registrations(
                 session, reg_q, hidden=show_hidden, exclude_activity="merch"
             ),
@@ -557,6 +566,32 @@ def m4g_gestione_registration_paid(
         mark_registration_paid(reg, session)
     anchor = _registration_section_anchor(reg)
     return RedirectResponse(f"/m4g/gestione/ordini?msg=reg-paid#{anchor}", status_code=302)
+
+
+@admin_router.post("/m4g/gestione/logistics-email")
+def m4g_gestione_logistics_email(
+    request: Request,
+    session: Session = Depends(get_session),
+) -> RedirectResponse:
+    denied = _require_admin(request)
+    if denied:
+        return denied
+    from . import m4g_mail
+
+    result = m4g_mail.send_bulk_logistics_email(session)
+    parts = [
+        "msg=logistics",
+        f"logistics_sent={result.get('sent', 0)}",
+        f"logistics_failed={result.get('failed', 0)}",
+        f"logistics_no_email={result.get('no_email', 0)}",
+    ]
+    err = result.get("error")
+    if err:
+        parts.append(f"logistics_error={err}")
+    return RedirectResponse(
+        f"/m4g/gestione/ordini?{'&'.join(parts)}#cms-iscrizioni",
+        status_code=302,
+    )
 
 
 @admin_router.post("/m4g/gestione/registration-send-email")

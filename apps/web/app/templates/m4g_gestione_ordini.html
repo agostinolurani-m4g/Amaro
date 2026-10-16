@@ -112,6 +112,14 @@
         <p class="m4g-alert" style="background:#e8f5e9;">Importo aggiornato.</p>
       {% elif message == 'amount' %}
         <p class="m4g-alert">Importo non valido. Usa un numero maggiore di zero, per esempio 100 o 100,50.</p>
+      {% elif message == 'logistics' %}
+        {% if logistics_error == 'smtp' %}
+        <p class="m4g-alert">Invio mail logistica non riuscito. Controlla SMTP e riprova.</p>
+        {% elif logistics_error == 'gpx' %}
+        <p class="m4g-alert">Mancano uno o più file GPX. Controlla i percorsi in gestione e riprova.</p>
+        {% else %}
+        <p class="m4g-alert" style="background:#e8f5e9;">Mail logistica: {{ logistics_sent }} inviate, {{ logistics_failed }} fallite{% if logistics_no_email and logistics_no_email != '0' %}, {{ logistics_no_email }} iscrizioni pagate senza email{% endif %}.</p>
+        {% endif %}
       {% endif %}
 
       <nav class="m4g-cms-nav" aria-label="Elenchi ordini">
@@ -258,6 +266,15 @@
           <label>Cerca<input name="reg_q" value="{{ reg_q }}" placeholder="Codice, nome, email, squadra, percorso" /></label>
           <button type="submit" class="m4g-btn m4g-btn--secondary m4g-btn--inline">Cerca</button>
         </form>
+        {% if not show_hidden and logistics_pending > 0 %}
+        <form method="post" action="/m4g/gestione/logistics-email" style="margin:0.75rem 0;"
+          onsubmit='return confirm("Inviare la mail logistica (con 4 GPX) a {{ logistics_pending }} indirizzi che non hanno ancora ricevuta?");'>
+          <button type="submit" class="m4g-btn m4g-btn--primary">Invia mail logistica ({{ logistics_pending }})</button>
+        </form>
+        {% if logistics_no_email_pending > 0 %}
+        <p class="m4g-muted">{{ logistics_no_email_pending }} iscrizioni pagate senza email: non riceveranno la mail.</p>
+        {% endif %}
+        {% endif %}
         {% if not registrations %}
           <p class="m4g-muted">Nessuna iscrizione.</p>
         {% else %}

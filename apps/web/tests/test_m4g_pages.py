@@ -1308,6 +1308,220 @@ class M4gPaidEmailTests(unittest.TestCase):
         self.assertIn("bellissima iniziativa", body)
         self.assertIn("Copia link", body)
 
+    def test_bulk_logistics_email(self) -> None:
+        from datetime import datetime, timezone
+        from email.message import EmailMessage
+        from unittest.mock import patch
+
+        from app.config import settings
+        from app.database import SessionLocal
+        from app.m4g_common import mark_registration_paid
+        from app.m4g_mail import send_bulk_logistics_email
+        from app.models import M4gRegistration
+
+        refs: list[str] = []
+        sent_messages: list[EmailMessage] = []
+
+        class FakeSMTP:
+            def send_message(self, message: EmailMessage) -> None:
+                sent_messages.append(message)
+
+            def quit(self) -> None:
+                return None
+
+        def add_reg(
+            suffix: str,
+            *,
+            email: str | None = "bulk-log@example.test",
+            payment_status: str = "paid",
+            hidden: bool = False,
+            logistics_sent: bool = False,
+            activity: str = "run",
+        ) -> str:
+            ref = f"M4GLG{suffix.upper()}"[:20]
+            refs.append(ref)
+            session = SessionLocal()
+            try:
+                session.query(M4gRegistration).filter_by(reference=ref).delete()
+                reg = M4gRegistration(
+                    reference=ref,
+                    activity=activity,
+                    first_name="A",
+                    last_name="B",
+                    email=email,
+                    amount_cents=1000,
+                    payload_json="{}",
+                    payment_status=payment_status,
+                    hidden=hidden,
+                )
+                if logistics_sent:
+                    reg.logistics_email_sent_at = datetime.now(timezone.utc)
+                session.add(reg)
+                session.commit()
+                if payment_status == "paid" and not logistics_sent:
+                    reg = session.query(M4gRegistration).filter_by(reference=ref).one()
+                    mark_registration_paid(reg, session)
+                return ref
+            finally:
+                session.close()
+
+        add_reg("a1", email="same@example.test")
+        add_reg("a2", email="same@example.test")
+        add_reg("b1", email="other@example.test")
+        add_reg("pend", payment_status="pending")
+        add_reg("hid", hidden=True)
+        add_reg("noem", email=None)
+        add_reg("done", logistics_sent=True, email="done@example.test")
+        def cleanup_all() -> None:
+            for r in refs:
+                self._cleanup(r)
+
+        self.addCleanup(cleanup_all)
+
+        with (
+            patch.object(settings, "smtp_host", "localhost"),
+            patch.object(settings, "smtp_from", "staff@move-4-gaza.test"),
+            patch("app.m4g_mail._smtp_connect", return_value=FakeSMTP()),
+        ):
+            session = SessionLocal()
+            try:
+                result = send_bulk_logistics_email(session)
+            finally:
+                session.close()
+
+        self.assertIsNone(result.get("error"))
+        self.assertEqual(result["failed"], 0)
+        self.assertGreaterEqual(result["no_email"], 1)
+        ours = [m for m in sent_messages if m["To"] in ("same@example.test", "other@example.test")]
+        self.assertEqual(len(ours), 2)
+        for msg in ours:
+            self.assertEqual(msg["Subject"], "Info logistiche M4G 2026")
+            body = msg.get_content()
+            self.assertIn("Move4Gaza", body)
+            self.assertIn("Ponte delle Barche", body)
+            names = sorted(
+                part.get_filename()
+                for part in msg.iter_attachments()
+            )
+            self.assertEqual(
+                names,
+                [
+                    "bici-112km.gpx",
+                    "bici-25km.gpx",
+                    "bici-64km.gpx",
+                    "corsa.gpx",
+                ],
+            )
+
+        session = SessionLocal()
+        try:
+            for ref in ("M4GLGA1", "M4GLGA2", "M4GLGB1"):
+                reg = session.query(M4gRegistration).filter_by(reference=ref).one()
+                self.assertIsNotNone(reg.logistics_email_sent_at)
+            pending = session.query(M4gRegistration).filter_by(reference="M4GLGPEND").one()
+            self.assertIsNone(pending.logistics_email_sent_at)
+        finally:
+            session.close()
+
+    def test_bulk_logistics_email_smtp_failure_leaves_unmarked(self) -> None:
+        import smtplib
+        from unittest.mock import patch
+
+        from app.config import settings
+        from app.database import SessionLocal
+        from app.m4g_common import mark_registration_paid
+        from app.m4g_mail import send_bulk_logistics_email
+        from app.models import M4gRegistration
+
+        ref = self._make_pending_reg("lgfail")
+        self.addCleanup(lambda: self._cleanup(ref))
+        session = SessionLocal()
+        try:
+            reg = session.query(M4gRegistration).filter_by(reference=ref).one()
+            mark_registration_paid(reg, session)
+        finally:
+            session.close()
+
+        class FlakySMTP:
+            def __init__(self) -> None:
+                self.calls = 0
+
+            def send_message(self, _message) -> None:
+                self.calls += 1
+                raise smtplib.SMTPException("boom")
+
+            def quit(self) -> None:
+                return None
+
+        with (
+            patch.object(settings, "smtp_host", "localhost"),
+            patch.object(settings, "smtp_from", "staff@move-4-gaza.test"),
+            patch("app.m4g_mail._smtp_connect", return_value=FlakySMTP()),
+        ):
+            session = SessionLocal()
+            try:
+                result = send_bulk_logistics_email(session)
+                reg = session.query(M4gRegistration).filter_by(reference=ref).one()
+                self.assertEqual(result["sent"], 0)
+                self.assertEqual(result["failed"], 1)
+                self.assertIsNone(reg.logistics_email_sent_at)
+            finally:
+                session.close()
+
+    def test_gestione_logistics_email_button(self) -> None:
+        from email.message import EmailMessage
+        from unittest.mock import patch
+
+        from app.config import settings
+        from app.database import SessionLocal
+        from app.m4g_common import mark_registration_paid
+        from app.models import M4gRegistration
+
+        ref = self._make_pending_reg("lgbtn")
+        self.addCleanup(lambda: self._cleanup(ref))
+        session = SessionLocal()
+        try:
+            reg = session.query(M4gRegistration).filter_by(reference=ref).one()
+            mark_registration_paid(reg, session)
+        finally:
+            session.close()
+
+        sent_messages: list[EmailMessage] = []
+
+        class FakeSMTP:
+            def send_message(self, message: EmailMessage) -> None:
+                sent_messages.append(message)
+
+            def quit(self) -> None:
+                return None
+
+        self.client.post(
+            "/m4g/gestione/login",
+            data={"password": M4G_TEST_PASSWORD},
+            follow_redirects=False,
+        )
+        page = self.client.get("/m4g/gestione/ordini")
+        self.assertIn("Invia mail logistica", page.text)
+
+        with (
+            patch.object(settings, "smtp_host", "localhost"),
+            patch.object(settings, "smtp_from", "staff@move-4-gaza.test"),
+            patch("app.m4g_mail._smtp_connect", return_value=FakeSMTP()),
+        ):
+            post = self.client.post(
+                "/m4g/gestione/logistics-email",
+                follow_redirects=False,
+            )
+        self.assertIn(post.status_code, (302, 303))
+        self.assertTrue(
+            any(
+                m["To"] == "m4g-paid-mail-lgbtn@example.test"
+                for m in sent_messages
+            )
+        )
+        follow = self.client.get(post.headers["location"])
+        self.assertIn("Mail logistica:", follow.text)
+
 
 if __name__ == "__main__":
     unittest.main()
