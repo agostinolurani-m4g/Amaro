@@ -172,11 +172,13 @@ Orari — partenza alla francese (= scaglionata):
   • Corsa:       ore 11:00
   • Calcio:      9:15–13:00
 
+Per bici, corsa e calcio: arrivate almeno 15 minuti prima della vostra finestra di partenza.
+
 
 🍽️ PRANZO SOCIALE — dalle 12:30
 ────────────────────────────────
 
-Tutto il ricavato del cibo e delle bevande è destinato ai Gaza Sunbirds. Grazie a chi mette il lavoro a disposizione:
+Tutto il guadagno del cibo e delle bevande andrà ai Gaza Sunbirds. Grazie a chi mette il lavoro a disposizione:
 
   • Piatti caldi: Cucina Franca, Pastamadre, Marco Marini Cuciniere
   • Pizza e focacce (Bakers United 4 Gaza): Forno di Lambrate, Le Polveri, Panificio Davide Longoni, Tondo Forno Radicale
@@ -199,7 +201,7 @@ Fine prevista tra le 17:00 e le 18:00
 ℹ️ DA SAPERE
 ────────────
 
-  ⛑️ Casco obbligatorio — manifestazione non competitiva
+  ⛑️ Casco da bici obbligatorio — manifestazione non competitiva
   🌦️ Controllate il meteo e vestitevi di conseguenza (caldo, freddo o pioggia)
   🎒 Zaini e bici custoditi: potete lasciarli alla partenza
   💳 Pagamenti: online, POS, Satispay e PayPal
