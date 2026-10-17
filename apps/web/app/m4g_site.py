@@ -876,6 +876,7 @@ def _render_order_payment_page(
             "payment": payment,
             "price_fn": format_price,
             "bar_order_note": True,
+            "bar_food_no_alt_pay": order_kind(order) == "bar",
             "manual_payment_base": manual_base,
             **alt,
         },
@@ -1072,20 +1073,9 @@ def bar_manual_payment_confirm(
 ) -> RedirectResponse:
     if not cms_show_bar():
         raise HTTPException(status_code=404, detail="Pagina non disponibile")
-    order = session.query(BarOrder).filter_by(reference=reference).first()
-    if not order or order.payment_status != "pending":
-        raise HTTPException(status_code=400, detail="Ordine non valido")
-    if not (order.email or "").strip():
-        raise HTTPException(status_code=400, detail="Inserisci l'email prima di pagare")
-    clean = method.strip().lower()
-    if clean not in ("satispay", "paypal"):
-        raise HTTPException(status_code=400, detail="Metodo non valido")
-    order.payment_method = clean
-    order.payment_status = "awaiting_check"
-    session.commit()
-    return RedirectResponse(
-        f"/m4g/ordine/{order.reference}/consumi",
-        status_code=302,
+    raise HTTPException(
+        status_code=404,
+        detail="Per il bar usa il pagamento con carta (Nexi)",
     )
 
 

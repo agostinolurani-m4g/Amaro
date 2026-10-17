@@ -374,14 +374,16 @@ class M4gPageTests(unittest.TestCase):
                 data={"cart_json": '[{"id":"acqua","quantity":1}]'},
             )
             self.assertEqual(checkout.status_code, 200)
-            self.assertIn("Ho pagato con Satispay", checkout.text)
-            ref_start = checkout.text.find('action="/m4g/bar/')
-            self.assertNotEqual(ref_start, -1)
+            self.assertNotIn("Apri Satispay", checkout.text)
+            self.assertNotIn("Apri PayPal", checkout.text)
+            self.assertNotIn("Ho pagato con Satispay", checkout.text)
             import re
 
-            match = re.search(r'/m4g/bar/(BAR[A-F0-9]+)/manual', checkout.text)
-            self.assertIsNotNone(match)
-            reference = match.group(1)
+            ref_match = re.search(
+                r'data-m4g-payment-order-ref="(BAR[A-F0-9]+)"', checkout.text
+            )
+            self.assertIsNotNone(ref_match)
+            reference = ref_match.group(1)
             code_match = re.search(
                 r'class="m4g-pay-code">([A-Z0-9]{5})</code>', checkout.text
             )
@@ -397,14 +399,10 @@ class M4gPageTests(unittest.TestCase):
                 data={"method": "satispay"},
                 follow_redirects=False,
             )
-            self.assertIn(manual.status_code, (302, 303))
-            pending = self.client.get(f"/m4g/ordine/{reference}/consumi")
-            self.assertEqual(pending.status_code, 200)
-            self.assertIn("In verifica", pending.text)
-            self.assertIn(short_code, pending.text)
+            self.assertEqual(manual.status_code, 404)
             paid = admin.post(
-                "/m4g/gestione/bar-paid",
-                data={"reference": reference},
+                "/m4g/gestione/bar-order-paid",
+                data={"reference": reference, "kind": "bar"},
                 follow_redirects=False,
             )
             self.assertIn(paid.status_code, (302, 303))
@@ -456,17 +454,14 @@ class M4gPageTests(unittest.TestCase):
                 data={"cart_json": '[{"id":"acqua","quantity":2}]'},
             )
             self.assertEqual(checkout.status_code, 200)
-            match = re.search(r'/m4g/bar/(BAR[A-F0-9]+)/manual', checkout.text)
-            self.assertIsNotNone(match)
-            reference = match.group(1)
-            self.client.post(
-                f"/m4g/bar/{reference}/manual",
-                data={"method": "satispay"},
-                follow_redirects=False,
+            ref_match = re.search(
+                r'data-m4g-payment-order-ref="(BAR[A-F0-9]+)"', checkout.text
             )
+            self.assertIsNotNone(ref_match)
+            reference = ref_match.group(1)
             admin.post(
-                "/m4g/gestione/bar-paid",
-                data={"reference": reference},
+                "/m4g/gestione/bar-order-paid",
+                data={"reference": reference, "kind": "bar"},
                 follow_redirects=False,
             )
             consumi = self.client.get(f"/m4g/ordine/{reference}/consumi")
@@ -660,7 +655,7 @@ class M4gPageTests(unittest.TestCase):
             self.assertIn('id="cms-ordini"', gestione.text)
             self.assertIn("Ordini merch", gestione.text)
             self.assertIn('id="cms-cibo"', gestione.text)
-            self.assertIn("Ordini cibo", gestione.text)
+            self.assertIn("Ordini cibo e bevande", gestione.text)
             ordini_html = gestione.text.split('id="cms-ordini"', 1)[1].split(
                 'id="cms-iscrizioni"', 1
             )[0]

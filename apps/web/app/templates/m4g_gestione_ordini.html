@@ -139,7 +139,7 @@
       {% endif %}
 
       <nav class="m4g-cms-nav" aria-label="Elenchi ordini">
-        <a href="#cms-cibo">Ordini cibo</a>
+        <a href="#cms-cibo">Cibo e bevande</a>
         <a href="#cms-ordini">Ordini merch</a>
         <a href="#cms-iscrizioni">Iscrizioni</a>
         <a href="/m4g/gestione/export/bar.csv">Export cibo</a>
@@ -148,8 +148,8 @@
       </nav>
 
       <section id="cms-cibo" class="m4g-card m4g-card--padded m4g-regs" style="margin-bottom:1rem;">
-        <h2>Ordini cibo</h2>
-        <p class="m4g-muted">Ordini del menu bar e cucina, cibo e bevande. Pagamenti Satispay/PayPal: conferma in <a class="m4g-link" href="/m4g/gestione/cassa?kind=bar">cassa bar</a>.</p>
+        <h2>Ordini cibo e bevande</h2>
+        <p class="m4g-muted">Piatti, cucina e bevande dal menu bar. Online solo carta (Nexi). Satispay o POS in sede: segna <strong>Pagato</strong> qui o in <a class="m4g-link" href="/m4g/gestione/cassa?kind=bar">cassa bar</a>.</p>
         <form method="get" action="/m4g/gestione/ordini" class="m4g-form" style="margin:0.75rem 0;">
           <label>Cerca<input name="cibo_q" value="{{ cibo_q }}" placeholder="Codice, email, piatto" /></label>
           <button type="submit" class="m4g-btn m4g-btn--secondary m4g-btn--inline">Cerca</button>

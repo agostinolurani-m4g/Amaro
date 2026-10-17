@@ -8,7 +8,7 @@
     data-m4g-payment-order-ref="{{ reference }}"
     data-m4g-order-kind="bar"
   >
-    <p class="m4g-hero__eyebrow" style="color: var(--m4g-muted);">Bar &amp; cucina</p>
+    <p class="m4g-hero__eyebrow" style="color: var(--m4g-muted);">Bar — cibo e bevande</p>
     <h1>Pagamento ordine</h1>
     <p class="m4g-notice m4g-notice--queue">{{ m4g.legal.skip_queue }} {{ m4g.legal.food_proceeds }}</p>
     <p class="m4g-legal">{{ m4g.legal.bar }}</p>
@@ -27,7 +27,7 @@
       </label>
       <p class="m4g-muted">Ti inviamo subito una mail con il link a questa pagina e ai banner.</p>
     </div>
-    {% with bar_order_note = true %}
+    {% with bar_order_note = true, bar_food_no_alt_pay = true %}
       {% include "m4g_partials_payment_methods.html" %}
     {% endwith %}
     <p class="m4g-muted m4g-payment__donation">{{ m4g.legal.all_donations }}</p>
