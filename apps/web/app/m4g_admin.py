@@ -68,6 +68,8 @@ from .m4g_common import (
     mark_registration_paid,
     hide_registration_unpaid,
     list_m4g_registrations,
+    mark_registration_activity_finished,
+    mark_registration_event_checkin,
     registration_signup_detail,
     restore_registration,
     reject_bar_order,
@@ -680,6 +682,42 @@ def m4g_gestione_logistics_email(
         f"/m4g/gestione/ordini?{'&'.join(parts)}#cms-iscrizioni",
         status_code=302,
     )
+
+
+@admin_router.post("/m4g/gestione/registration-checkin")
+def m4g_gestione_registration_checkin(
+    request: Request,
+    reference: str = Form(""),
+    show_hidden: str = Form(""),
+    reg_q: str = Form(""),
+    session: Session = Depends(get_session),
+) -> RedirectResponse:
+    denied = _require_admin(request)
+    if denied:
+        return denied
+    reg = session.query(M4gRegistration).filter_by(reference=reference.strip()).first()
+    msg = "reg-checkin-skip"
+    if reg and mark_registration_event_checkin(reg, session):
+        msg = "reg-checkin"
+    return _registration_list_redirect(show_hidden, msg, reg_q=reg_q)
+
+
+@admin_router.post("/m4g/gestione/registration-finished")
+def m4g_gestione_registration_finished(
+    request: Request,
+    reference: str = Form(""),
+    show_hidden: str = Form(""),
+    reg_q: str = Form(""),
+    session: Session = Depends(get_session),
+) -> RedirectResponse:
+    denied = _require_admin(request)
+    if denied:
+        return denied
+    reg = session.query(M4gRegistration).filter_by(reference=reference.strip()).first()
+    msg = "reg-finished-skip"
+    if reg and mark_registration_activity_finished(reg, session):
+        msg = "reg-finished"
+    return _registration_list_redirect(show_hidden, msg, reg_q=reg_q)
 
 
 @admin_router.post("/m4g/gestione/registration-send-email")

@@ -662,6 +662,26 @@ def mark_registration_paid(reg: M4gRegistration, session: Session) -> str:
     return reg.confirmation_token or ""
 
 
+def mark_registration_event_checkin(reg: M4gRegistration, session: Session) -> bool:
+    if reg.payment_status != "paid":
+        return False
+    if reg.event_checkin_at is None:
+        reg.event_checkin_at = datetime.now(timezone.utc)
+        session.commit()
+    return True
+
+
+def mark_registration_activity_finished(reg: M4gRegistration, session: Session) -> bool:
+    if reg.payment_status != "paid":
+        return False
+    if reg.activity not in ("bike", "run"):
+        return False
+    if reg.activity_finished_at is None:
+        reg.activity_finished_at = datetime.now(timezone.utc)
+        session.commit()
+    return True
+
+
 def hide_registration_unpaid(reg: M4gRegistration, session: Session) -> None:
     reg.payment_status = "unpaid"
     reg.hidden = True
@@ -799,6 +819,20 @@ def ensure_m4g_registration_schema() -> None:
                 text(
                     "ALTER TABLE m4g_registrations "
                     "ADD COLUMN logistics_email_sent_at DATETIME"
+                )
+            )
+        if "event_checkin_at" not in columns:
+            conn.execute(
+                text(
+                    "ALTER TABLE m4g_registrations "
+                    "ADD COLUMN event_checkin_at DATETIME"
+                )
+            )
+        if "activity_finished_at" not in columns:
+            conn.execute(
+                text(
+                    "ALTER TABLE m4g_registrations "
+                    "ADD COLUMN activity_finished_at DATETIME"
                 )
             )
 

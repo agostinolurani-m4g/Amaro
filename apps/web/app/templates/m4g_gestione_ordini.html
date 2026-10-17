@@ -95,7 +95,15 @@
       </div>
       {% include "m4g_partials_gestione_pages.html" %}
       {% if message == 'reg-paid' %}
-        <p class="m4g-alert" style="background:#e8f5e9;">Pagamento registrato.</p>
+        <p class="m4g-alert" style="background:#e8f5e9;">Iscrizione segnata come pagata.</p>
+      {% elif message == 'reg-checkin' %}
+        <p class="m4g-alert" style="background:#e8f5e9;">Presenza all'evento registrata.</p>
+      {% elif message == 'reg-checkin-skip' %}
+        <p class="m4g-alert">Presenza non registrata (iscrizione non pagata).</p>
+      {% elif message == 'reg-finished' %}
+        <p class="m4g-alert" style="background:#e8f5e9;">Giro concluso registrato.</p>
+      {% elif message == 'reg-finished-skip' %}
+        <p class="m4g-alert">Giro non registrato (solo bici/corsa pagate).</p>
       {% elif message == 'reg-email-ok' %}
         <p class="m4g-alert" style="background:#e8f5e9;">Email di conferma inviata.</p>
       {% elif message == 'reg-email-fail' %}
@@ -117,7 +125,7 @@
       {% elif message == 'order-delete-skip' %}
         <p class="m4g-alert">Ordine non trovato o tipo non valido.</p>
       {% elif message == 'order-paid' %}
-        <p class="m4g-alert" style="background:#e8f5e9;">Pagamento registrato — banner attivi.</p>
+        <p class="m4g-alert" style="background:#e8f5e9;">Ordine segnato come pagato — banner attivi.</p>
       {% elif message == 'order-paid-skip' %}
         <p class="m4g-alert">Impossibile registrare il pagamento (ordine non trovato o già pagato).</p>
       {% elif message == 'logistics' %}
@@ -197,7 +205,7 @@
                       <input type="hidden" name="reference" value="{{ order.reference }}" />
                       <input type="hidden" name="kind" value="bar" />
                       <input type="hidden" name="cibo_q" value="{{ cibo_q }}" />
-                      <button type="submit" class="m4g-btn m4g-btn--primary">Registrato</button>
+                      <button type="submit" class="m4g-btn m4g-btn--primary">Pagato</button>
                     </form>
                     {% endif %}
                     <form method="post" action="/m4g/gestione/bar-order-delete"
@@ -284,7 +292,7 @@
                       <input type="hidden" name="reference" value="{{ order.reference }}" />
                       <input type="hidden" name="kind" value="merch" />
                       <input type="hidden" name="merch_q" value="{{ merch_q }}" />
-                      <button type="submit" class="m4g-btn m4g-btn--primary">Registrato</button>
+                      <button type="submit" class="m4g-btn m4g-btn--primary">Pagato</button>
                     </form>
                     {% endif %}
                     <form method="post" action="/m4g/gestione/bar-order-delete"
@@ -305,7 +313,7 @@
 
       <section id="cms-iscrizioni" class="m4g-card m4g-card--padded m4g-regs" style="margin-bottom:1rem;">
         <h2>{% if show_hidden %}Non pagate, nascoste{% else %}Elenco iscrizioni e donazioni{% endif %}</h2>
-        <p class="m4g-muted">Satispay, PayPal e bonifico non aggiornano l'importo da soli. Se ne è arrivato uno diverso, correggilo qui e poi premi Registrato. «Non pagata» toglie la riga dall'elenco senza cancellarla.</p>
+        <p class="m4g-muted">Satispay, PayPal e bonifico non aggiornano l'importo da soli. Se ne è arrivato uno diverso, correggilo qui e poi segna pagato. <strong>Registrato</strong> = arrivo in sede; <strong>Giro concluso</strong> = bici o corsa terminata. «Non pagata» toglie la riga dall'elenco senza cancellarla.</p>
         {% if show_hidden %}
           <p><a class="m4g-link" href="/m4g/gestione/ordini#cms-iscrizioni">Torna all'elenco</a></p>
         {% else %}
@@ -345,6 +353,7 @@
                 <th>€</th>
                 <th>Stato</th>
                 <th>Mail</th>
+                <th>Presenza</th>
                 <th>Azioni</th>
               </tr>
             </thead>
@@ -370,6 +379,18 @@
                     —
                   {% endif %}
                 </td>
+                <td class="m4g-muted">
+                  {% if reg.event_checkin_at %}
+                    arrivato {{ when_fn(reg.event_checkin_at) }}
+                  {% else %}
+                    —
+                  {% endif %}
+                  {% if reg.activity in ('bike', 'run') %}
+                    {% if reg.activity_finished_at %}
+                      <br />giro {{ when_fn(reg.activity_finished_at) }}
+                    {% endif %}
+                  {% endif %}
+                </td>
                 <td>
                   <span class="m4g-cms-list__actions">
                     <form method="post" action="/m4g/gestione/registration-amount" class="m4g-cms-amount">
@@ -388,13 +409,29 @@
                       {% if reg.payment_status == 'pending' %}
                       <form method="post" action="/m4g/gestione/registration-paid">
                         <input type="hidden" name="reference" value="{{ reg.reference }}" />
-                        <button type="submit" class="m4g-btn m4g-btn--primary">Registrato</button>
+                        <button type="submit" class="m4g-btn m4g-btn--primary">Pagato</button>
                       </form>
-                      {% elif reg.payment_status == 'paid' and reg.email and not reg.paid_email_sent_at %}
-                      <form method="post" action="/m4g/gestione/registration-send-email">
-                        <input type="hidden" name="reference" value="{{ reg.reference }}" />
-                        <button type="submit" class="m4g-btn m4g-btn--primary">Invia email</button>
-                      </form>
+                      {% elif reg.payment_status == 'paid' %}
+                        {% if not reg.event_checkin_at %}
+                        <form method="post" action="/m4g/gestione/registration-checkin">
+                          <input type="hidden" name="reference" value="{{ reg.reference }}" />
+                          <input type="hidden" name="reg_q" value="{{ reg_q }}" />
+                          <button type="submit" class="m4g-btn m4g-btn--primary">Registrato</button>
+                        </form>
+                        {% endif %}
+                        {% if reg.activity in ('bike', 'run') and not reg.activity_finished_at %}
+                        <form method="post" action="/m4g/gestione/registration-finished">
+                          <input type="hidden" name="reference" value="{{ reg.reference }}" />
+                          <input type="hidden" name="reg_q" value="{{ reg_q }}" />
+                          <button type="submit" class="m4g-btn m4g-btn--secondary">Giro concluso</button>
+                        </form>
+                        {% endif %}
+                        {% if reg.email and not reg.paid_email_sent_at %}
+                        <form method="post" action="/m4g/gestione/registration-send-email">
+                          <input type="hidden" name="reference" value="{{ reg.reference }}" />
+                          <button type="submit" class="m4g-btn m4g-btn--secondary">Invia email</button>
+                        </form>
+                        {% endif %}
                       {% endif %}
                       <form method="post" action="/m4g/gestione/registration-hide">
                         <input type="hidden" name="reference" value="{{ reg.reference }}" />
