@@ -460,7 +460,9 @@ def managed_routes() -> list[dict[str, Any]]:
 def cms_run_route() -> dict[str, Any]:
     for row in managed_routes():
         if row["kind"] == "run":
-            return row
+            out = dict(row)
+            out["external_links"] = list(M4G_EVENT.get("run_external_links") or [])
+            return out
     raise RuntimeError("Percorso corsa mancante")
 
 

@@ -112,6 +112,14 @@
         <p class="m4g-alert" style="background:#e8f5e9;">Importo aggiornato.</p>
       {% elif message == 'amount' %}
         <p class="m4g-alert">Importo non valido. Usa un numero maggiore di zero, per esempio 100 o 100,50.</p>
+      {% elif message == 'order-deleted' %}
+        <p class="m4g-alert" style="background:#e8f5e9;">Ordine eliminato.</p>
+      {% elif message == 'order-delete-skip' %}
+        <p class="m4g-alert">Ordine non trovato o tipo non valido.</p>
+      {% elif message == 'order-paid' %}
+        <p class="m4g-alert" style="background:#e8f5e9;">Pagamento registrato — banner attivi.</p>
+      {% elif message == 'order-paid-skip' %}
+        <p class="m4g-alert">Impossibile registrare il pagamento (ordine non trovato o già pagato).</p>
       {% elif message == 'logistics' %}
         {% if logistics_error == 'smtp' %}
         <p class="m4g-alert">Invio mail logistica non riuscito. Controlla SMTP e riprova.</p>
@@ -157,6 +165,7 @@
                 <th>Pagamento</th>
                 <th>Stato</th>
                 <th>Banner</th>
+                <th>Azioni</th>
               </tr>
             </thead>
             <tbody>
@@ -180,6 +189,25 @@
                   {% else %}
                     —
                   {% endif %}
+                </td>
+                <td>
+                  <span class="m4g-cms-list__actions">
+                    {% if order.payment_status in ('pending', 'awaiting_check') %}
+                    <form method="post" action="/m4g/gestione/bar-order-paid">
+                      <input type="hidden" name="reference" value="{{ order.reference }}" />
+                      <input type="hidden" name="kind" value="bar" />
+                      <input type="hidden" name="cibo_q" value="{{ cibo_q }}" />
+                      <button type="submit" class="m4g-btn m4g-btn--primary">Registrato</button>
+                    </form>
+                    {% endif %}
+                    <form method="post" action="/m4g/gestione/bar-order-delete"
+                      onsubmit='return confirm("Eliminare definitivamente l ordine {{ order.reference }}?");'>
+                      <input type="hidden" name="reference" value="{{ order.reference }}" />
+                      <input type="hidden" name="kind" value="bar" />
+                      <input type="hidden" name="cibo_q" value="{{ cibo_q }}" />
+                      <button type="submit" class="m4g-btn m4g-btn--secondary">Elimina</button>
+                    </form>
+                  </span>
                 </td>
               </tr>
               {% endfor %}
@@ -211,9 +239,11 @@
                 <th>Qtà</th>
                 <th>Email</th>
                 <th>€</th>
+                <th>Pagamento</th>
                 <th>Stato</th>
                 <th>Mail</th>
                 <th>Banner</th>
+                <th>Azioni</th>
               </tr>
             </thead>
             <tbody>
@@ -227,6 +257,7 @@
                 <td>{{ mf.quantity }}</td>
                 <td>{{ order.email or "" }}</td>
                 <td>{{ price_fn(order.amount_cents) }}</td>
+                <td>{{ order.payment_method or "—" }}</td>
                 <td>{{ status_labels.get(order.payment_status, order.payment_status) }}</td>
                 <td class="m4g-muted">
                   {% if order.order_email_sent_at %}
@@ -245,6 +276,25 @@
                   {% else %}
                     —
                   {% endif %}
+                </td>
+                <td>
+                  <span class="m4g-cms-list__actions">
+                    {% if order.payment_status in ('pending', 'awaiting_check') %}
+                    <form method="post" action="/m4g/gestione/bar-order-paid">
+                      <input type="hidden" name="reference" value="{{ order.reference }}" />
+                      <input type="hidden" name="kind" value="merch" />
+                      <input type="hidden" name="merch_q" value="{{ merch_q }}" />
+                      <button type="submit" class="m4g-btn m4g-btn--primary">Registrato</button>
+                    </form>
+                    {% endif %}
+                    <form method="post" action="/m4g/gestione/bar-order-delete"
+                      onsubmit='return confirm("Eliminare definitivamente l ordine merch {{ order.reference }}?");'>
+                      <input type="hidden" name="reference" value="{{ order.reference }}" />
+                      <input type="hidden" name="kind" value="merch" />
+                      <input type="hidden" name="merch_q" value="{{ merch_q }}" />
+                      <button type="submit" class="m4g-btn m4g-btn--secondary">Elimina</button>
+                    </form>
+                  </span>
                 </td>
               </tr>
               {% endfor %}

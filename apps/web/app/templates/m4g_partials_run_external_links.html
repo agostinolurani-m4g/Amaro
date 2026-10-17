@@ -1,0 +1,10 @@
+{% set links = links | default(m4g.run_external_links | default([])) %}
+{% if links %}
+<ul class="m4g-steps m4g-run-links">
+  {% for link in links %}
+  <li>
+    <a href="{{ link.url }}" class="m4g-link" target="_blank" rel="noreferrer noopener">{{ link.label }}</a>
+  </li>
+  {% endfor %}
+</ul>
+{% endif %}

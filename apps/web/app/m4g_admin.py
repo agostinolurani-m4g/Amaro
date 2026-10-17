@@ -71,6 +71,7 @@ from .m4g_common import (
     registration_signup_detail,
     restore_registration,
     reject_bar_order,
+    delete_bar_order,
     templates,
 )
 from .models import BarOrder, M4gRegistration
@@ -549,6 +550,93 @@ def m4g_gestione_bar_reject(
         reject_bar_order(order, session)
     return RedirectResponse(
         f"/m4g/gestione/cassa?kind={kind}&msg=rejected", status_code=302
+    )
+
+
+def _bar_order_list_redirect(
+    kind: str,
+    msg: str,
+    *,
+    cibo_q: str = "",
+    merch_q: str = "",
+) -> RedirectResponse:
+    clean = kind.strip().lower()
+    if clean == "merch":
+        anchor = "cms-ordini"
+        parts = [f"msg={msg}"]
+        if merch_q.strip():
+            parts.append(f"merch_q={quote(merch_q.strip())}")
+    else:
+        anchor = "cms-cibo"
+        parts = [f"msg={msg}"]
+        if cibo_q.strip():
+            parts.append(f"cibo_q={quote(cibo_q.strip())}")
+    return RedirectResponse(
+        f"/m4g/gestione/ordini?{'&'.join(parts)}#{anchor}",
+        status_code=302,
+    )
+
+
+@admin_router.post("/m4g/gestione/bar-order-delete")
+def m4g_gestione_bar_order_delete(
+    request: Request,
+    reference: str = Form(""),
+    kind: str = Form("bar"),
+    cibo_q: str = Form(""),
+    merch_q: str = Form(""),
+    session: Session = Depends(get_session),
+) -> RedirectResponse:
+    denied = _require_admin(request)
+    if denied:
+        return denied
+    ref = reference.strip()
+    clean_kind = kind.strip().lower()
+    if clean_kind not in ("bar", "merch"):
+        clean_kind = "bar"
+    order = session.query(BarOrder).filter_by(reference=ref).first()
+    if not order or not delete_bar_order(order, session, expected_kind=clean_kind):
+        return _bar_order_list_redirect(
+            clean_kind,
+            "order-delete-skip",
+            cibo_q=cibo_q,
+            merch_q=merch_q,
+        )
+    return _bar_order_list_redirect(
+        clean_kind,
+        "order-deleted",
+        cibo_q=cibo_q,
+        merch_q=merch_q,
+    )
+
+
+@admin_router.post("/m4g/gestione/bar-order-paid")
+def m4g_gestione_bar_order_paid(
+    request: Request,
+    reference: str = Form(""),
+    kind: str = Form("bar"),
+    cibo_q: str = Form(""),
+    merch_q: str = Form(""),
+    session: Session = Depends(get_session),
+) -> RedirectResponse:
+    denied = _require_admin(request)
+    if denied:
+        return denied
+    ref = reference.strip()
+    clean_kind = kind.strip().lower()
+    if clean_kind not in ("bar", "merch"):
+        clean_kind = "bar"
+    order = session.query(BarOrder).filter_by(reference=ref).first()
+    ok = False
+    if order and order_kind(order) == clean_kind:
+        status = (order.payment_status or "").strip()
+        if status in ("pending", "awaiting_check"):
+            mark_bar_order_paid(order, session)
+            ok = True
+    return _bar_order_list_redirect(
+        clean_kind,
+        "order-paid" if ok else "order-paid-skip",
+        cibo_q=cibo_q,
+        merch_q=merch_q,
     )
 
 

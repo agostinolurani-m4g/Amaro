@@ -303,6 +303,20 @@ M4G_EVENT = {
         "bike_20": static_m4g("routes/amgaz_bici_short.gpx"),
         "run": static_m4g("routes/amgaz_corsa.gpx"),
     },
+    "run_external_links": [
+        {
+            "label": "Percorso su Strava",
+            "url": "https://www.strava.com/routes/3546291038841771126",
+        },
+        {
+            "label": "Percorso su komoot",
+            "url": (
+                "https://www.komoot.com/it-it/smarttour/e1387915032/"
+                "giro-dei-laghi-del-vej-del-bouc-e-della-vacca"
+                "?ref=wsd&t_s=referral&t_cid=route_share&t_ref_username=2760351175460"
+            ),
+        },
+    ],
     "beneficiary": {
         "name": "Gaza Sunbirds",
         "url": "https://gazasunbirds.org/",

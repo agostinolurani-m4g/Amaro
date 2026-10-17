@@ -236,6 +236,24 @@ def reject_bar_order(order: BarOrder, session: Session) -> None:
         session.commit()
 
 
+def delete_bar_order(
+    order: BarOrder,
+    session: Session,
+    *,
+    expected_kind: str,
+) -> bool:
+    kind = order_kind(order)
+    clean = expected_kind.strip().lower()
+    if clean == "merch":
+        if kind != "merch":
+            return False
+    elif kind == "merch":
+        return False
+    session.delete(order)
+    session.commit()
+    return True
+
+
 def _bar_kind_filter():
     from sqlalchemy import or_
 

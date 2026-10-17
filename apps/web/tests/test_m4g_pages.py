@@ -277,6 +277,8 @@ class M4gPageTests(unittest.TestCase):
             self.assertIn("Testo corsa di prova", run_page.text)
             self.assertIn("Corsa di prova", run_page.text)
             self.assertIn("amgaz_corsa.gpx", run_page.text)
+            self.assertIn("strava.com/routes/3546291038841771126", run_page.text)
+            self.assertIn("komoot.com", run_page.text)
         finally:
             reset_page_content()
 
