@@ -1563,9 +1563,12 @@ button:focus-visible,
 
   .app-nav--mobile {
     position: fixed;
+    top: auto;
     left: 0;
     right: 0;
     bottom: 0;
+    height: auto;
+    align-self: auto;
     z-index: 40;
     flex-direction: row;
     justify-content: space-around;
@@ -1582,9 +1585,22 @@ button:focus-visible,
 
   .app-nav--mobile .app-nav__item {
     flex: 1;
+    flex-direction: column;
     justify-content: center;
-    font-size: 0.78rem;
-    padding: 8px 4px;
+    gap: 2px;
+    border-color: transparent;
+    background: transparent;
+    font-size: 0.68rem;
+    line-height: 1.1;
+    padding: 6px 2px;
+    text-align: center;
+    white-space: nowrap;
+  }
+
+  input,
+  textarea,
+  select {
+    font-size: 16px;
   }
 
   .mobile-page__header h1 {
@@ -1611,6 +1627,13 @@ button:focus-visible,
     color: var(--text);
     font: inherit;
     cursor: pointer;
+  }
+
+  .mobile-day-chip__wd {
+    font-size: 0.68rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--muted);
   }
 
   .mobile-day-chip--active {
@@ -1671,7 +1694,7 @@ button:focus-visible,
 
   .chat-input--mobile {
     position: sticky;
-    bottom: 0;
+    bottom: calc(72px + env(safe-area-inset-bottom, 0px));
     background: var(--bg-0);
     padding-top: 8px;
   }

@@ -72,7 +72,13 @@ export function TodayPage() {
     <section className="page mobile-page">
       <header className="mobile-page__header">
         <h1>Oggi</h1>
-        <p className="muted-copy">{today}</p>
+        <p className="muted-copy">
+          {new Date(`${today}T12:00:00`).toLocaleDateString("it-IT", {
+            weekday: "long",
+            day: "numeric",
+            month: "long",
+          })}
+        </p>
       </header>
 
       {proposal && (

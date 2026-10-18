@@ -65,7 +65,13 @@ function App() {
   const [auth, setAuth] = useState<AuthSession | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [membershipError, setMembershipError] = useState<string | null>(null);
-  const [screen, setScreen] = useState<Screen>("connect");
+  const [screen, setScreen] = useState<Screen>(() =>
+    typeof window !== "undefined" &&
+    window.matchMedia("(max-width: 720px)").matches &&
+    !isTauri()
+      ? "today"
+      : "connect",
+  );
   const [summary, setSummary] = useState<SessionSummary | null>(null);
   const [sessionStats, setSessionStats] = useState<SessionStats | null>(null);
   const [newRecords, setNewRecords] = useState<PersonalRecordHit[]>([]);

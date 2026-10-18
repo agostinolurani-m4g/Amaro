@@ -1,0 +1,19 @@
+{
+  "name": "Lupo Ammaro Coach",
+  "short_name": "Lupo Ammaro",
+  "description": "Coach e calendario allenamenti Lupo Ammaro",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "background_color": "#3a0a2a",
+  "theme_color": "#3a0a2a",
+  "lang": "it",
+  "icons": [
+    {
+      "src": "vite.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

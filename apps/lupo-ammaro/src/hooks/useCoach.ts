@@ -226,6 +226,7 @@ export async function fetchCoachAdjust(input: {
   planMode?: "replace" | "merge";
   workouts?: CoachWorkoutDraft[];
   persistentConstraint?: string;
+  lifeBlocks?: { id: string; label: string; date?: string; weekday?: string; slot: string; kind: string }[];
 }> {
   return amaroJson("/api/wattlab/coach/adjust", {
     method: "POST",

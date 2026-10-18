@@ -51,8 +51,8 @@ export function LoginPage({ onLogin, onMembershipBlocked }: LoginPageProps) {
         <header className="hero hero--compact">
           <h1>Lupo Ammaro</h1>
           <p className="hero__copy">
-            Entra con email e password dell&apos;area tesserati e pedala sul
-            tuo smart trainer.
+            Entra con email e password dell&apos;area tesserati. Sul telefono
+            trovi coach e calendario; sul PC anche il rullo.
           </p>
         </header>
 

@@ -1,9 +1,13 @@
 import { clearAuth, getAuth, saveAuth } from "../hooks/useStorage";
+import { isTauri } from "./runtime";
 import type { AmaroMember, AuthSession } from "../types";
 
+const configuredApiUrl =
+  import.meta.env.VITE_AMARO_API_URL?.replace(/\/$/, "") || "http://127.0.0.1:8000";
+
+/** Nel browser le API passano dallo stesso indirizzo della pagina, così il telefono non deve raggiungere il PC in LAN. */
 export const API_URL =
-  import.meta.env.VITE_AMARO_API_URL?.replace(/\/$/, "") ??
-  "http://127.0.0.1:8000";
+  typeof window !== "undefined" && !isTauri() ? window.location.origin : configuredApiUrl;
 
 export const DOWNLOAD_PORTAL_URL =
   import.meta.env.VITE_AMARO_DOWNLOAD_URL?.replace(/\/$/, "") ??

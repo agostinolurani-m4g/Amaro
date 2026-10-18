@@ -384,12 +384,44 @@ export function CoachPage({ onStartWorkout, onOpenProfile, compact }: CoachPageP
   const currentWeek = mondayOfIso(today);
   const nextEvent = settings?.events.filter((e) => e.date >= today).sort((a, b) => a.date.localeCompare(b.date))[0];
 
+  if (compact && !settings) {
+    return (
+      <section className="page mobile-page">
+        <header className="mobile-page__header">
+          <h1>Coach</h1>
+        </header>
+        {error ? <p className="error-banner">{error}</p> : <p className="muted-copy">Caricamento…</p>}
+      </section>
+    );
+  }
+
+  if (compact && settings && (editingSettings || (!settings.onboarded && !settings.goal))) {
+    return (
+      <section className="page mobile-page">
+        <header className="mobile-page__header">
+          <h1>{settings.onboarded ? "Preferenze" : "Il tuo coach"}</h1>
+          <p className="muted-copy">Obiettivo, giorni e tempo disponibile. Da qui parte il piano.</p>
+        </header>
+        <AthleteSettingsForm
+          initial={settings}
+          busy={busy}
+          onSave={(s) => void handleSaveSettings(s)}
+          onCancel={settings.onboarded ? () => setEditingSettings(false) : undefined}
+        />
+        {error && <p className="error-banner">{error}</p>}
+      </section>
+    );
+  }
+
   if (compact) {
     return (
       <section className="page coach-page coach-page--compact">
         <header className="mobile-page__header">
           <h1>Coach</h1>
           <p className="muted-copy">Scrivi come parleresti al preparatore.</p>
+          <button type="button" className="btn btn--ghost btn--small" onClick={() => setEditingSettings(true)}>
+            Obiettivi
+          </button>
         </header>
         <div className="panel coach-chat-panel">
           <div className="quick-row">

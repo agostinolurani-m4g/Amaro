@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CoachProposalCard } from "../components/CoachProposalCard";
 import { listCalendar, todayIso } from "../hooks/useStorage";
 import { applyPlanPatch } from "../lib/coachBriefing";
@@ -8,6 +8,15 @@ import { addDaysIso } from "../../shared/engine/dates.mjs";
 import type { CalendarEntry, CoachProposal, LifeBlock } from "../types";
 import { SESSION_TYPE_META } from "../lib/sessionTypes";
 
+function dayParts(iso: string) {
+  const date = new Date(`${iso}T12:00:00`);
+  return {
+    weekday: date.toLocaleDateString("it-IT", { weekday: "short" }).replace(".", ""),
+    day: date.toLocaleDateString("it-IT", { day: "numeric" }),
+    title: date.toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" }),
+  };
+}
+
 export function MobileCalendarPage() {
   const today = todayIso();
   const [entries, setEntries] = useState<CalendarEntry[]>([]);
@@ -16,6 +25,7 @@ export function MobileCalendarPage() {
   const [comment, setComment] = useState("");
   const [proposal, setProposal] = useState<CoachProposal | null>(null);
   const [busy, setBusy] = useState(false);
+  const stripRef = useRef<HTMLDivElement>(null);
 
   const days = useMemo(() => {
     const out: string[] = [];
@@ -34,6 +44,13 @@ export function MobileCalendarPage() {
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    stripRef.current?.querySelector(".mobile-day-chip--active")?.scrollIntoView({
+      inline: "center",
+      block: "nearest",
+    });
+  }, [selected, days]);
 
   const dayEntries = entries.filter((e) => e.date === selected);
   const planned = dayEntries.find((e) => e.entryType === "planned");
@@ -75,9 +92,10 @@ export function MobileCalendarPage() {
         <h1>Calendario</h1>
       </header>
 
-      <div className="mobile-day-strip">
+      <div className="mobile-day-strip" ref={stripRef}>
         {days.map((d) => {
           const hasPlan = entries.some((e) => e.entryType === "planned" && e.date === d);
+          const parts = dayParts(d);
           return (
             <button
               key={d}
@@ -89,8 +107,8 @@ export function MobileCalendarPage() {
                 setComment("");
               }}
             >
-              <span>{d.slice(8)}</span>
-              <span>{d.slice(5, 7)}</span>
+              <span className="mobile-day-chip__wd">{parts.weekday}</span>
+              <span>{parts.day}</span>
               {hasPlan && <span className="mobile-day-chip__dot" />}
             </button>
           );
@@ -98,7 +116,7 @@ export function MobileCalendarPage() {
       </div>
 
       <div className="panel mobile-day-detail">
-        <h2>{selected}</h2>
+        <h2>{selected === today ? "Oggi" : dayParts(selected).title}</h2>
         {life.length > 0 && (
           <div className="life-block-list">
             {life.map((b) => (

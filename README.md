@@ -162,6 +162,19 @@ I tesserati con pagamento completato scaricano **Lupo Ammaro** dall'**area perso
 
 L'API WattLab (`/api/wattlab/*`) è usata dall'app desktop per il login. Il download web passa dalla sessione dell'area tesserati (`/area-tesserati/wattlab/download`).
 
+### Coach sul telefono
+
+I tesserati aprono **https://amarobici.it/lupo/** (link «Apri sul telefono» nell'area personale). Login, calendario e profilo si sincronizzano su `/api/wattlab/sync` e restano sul disco in `UPLOAD_PATH/wattlab-sync`.
+
+Prima di un deploy che deve includere il telefono:
+
+```bash
+cd apps/lupo-ammaro
+npm run build:web
+```
+
+Il risultato va in `apps/web/app/static/lupo/` e va committato: il build Render è solo Python e non ricompila il frontend. Login e sync sono sul server Amaro. La chat del coach, in produzione, risponde solo se sul server è attivo il motore coach (`/api/wattlab/coach/*`).
+
 Collegamento Strava (un bottone in Lupo Ammaro, credenziali solo sul server):
 
 ```

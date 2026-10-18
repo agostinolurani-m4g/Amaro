@@ -79,6 +79,7 @@ from .ocr import (
 from .seed import seed_sample_data
 from .wattlab_auth import router as wattlab_router
 from .wattlab_strava import router as wattlab_strava_router
+from .wattlab_sync import router as wattlab_sync_router
 from .wattlab_download import resolve_wattlab_installer, wattlab_installer_info
 
 GALLERY_IMAGES: list[dict[str, str]] = [
@@ -394,12 +395,16 @@ templates_dir = BASE_DIR / "templates"
 
 app = FastAPI(title=settings.app_name)
 app.mount("/static", StaticFiles(directory=static_dir), name="static")
+lupo_dir = static_dir / "lupo"
+if (lupo_dir / "index.html").is_file():
+    app.mount("/lupo", StaticFiles(directory=lupo_dir, html=True), name="lupo")
 templates = Jinja2Templates(directory=templates_dir)
 templates.env.globals["current_year"] = datetime.utcnow().year
 logger = logging.getLogger(__name__)
 app.add_middleware(SessionMiddleware, secret_key=settings.session_secret, session_cookie="amaro_session")
 app.include_router(wattlab_router)
 app.include_router(wattlab_strava_router)
+app.include_router(wattlab_sync_router)
 app.include_router(m4g_access_router)
 app.include_router(m4g_admin_router)
 app.include_router(m4g_router)

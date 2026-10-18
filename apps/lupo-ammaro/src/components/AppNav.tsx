@@ -4,6 +4,7 @@ const MOBILE_NAV: { id: Screen; label: string; icon: string }[] = [
   { id: "today", label: "Oggi", icon: "☀️" },
   { id: "calendar", label: "Calendario", icon: "📅" },
   { id: "coach", label: "Coach", icon: "🏋️" },
+  { id: "profile", label: "Profilo", icon: "👤" },
 ];
 
 const NAV_ITEMS: { id: Screen; label: string; icon: string }[] = [
