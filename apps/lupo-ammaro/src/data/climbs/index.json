@@ -1,0 +1,82 @@
+[
+  {
+    "id": "alpe-huez",
+    "name": "Alpe d'Huez",
+    "km": "14.41",
+    "gain": 1096,
+    "avg": 7.6,
+    "points": 1105
+  },
+  {
+    "id": "finestre",
+    "name": "Colle delle Finestre",
+    "km": "19.77",
+    "gain": 1675,
+    "avg": 8.5,
+    "points": 1463
+  },
+  {
+    "id": "gavia",
+    "name": "Gavia (Ponte di Legno)",
+    "km": "18.16",
+    "gain": 1377,
+    "avg": 7.6,
+    "points": 1352
+  },
+  {
+    "id": "giau",
+    "name": "Passo Giau",
+    "km": "10.39",
+    "gain": 894,
+    "avg": 8.6,
+    "points": 823
+  },
+  {
+    "id": "kwaremont",
+    "name": "Oude Kwaremont",
+    "km": "3.03",
+    "gain": 97,
+    "avg": 3.2,
+    "points": 247
+  },
+  {
+    "id": "lesima",
+    "name": "Monte Lesima",
+    "km": "15.45",
+    "gain": 766,
+    "avg": 5,
+    "points": 1144
+  },
+  {
+    "id": "nivolet",
+    "name": "Col del Nivolet",
+    "km": "17.99",
+    "gain": 1004,
+    "avg": 5.6,
+    "points": 1348
+  },
+  {
+    "id": "paterberg",
+    "name": "Paterberg",
+    "km": "0.49",
+    "gain": 19,
+    "avg": 3.9,
+    "points": 39
+  },
+  {
+    "id": "pentema",
+    "name": "Passo Pentema",
+    "km": "9.70",
+    "gain": 340,
+    "avg": 3.5,
+    "points": 736
+  },
+  {
+    "id": "stelvio",
+    "name": "Stelvio (da Prato)",
+    "km": "25.36",
+    "gain": 1849,
+    "avg": 7.3,
+    "points": 1946
+  }
+]

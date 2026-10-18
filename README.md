@@ -56,7 +56,7 @@ Metti le foto nelle cartelle Drive indicate (eventi e galleria generale); la pag
 - Quota annuale: **50 €**, include assicurazione base e accesso alle attività.
 - Per tesserarti servono carta d'identità, tessera sanitaria, certificato medico e pagamento via Nexi/XPay.
 - Durante l'invio viene generata una password per l'area soci. È necessaria per accedere a `/area-tesserati` e scaricare i documenti caricati.
-- I tesserati con pagamento completato trovano **WattLab** nell'area personale (`/area-tesserati#wattlab`) con download diretto dell'installer Windows.
+- I tesserati con pagamento completato trovano **Lupo Ammaro** nell'area personale (`/area-tesserati#wattlab`) con download diretto dell'installer Windows.
 - I documenti vengono salvati in `apps/web/app/uploads/` e protetti: il download richiede login con l'account del socio.
 - Schema del database aggiornato automaticamente all'avvio (`ensure_member_schema`) per includere i nuovi campi del socio (dati anagrafici, password hash, documenti).
 
@@ -143,13 +143,13 @@ SMTP_FROM=...
 
 Template Excel: `apps/web/app/static/files/Modello_tesseramento_ACSI_NUOVO.xlsx`
 
-## WattLab (app desktop tesserati)
+## Lupo Ammaro (app desktop tesserati)
 
-I tesserati con pagamento completato scaricano WattLab dall'**area personale** (`/area-tesserati#wattlab`).
+I tesserati con pagamento completato scaricano **Lupo Ammaro** dall'**area personale** (`/area-tesserati#wattlab`). Il codice sorgente dell'app è in `apps/lupo-ammaro/`.
 
 ### Pubblicare una nuova versione
 
-1. Nella cartella `wattlab`, compila l'installer:
+1. Nella cartella `apps/lupo-ammaro`, compila l'installer:
    ```bash
    npm run tauri:build
    ```
@@ -162,7 +162,7 @@ I tesserati con pagamento completato scaricano WattLab dall'**area personale** (
 
 L'API WattLab (`/api/wattlab/*`) è usata dall'app desktop per il login. Il download web passa dalla sessione dell'area tesserati (`/area-tesserati/wattlab/download`).
 
-Collegamento Strava (un bottone in WattLab, credenziali solo sul server):
+Collegamento Strava (un bottone in Lupo Ammaro, credenziali solo sul server):
 
 ```
 APP_PUBLIC_URL=https://amarobici.it

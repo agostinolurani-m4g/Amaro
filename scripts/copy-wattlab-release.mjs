@@ -4,7 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const wattlabRoot = path.resolve(__dirname, "..", "..", "wattlab");
+const wattlabRoot = path.resolve(__dirname, "..", "apps", "lupo-ammaro");
 const targetDir = path.resolve(__dirname, "..", "apps", "web", "releases", "wattlab");
 
 function listInstallers(dir) {

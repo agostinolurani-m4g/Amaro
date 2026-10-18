@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="it">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WattLab — Area tesserati Amaro</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <section class="card" id="login-view">
+        <p class="eyebrow">Amaro Sport e Cultura</p>
+        <h1>Scarica WattLab</h1>
+        <p class="copy">
+          Accedi con le credenziali dell&apos;area tesserati per scaricare
+          l&apos;app desktop WattLab (Windows).
+        </p>
+
+        <form id="login-form" class="form">
+          <label>
+            <span>Email</span>
+            <input type="email" name="email" autocomplete="username" required />
+          </label>
+          <label>
+            <span>Password area tesserati</span>
+            <input
+              type="password"
+              name="password"
+              autocomplete="current-password"
+              required
+            />
+          </label>
+          <button type="submit" class="btn btn--primary">Accedi</button>
+          <p class="error" id="login-error" hidden></p>
+        </form>
+      </section>
+
+      <section class="card" id="download-view" hidden>
+        <p class="eyebrow">Download riservato ai tesserati</p>
+        <h1>WattLab per Windows</h1>
+        <p class="copy" id="member-greeting"></p>
+
+        <dl class="meta" id="download-meta"></dl>
+
+        <div class="actions">
+          <button type="button" class="btn btn--primary" id="download-btn">
+            Scarica installer
+          </button>
+          <button type="button" class="btn btn--ghost" id="logout-btn">
+            Esci
+          </button>
+        </div>
+
+        <p class="hint">
+          Dopo l&apos;installazione apri WattLab e accedi con le stesse
+          credenziali.
+        </p>
+        <p class="error" id="download-error" hidden></p>
+      </section>
+    </main>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

@@ -1,0 +1,38 @@
+[
+  {
+    "id": "seed-giulia-1",
+    "memberId": 3,
+    "submittedAt": "2026-09-03T18:10:00.000Z",
+    "title": "Z2 endurance",
+    "durationSecs": 5400,
+    "distanceM": 38500,
+    "workKj": 980,
+    "avgPower": 182,
+    "maxPower": 310,
+    "bests": [{ "windowSecs": 1200, "watts": 210 }]
+  },
+  {
+    "id": "seed-luca-1",
+    "memberId": 4,
+    "submittedAt": "2026-09-04T07:30:00.000Z",
+    "title": "VO2 intervals",
+    "durationSecs": 4200,
+    "distanceM": 31200,
+    "workKj": 1120,
+    "avgPower": 268,
+    "maxPower": 520,
+    "bests": [{ "windowSecs": 1200, "watts": 292 }]
+  },
+  {
+    "id": "seed-giulia-2",
+    "memberId": 3,
+    "submittedAt": "2026-09-05T19:00:00.000Z",
+    "title": "Sweet spot",
+    "durationSecs": 3600,
+    "distanceM": 24800,
+    "workKj": 790,
+    "avgPower": 219,
+    "maxPower": 360,
+    "bests": [{ "windowSecs": 1200, "watts": 248 }]
+  }
+]

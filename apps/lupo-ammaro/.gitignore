@@ -1,0 +1,16 @@
+# Local build tools (portable MinGW / VS)
+.tools/
+
+node_modules/
+dist/
+src-tauri/target/
+src-tauri/gen/
+
+.env
+*.exe
+*.msi
+*.pdb
+.DS_Store
+Thumbs.db
+server/strava_tokens.json
+server/strava_cache/

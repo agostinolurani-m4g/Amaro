@@ -17,3 +17,14 @@ apps/web/mobile-screenshots/
 *.db
 *.sqlite3
 apps/web/app/uploads/
+
+# Lupo Ammaro app (local build / secrets)
+apps/lupo-ammaro/node_modules/
+apps/lupo-ammaro/dist/
+apps/lupo-ammaro/.tools/
+apps/lupo-ammaro/src-tauri/target/
+apps/lupo-ammaro/server/strava_cache/
+apps/lupo-ammaro/server/sync_data/
+apps/lupo-ammaro/.env
+apps/lupo-ammaro/server/.env
+apps/lupo-ammaro/server/strava_tokens.json
