@@ -120,12 +120,19 @@ export async function fetchMe(token: string): Promise<AmaroMember> {
   return data.member;
 }
 
+const SESSION_RESTORE_MS = 12_000;
+
 export async function restoreSession(): Promise<AuthSession | null> {
   const stored = await getAuth();
   if (!stored?.token) return null;
 
   try {
-    const member = await fetchMe(stored.token);
+    const member = await Promise.race([
+      fetchMe(stored.token),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("timeout")), SESSION_RESTORE_MS),
+      ),
+    ]);
     const session: AuthSession = { ...stored, member };
     await saveAuth(session);
     return session;

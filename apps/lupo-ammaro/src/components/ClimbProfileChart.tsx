@@ -3,6 +3,7 @@ import uPlot from "uplot";
 import { useEffect, useMemo, useRef } from "react";
 import { wattsForClimb } from "../lib/climbPhysics";
 import { chartPoints, type ClimbProfile } from "../lib/climbProfiles";
+import { chartTheme } from "../lib/chartTheme";
 
 interface ClimbProfileChartProps {
   profile: ClimbProfile;
@@ -52,36 +53,36 @@ export function ClimbProfileChart({
           {},
           {
             label: "Quota",
-            stroke: "#fdcaca",
-            width: 2,
-            fill: "rgba(253, 202, 202, 0.18)",
+            stroke: chartTheme.elevation,
+            width: chartTheme.width.main,
+            fill: chartTheme.elevationFill,
             scale: "elev",
             points: { show: false },
           },
           {
             label: "Stima W",
-            stroke: "#ff0a54",
-            width: 2,
+            stroke: chartTheme.power,
+            width: chartTheme.width.main,
             scale: "w",
             points: { show: false },
           },
         ],
         axes: [
           {
-            stroke: "#8a93a8",
-            grid: { stroke: "rgba(255,255,255,0.06)" },
+            stroke: chartTheme.axis,
+            grid: { stroke: chartTheme.grid },
             values: (_u, ticks) => ticks.map((t) => `${t.toFixed(1)} km`),
           },
           {
             scale: "elev",
-            stroke: "#fdcaca",
-            grid: { stroke: "rgba(255,255,255,0.06)" },
+            stroke: chartTheme.elevation,
+            grid: { stroke: chartTheme.grid },
             label: "m",
           },
           {
             scale: "w",
             side: 1,
-            stroke: "#ff0a54",
+            stroke: chartTheme.power,
             grid: { show: false },
             label: "W",
           },
@@ -100,7 +101,7 @@ export function ClimbProfileChart({
               const x = u.valToPos(d / 1000, "x", true);
               const ctx = u.ctx;
               ctx.save();
-              ctx.strokeStyle = "#ff0a54";
+              ctx.strokeStyle = chartTheme.power;
               ctx.setLineDash([4, 4]);
               ctx.beginPath();
               ctx.moveTo(x, u.bbox.top);

@@ -7,6 +7,7 @@
 
 .login-page {
   width: min(440px, 100%);
+  box-sizing: border-box;
 }
 
 .login-page .hero h1 {

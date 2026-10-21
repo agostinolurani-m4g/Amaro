@@ -8,22 +8,23 @@
 .fit-tabs__btn {
   padding: 8px 14px;
   border: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.03);
-  color: inherit;
+  background: transparent;
+  color: var(--muted);
   cursor: pointer;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
 }
 
 .fit-tabs__btn--active {
-  border-color: var(--accent, #38bdf8);
-  background: rgba(56, 189, 248, 0.12);
+  border-color: var(--accent);
+  color: var(--text);
+  background: rgba(255, 10, 84, 0.12);
 }
 
 .fit-panel {
   border: 1px solid var(--border);
-  padding: 16px 20px;
-  border-radius: 8px;
-  background: rgba(0, 0, 0, 0.15);
+  padding: 18px 20px;
+  border-radius: var(--radius);
+  background: var(--surface-raised);
 }
 
 .fit-panel h2,
@@ -51,11 +52,11 @@
 
 .fit-grid input,
 .fit-grid select {
-  padding: 8px;
-  border: 1px solid var(--border);
-  background: var(--bg, #0f1419);
+  padding: 10px 12px;
+  border: 1px solid var(--glass-border);
+  background: rgba(0, 0, 0, 0.28);
   color: inherit;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
 }
 
 .fit-pain-row {
@@ -99,13 +100,16 @@
   max-height: 360px;
   margin: 12px 0;
   background: #000;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--glass-border);
 }
 
 .fit-alert {
   padding: 10px 14px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   margin-bottom: 12px;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
 .fit-alert--error {
@@ -123,8 +127,10 @@
   flex-direction: column;
   align-items: center;
   padding: 20px;
-  border-radius: 8px;
+  border-radius: var(--radius);
   margin-bottom: 16px;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
 .fit-semaphore--good {
@@ -175,8 +181,8 @@
 .fit-compare {
   margin: 16px 0;
   padding: 12px;
-  border: 1px dashed var(--border);
-  border-radius: 6px;
+  border: 1px dashed var(--glass-border);
+  border-radius: var(--radius-sm);
 }
 
 .fit-confirm-row {
@@ -199,7 +205,7 @@
 
 .fit-table th,
 .fit-table td {
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--glass-border);
   padding: 8px;
   text-align: left;
 }

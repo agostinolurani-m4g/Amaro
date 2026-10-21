@@ -9,6 +9,8 @@ import {
   updateFitSession,
 } from "../lib/fitStore";
 import { runFitAnalysis } from "../lib/fit/analyzeVideo";
+import type { FrameLandmarks } from "../lib/fit/cycles";
+import { FitVideoReview } from "../components/FitVideoReview";
 import { hasActiveRedFlags, painHints, trafficLight } from "../lib/fit/rules";
 import type {
   FitPainEntry,
@@ -48,6 +50,9 @@ export function FitPage({ heightCm }: FitPageProps) {
   const [status, setStatus] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
+  const [review, setReview] = useState<{ sessionId: string; frames: FrameLandmarks[] } | null>(
+    null,
+  );
   const [confirmMm, setConfirmMm] = useState("");
 
   useEffect(() => {
@@ -99,6 +104,7 @@ export function FitPage({ heightCm }: FitPageProps) {
     const url = URL.createObjectURL(file);
     setVideoUrl(url);
     setCurrentSession(null);
+    setReview(null);
     setError(null);
   }
 
@@ -120,7 +126,7 @@ export function FitPage({ heightCm }: FitPageProps) {
       await video.play().catch(() => undefined);
       video.pause();
       const h = heightCm > 0 ? heightCm : (await getProfile()).heightCm;
-      const session = await runFitAnalysis(
+      const { session, frames } = await runFitAnalysis(
         video,
         profile,
         h,
@@ -128,6 +134,7 @@ export function FitPage({ heightCm }: FitPageProps) {
         "Video laterale",
         setStatus,
       );
+      setReview({ sessionId: session.id, frames });
       await saveFitSession(session);
       setSessions(await loadFitSessions());
       setCurrentSession(session);
@@ -169,6 +176,7 @@ export function FitPage({ heightCm }: FitPageProps) {
   const redActive = hasActiveRedFlags(profile.redFlags);
   const report = currentSession ?? sessions[0] ?? null;
   const prev = sessions.length > 1 ? sessions[1] : null;
+  const kneeSpread = report?.metrics.kneeRangeDeg;
 
   return (
     <section className="page fit-page">
@@ -471,7 +479,13 @@ export function FitPage({ heightCm }: FitPageProps) {
             }}
           />
           {videoUrl && (
-            <video ref={videoRef} src={videoUrl} className="fit-video" controls playsInline />
+            <video
+              ref={videoRef}
+              src={videoUrl}
+              className={`fit-video${analyzing ? " fit-video--busy" : ""}`}
+              controls={!analyzing}
+              playsInline
+            />
           )}
           {status && <p className="muted-copy">{status}</p>}
           <button
@@ -508,6 +522,13 @@ export function FitPage({ heightCm }: FitPageProps) {
                   {report.saddle.targetMaxDeg}°)
                 </span>
               </div>
+              {review && review.sessionId === report.id && videoUrl && (
+                <FitVideoReview
+                  src={videoUrl}
+                  frames={review.frames}
+                  meanFlexionDeg={report.metrics.kneeFlexionBdcDeg}
+                />
+              )}
               <p className="fit-summary">{report.saddle.summary}</p>
               {!report.qc.ok && (
                 <ul className="fit-qc">
@@ -517,8 +538,12 @@ export function FitPage({ heightCm }: FitPageProps) {
                 </ul>
               )}
               <p className="muted-copy">
-                Cicli usati: {report.metrics.cyclesUsed} · Lato: {report.metrics.side} · Frame:{" "}
+                Cicli usati: {report.metrics.cyclesUsed} · Lato:{" "}
+                {report.metrics.side === "left" ? "sinistro" : "destro"} · Frame:{" "}
                 {report.qc.framesAnalyzed}
+                {kneeSpread != null &&
+                  Number.isFinite(kneeSpread) &&
+                  ` · dispersione tra i cicli ±${(kneeSpread / 2).toFixed(1)}°`}
               </p>
 
               {prev && Number.isFinite(prev.metrics.kneeFlexionBdcDeg) && (

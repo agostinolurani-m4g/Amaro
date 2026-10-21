@@ -1,10 +1,15 @@
-import { buildCycles } from "./cycles";
+import { buildCycles, type FrameLandmarks } from "./cycles";
 import { runVideoQc } from "./qc";
 import { analyzeVideoFrames, initPoseLandmarker } from "./pose";
 import { evaluateSaddle } from "./rules";
 import type { FitProfile, FitSession, FitVideoView } from "./types";
 import { MEASUREMENT_UNCERTAINTY_DEG } from "./types";
 import { newId } from "../../hooks/useStorage";
+
+export interface FitAnalysisResult {
+  session: FitSession;
+  frames: FrameLandmarks[];
+}
 
 export async function runFitAnalysis(
   video: HTMLVideoElement,
@@ -13,19 +18,21 @@ export async function runFitAnalysis(
   videoView: FitVideoView,
   videoLabel: string,
   onStatus?: (msg: string) => void,
-): Promise<FitSession> {
+): Promise<FitAnalysisResult> {
   onStatus?.("Inizializzazione…");
   await initPoseLandmarker(onStatus);
 
-  const { frames, side } = await analyzeVideoFrames(video, (p) => {
+  const { frames: rawFrames, side, sideContrast } = await analyzeVideoFrames(video, (p) => {
     if (p.phase === "pose") {
       onStatus?.(`Analisi frame ${p.framesDone}/${p.framesTotal}…`);
     }
   });
 
-  const { cycles, meanFlexion, stdFlexion } = buildCycles(frames);
+  const { cycles, meanFlexion, stdFlexion, frames } = buildCycles(rawFrames);
 
-  const cycleDurations = cycles.map((c) => c.endFrame - c.startFrame);
+  const cycleDurations = cycles.map(
+    (c) => frames[c.endFrame].timeSec - frames[c.startFrame].timeSec,
+  );
   const meanDur =
     cycleDurations.length > 0
       ? cycleDurations.reduce((a, b) => a + b, 0) / cycleDurations.length
@@ -56,10 +63,24 @@ export async function runFitAnalysis(
     saddle,
   };
 
+  if (rawFrames.length >= 30 && sideContrast < 0.2) {
+    qc.issues.push(
+      "Vista non abbastanza laterale: i due lati del corpo si confondono e la flessione può saltare di parecchi gradi. Riprendi di fianco, all'altezza della sella.",
+    );
+    qc.ok = false;
+  }
+
   if (!qc.ok && !Number.isFinite(meanFlexion)) {
     session.saddle.summary =
       "Analisi incompleta: migliora il video secondo i controlli qualità e riprova.";
   }
 
-  return session;
+  try {
+    video.pause();
+    video.currentTime = 0;
+  } catch {
+    /* il player di revisione riparte da zero in ogni caso */
+  }
+
+  return { session, frames };
 }

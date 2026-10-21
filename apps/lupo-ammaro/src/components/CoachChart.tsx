@@ -3,6 +3,7 @@ import uPlot from "uplot";
 import { useEffect, useMemo, useRef } from "react";
 import { SessionSeriesChart } from "./SessionSeriesChart";
 import type { CoachChartData } from "../types";
+import { chartTheme } from "../lib/chartTheme";
 
 interface CoachChartProps {
   chart: CoachChartData;
@@ -72,22 +73,26 @@ function CoachUPlotChart({ chart, height }: { chart: CoachChartData; height: num
         plotRef.current = null;
       }
 
-      const colors = chart.series.map((s) => s.color ?? "#ff0a54");
+      const colors = chart.series.map((s) => s.color ?? chartTheme.power);
       const opts: uPlot.Options = {
         width,
         height,
         series: [
           {},
-          ...chart.series.map((s, i) => ({
-            label: s.label,
-            stroke: colors[i],
-            width: 2,
-          })),
+          ...chart.series.map((s, i) => {
+            const series: uPlot.Series = {
+              label: s.label,
+              stroke: colors[i],
+              width: chartTheme.width.main,
+            };
+            if (i === 0) series.fill = chartTheme.powerFill;
+            return series;
+          }),
         ],
         axes: [
           {
-            stroke: "#8a93a8",
-            grid: { stroke: "rgba(255,255,255,0.06)" },
+            stroke: chartTheme.axis,
+            grid: { stroke: chartTheme.grid },
             values: (_u, ticks) =>
               ticks.map((v) => {
                 if (!chartData.useIndex) return String(Math.round(v));
@@ -99,8 +104,8 @@ function CoachUPlotChart({ chart, height }: { chart: CoachChartData; height: num
               }),
           },
           {
-            stroke: "#8a93a8",
-            grid: { stroke: "rgba(255,255,255,0.06)" },
+            stroke: chartTheme.axis,
+            grid: { stroke: chartTheme.grid },
             label: chart.yLabel ?? "",
           },
         ],

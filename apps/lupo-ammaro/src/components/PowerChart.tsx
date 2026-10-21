@@ -2,6 +2,7 @@ import "uplot/dist/uPlot.min.css";
 import uPlot from "uplot";
 import { useEffect, useRef, useState } from "react";
 import type { Telemetry, TimelineStep } from "../types";
+import { chartTheme } from "../lib/chartTheme";
 
 interface PowerChartProps {
   telemetry: Telemetry | null;
@@ -63,15 +64,30 @@ export function PowerChart({
         height: 280,
       series: [
         {},
-        { label: "Potenza", stroke: "#ff0a54", width: 2 },
-        { label: "Target", stroke: "#fdcaca", width: 1, dash: [6, 4] },
-        { label: "Cadenza", stroke: "#4ade80", width: 1, scale: "cadence" },
-        { label: "FC", stroke: "#ff4d6d", width: 1, scale: "hr" },
+        {
+          label: "Potenza",
+          stroke: chartTheme.power,
+          width: chartTheme.width.main,
+          fill: chartTheme.powerFill,
+        },
+        {
+          label: "Target",
+          stroke: chartTheme.target,
+          width: chartTheme.width.secondary,
+          dash: [6, 4],
+        },
+        {
+          label: "Cadenza",
+          stroke: chartTheme.cadence,
+          width: chartTheme.width.secondary,
+          scale: "cadence",
+        },
+        { label: "FC", stroke: chartTheme.hr, width: chartTheme.width.secondary, scale: "hr" },
       ],
       axes: [
         {
-          stroke: "#8a93a8",
-          grid: { stroke: "rgba(255,255,255,0.06)" },
+          stroke: chartTheme.axis,
+          grid: { stroke: chartTheme.grid },
           values: (_u, ticks) =>
             ticks.map((v) => {
               const m = Math.floor(v / 60);
@@ -80,21 +96,21 @@ export function PowerChart({
             }),
         },
         {
-          stroke: "#8a93a8",
-          grid: { stroke: "rgba(255,255,255,0.06)" },
+          stroke: chartTheme.axis,
+          grid: { stroke: chartTheme.grid },
           label: "W",
         },
         {
           scale: "cadence",
           side: 1,
-          stroke: "#4ade80",
+          stroke: chartTheme.cadence,
           grid: { show: false },
           label: "rpm",
         },
         {
           scale: "hr",
           side: 1,
-          stroke: "#ff4d6d",
+          stroke: chartTheme.hr,
           grid: { show: false },
           label: "bpm",
         },

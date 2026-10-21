@@ -3,6 +3,7 @@ import uPlot from "uplot";
 import { useEffect, useMemo, useRef } from "react";
 import { pctFtpToGrade } from "../lib/climbModel";
 import type { TimelineStep } from "../types";
+import { chartTheme } from "../lib/chartTheme";
 
 interface WorkoutProfileChartProps {
   timeline: TimelineStep[];
@@ -87,17 +88,17 @@ export function WorkoutProfileChart({
           {},
           {
             label: showGrade ? "Pendenza" : ftp ? "Target W" : "Target %FTP",
-            stroke: "#fdcaca",
-            width: 2.5,
-            fill: "rgba(253, 202, 202, 0.22)",
+            stroke: chartTheme.target,
+            width: chartTheme.width.main,
+            fill: chartTheme.elevationFill,
             paths: uPlot.paths.stepped!({ align: 1 }),
             points: { show: false },
           },
         ],
         axes: [
           {
-            stroke: "#8a93a8",
-            grid: { stroke: "rgba(255,255,255,0.06)" },
+            stroke: chartTheme.axis,
+            grid: { stroke: chartTheme.grid },
             values: (_u, ticks) =>
               ticks.map((t) => {
                 const m = Math.floor(t / 60);
@@ -106,8 +107,8 @@ export function WorkoutProfileChart({
               }),
           },
           {
-            stroke: "#8a93a8",
-            grid: { stroke: "rgba(255,255,255,0.06)" },
+            stroke: chartTheme.axis,
+            grid: { stroke: chartTheme.grid },
             label: chartData.yLabel,
             values: (_u, ticks) =>
               ticks.map((v) => (showGrade ? v.toFixed(1) : String(Math.round(v)))),
@@ -127,7 +128,7 @@ export function WorkoutProfileChart({
                   const ctx = u.ctx;
                   const px = u.valToPos(elapsed, "x", true);
                   ctx.save();
-                  ctx.strokeStyle = "#ff0a54";
+                  ctx.strokeStyle = chartTheme.power;
                   ctx.lineWidth = 2;
                   ctx.setLineDash([4, 4]);
                   ctx.beginPath();

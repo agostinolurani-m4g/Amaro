@@ -89,9 +89,12 @@ function App() {
 
   useEffect(() => {
     void (async () => {
-      const session = await restoreSession();
-      setAuth(session);
-      setAuthLoading(false);
+      try {
+        const session = await restoreSession();
+        setAuth(session);
+      } finally {
+        setAuthLoading(false);
+      }
     })();
   }, []);
 
