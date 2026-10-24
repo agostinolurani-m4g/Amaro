@@ -20,6 +20,8 @@ class Settings(BaseSettings):
         'http://127.0.0.1:8000/nexi/failure',
         env='NEXI_FAILURE_URL',
     )
+    # Notifica server-to-server (urlpost) per i tesseramenti; vuoto = dominio di NEXI_SUCCESS_URL + /nexi/notifica
+    nexipay_notify_url: str | None = Field(None, env='NEXI_NOTIFY_URL')
     uploads_path: str = Field('uploads', env='UPLOAD_PATH')
     google_vision_api_key: str | None = Field(None, env='GOOGLE_VISION_API_KEY')
     google_drive_api_key: str | None = Field(None, env='GOOGLE_DRIVE_API_KEY')

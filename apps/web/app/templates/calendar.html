@@ -1,5 +1,7 @@
 {% extends "base.html" %}
 
+{% block title %}Calendario · {{ settings.app_name }}{% endblock %}
+
 {% block content %}
   <section class="section">
     <header class="section__header">
@@ -8,6 +10,9 @@
         Calendario mese per mese con le date principali da segnare.
       </p>
     </header>
+    {% if not calendar_months %}
+      <p class="alert alert--info">Nessun evento in programma al momento. Torna a trovarci presto.</p>
+    {% endif %}
     <div class="card-grid">
       {% for month in calendar_months %}
         <article class="card">

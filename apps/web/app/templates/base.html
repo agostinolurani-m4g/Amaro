@@ -3,10 +3,12 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>{{ settings.app_name }}</title>
+    <meta name="theme-color" content="#4b0d36" />
+    <title>{% block title %}{{ settings.app_name }}{% endblock %}</title>
     <link rel="stylesheet" href="{{ url_for('static', path='css/styles.css') }}" />
   </head>
   <body>
+    {% set _path = request.url.path if request else '' %}
     <header class="site-header">
       <div class="brand">
         <a href="/">
@@ -17,14 +19,21 @@
           />
         </a>
       </div>
-      <nav class="site-nav">
-        <a href="/">Home</a>
-        <a href="/associazione">Associazione</a>
-        <a href="/calendario">Calendario</a>
-        <a class="nav-icon" href="/area-tesserati" aria-label="Area personale">
+      <nav class="site-nav" aria-label="Navigazione principale">
+        <a href="/" {% if _path == '/' %}aria-current="page"{% endif %}>Home</a>
+        <a href="/associazione" {% if _path.startswith('/associazione') %}aria-current="page"{% endif %}>Associazione</a>
+        <a href="/calendario" {% if _path.startswith('/calendario') or _path.startswith('/eventi') %}aria-current="page"{% endif %}>Calendario</a>
+        <a href="/tesseramento" {% if _path.startswith('/tesseramento') %}aria-current="page"{% endif %}>Tesseramento</a>
+        <a
+          class="nav-icon"
+          href="/area-tesserati"
+          aria-label="Area tesserati"
+          title="Area tesserati"
+          {% if _path.startswith('/area-tesserati') %}aria-current="page"{% endif %}
+        >
           <img
             src="{{ url_for('static', path='img/logo_ap.png') }}"
-            alt="Area personale"
+            alt=""
           />
         </a>
       </nav>
@@ -35,8 +44,18 @@
     </main>
 
     <footer class="site-footer">
-      <p><strong>{{ settings.app_name }}</strong></p>
-      <small>&copy; {{ current_year }} - Tutti i diritti riservati.</small>
+      <div class="site-footer__inner">
+        <p>
+          <strong>{{ settings.app_name }}</strong><br />
+          <small class="muted">&copy; {{ current_year }} &middot; Tutti i diritti riservati</small>
+        </p>
+        <nav aria-label="Link utili">
+          <a href="/associazione">Associazione</a>
+          <a href="/calendario">Calendario</a>
+          <a href="/tesseramento">Tesseramento</a>
+          <a href="/area-tesserati">Area tesserati</a>
+        </nav>
+      </div>
     </footer>
   </body>
 </html>

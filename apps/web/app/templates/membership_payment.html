@@ -10,11 +10,11 @@
       </p>
 
       {% if is_owner %}
-        <p class="alert">
-          La password dell'area tesserati sar? mostrata al termine del pagamento.
+        <p class="alert alert--info">
+          La password dell'area tesserati sarà mostrata al termine del pagamento.
         </p>
       {% else %}
-        <p class="alert">
+        <p class="alert alert--info">
           Accedi con le credenziali del socio per visualizzare la password e i documenti dopo il pagamento.
         </p>
       {% endif %}
@@ -38,8 +38,8 @@
             {% for doc in documents %}
               <li>
                 <a href="/tesseramento/documenti/{{ doc.id }}">{{ doc.original_name }}</a>
-                <span class="muted">
-                  {{ doc.document_category or "Documento" }} - caricato il {{ doc.uploaded_at.strftime('%d/%m/%Y') }}
+                <span class="document-list__meta">
+                  {{ doc.document_category or "Documento" }} &middot; caricato il {{ doc.uploaded_at.strftime('%d/%m/%Y') }}
                 </span>
               </li>
             {% endfor %}

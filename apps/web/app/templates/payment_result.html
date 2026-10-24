@@ -11,17 +11,17 @@
           <p>Riceverai una mail di conferma con tutti i dettagli.</p>
         {% else %}
           <h1>Pagamento confermato</h1>
-          <p>Grazie! Il pagamento e' stato registrato.</p>
+          <p>Grazie! Il pagamento è stato registrato.</p>
           {% if password_hint %}
             <p class="alert alert--success">
-              Password area tesserati: <strong>{{ password_hint }}</strong>.
-              Salvala, ti servira' per accedere e scaricare i documenti caricati.
+              Password area tesserati: <span class="secret">{{ password_hint }}</span>.
+              Salvala, ti servirà per accedere e scaricare i documenti caricati.
             </p>
           {% endif %}
         {% endif %}
       {% else %}
         <h1>Pagamento non riuscito</h1>
-        <p>Il pagamento non e' stato completato o e' stato annullato.</p>
+        <p>Il pagamento non è stato completato o è stato annullato.</p>
       {% endif %}
       {% if label and not (success and 'Iscrizione evento' in label) %}
         <p class="muted">{{ label }}</p>

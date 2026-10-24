@@ -13,7 +13,7 @@ from datetime import date, datetime, timedelta
 from email.message import EmailMessage
 from pathlib import Path
 from typing import Sequence
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, urljoin, urlparse
 from uuid import uuid4
 
 from fastapi import (
@@ -31,6 +31,7 @@ from fastapi.responses import (
     FileResponse,
     HTMLResponse,
     JSONResponse,
+    PlainTextResponse,
     RedirectResponse,
     Response,
 )
@@ -40,9 +41,15 @@ from markupsafe import Markup, escape
 import requests
 from sqlalchemy import inspect, or_, text
 from sqlalchemy.orm import Session
+from fastapi.exception_handlers import (
+    http_exception_handler,
+    request_validation_exception_handler,
+)
+from fastapi.exceptions import RequestValidationError
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.sessions import SessionMiddleware
 
-from .acsi import send_documents_manual_review_email
+from .acsi import send_member_documents_for_manual_review
 from .admin import setup_admin
 from .m4g_common import (
     apply_m4g_payment_by_reference,
@@ -414,6 +421,100 @@ setup_admin(app)
 @app.exception_handler(M4gLoginRequired)
 async def m4g_login_required_handler(request: Request, exc: M4gLoginRequired):
     return m4g_access_redirect(exc.next_url)
+
+
+# Pagine del tesseramento: errori mostrati come pagina del sito invece che JSON grezzo.
+# Tutte le altre rotte (API, M4G, admin) mantengono le risposte standard di FastAPI.
+_HTML_ERROR_PREFIXES = ("/tesseramento", "/area-tesserati")
+
+_VALIDATION_FIELD_LABELS = {
+    "first_name": "Nome",
+    "last_name": "Cognome",
+    "email": "Email",
+    "phone": "Telefono",
+    "birth_date": "Data di nascita",
+    "birth_place": "Luogo di nascita",
+    "residence": "Residenza",
+    "codice_fiscale": "Codice fiscale",
+    "document_type": "Tipo documento",
+    "document_number": "Numero documento",
+    "medical_certificate_expiry": "Scadenza certificato medico",
+    "sport_type": "Disciplina",
+    "identity_documents": "Carta d'identità / Passaporto",
+    "health_documents": "Tessera sanitaria",
+    "medical_documents": "Certificato medico",
+    "password": "Password",
+}
+
+
+def _wants_html_error(request: Request) -> bool:
+    return request.url.path.startswith(_HTML_ERROR_PREFIXES)
+
+
+def render_error_page(
+    request: Request,
+    title: str,
+    lines: list[str],
+    *,
+    status_code: int = status.HTTP_400_BAD_REQUEST,
+    actions: list[dict[str, object]] | None = None,
+    details: list[str] | None = None,
+    reference: str | None = None,
+) -> HTMLResponse:
+    return templates.TemplateResponse(
+        "error.html",
+        {
+            "request": request,
+            "settings": settings,
+            "error_title": title,
+            "error_lines": lines,
+            "error_details": details or [],
+            "error_actions": actions
+            or [
+                {"label": "Torna indietro", "back": True},
+                {"label": "Vai alla home", "href": "/"},
+            ],
+            "error_reference": reference,
+            "contact_email": settings.membership_notify_email,
+        },
+        status_code=status_code,
+    )
+
+
+@app.exception_handler(StarletteHTTPException)
+async def site_http_exception_handler(request: Request, exc: StarletteHTTPException):
+    if not _wants_html_error(request) or exc.status_code < 400:
+        return await http_exception_handler(request, exc)
+    title = "Pagina non trovata" if exc.status_code == 404 else "Qualcosa non è andato"
+    return render_error_page(
+        request,
+        title,
+        [str(exc.detail) if exc.detail else "Si è verificato un errore."],
+        status_code=exc.status_code,
+    )
+
+
+@app.exception_handler(RequestValidationError)
+async def site_validation_exception_handler(request: Request, exc: RequestValidationError):
+    if not _wants_html_error(request):
+        return await request_validation_exception_handler(request, exc)
+    fields: list[str] = []
+    for error in exc.errors():
+        loc = error.get("loc") or ()
+        name = str(loc[-1]) if loc else ""
+        label = _VALIDATION_FIELD_LABELS.get(name, name)
+        if label and label not in fields:
+            fields.append(label)
+    return render_error_page(
+        request,
+        "Controlla i dati inseriti",
+        [
+            "Alcuni campi mancano o non sono nel formato giusto. "
+            "Torna indietro, correggili e ricarica i documenti (i file vanno riselezionati).",
+        ],
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        details=fields,
+    )
 
 
 @app.middleware("http")
@@ -1354,6 +1455,7 @@ def _build_month_view(session: Session) -> dict[str, object]:
     return {
         "month_name": month_name,
         "year": today.year,
+        "today": today.day,
         "weeks": weeks,
         "events": event_map,
     }
@@ -1533,6 +1635,57 @@ def _build_payment_result_context(
     }
 
 
+def _mark_membership_payment_paid(
+    payment: MembershipPayment,
+    session: Session,
+    request: Request,
+    *,
+    source: str = "ritorno dal pagamento",
+) -> str | None:
+    """Segna pagato un tesseramento e invia il link al modulo + avviso staff.
+
+    Idempotente: le email partono solo la prima volta (ritorno dal browser o
+    notifica Nexi, chi arriva prima). Restituisce l'avviso da mostrare all'utente.
+    """
+    if payment.status == "paid" or payment.member_id:
+        return None
+    payment.status = "paid"
+    payment.paid_at = datetime.utcnow()
+    session.commit()
+
+    completion_url = _membership_form_link(request, payment.reference)
+    email_notice = None
+    if payment.email and _send_membership_completion_email(payment.email, completion_url):
+        email_notice = f"Ti abbiamo inviato il link a {payment.email}."
+    staff_lines = [
+        "Ricevuto un pagamento per nuovo tesseramento (area tesserati).",
+        "",
+        f"Email iscritto: {payment.email}",
+        f"Disciplina: {payment.sport_type}",
+        f"Riferimento pagamento: {payment.reference}",
+        f"Importo: {format_price(payment.amount_cents)} €",
+        f"Conferma ricevuta da: {source}",
+        "",
+        "L'iscritto deve ancora completare il modulo con i documenti.",
+        f"Link al modulo: {completion_url}",
+    ]
+    admin_base = _admin_base_url(request)
+    if admin_base:
+        staff_lines.extend(["", f"Pannello gestione: {admin_base}/admin"])
+    _send_membership_staff_email(
+        f"{settings.app_name} - Pagamento tesseramento ricevuto",
+        "\n".join(staff_lines),
+    )
+    return email_notice
+
+
+def _membership_notify_url() -> str:
+    """URL che Nexi chiama server-to-server (urlpost) con l'esito del pagamento."""
+    if settings.nexipay_notify_url:
+        return settings.nexipay_notify_url
+    return urljoin(settings.nexipay_success_url, "/nexi/notifica")
+
+
 def _payment_reference_from_request(request: Request) -> str | None:
     ref = request.query_params.get("ref")
     return ref if isinstance(ref, str) and ref else None
@@ -1561,34 +1714,13 @@ def _apply_reference_payment(
             else f"/tesseramento/dati?ref={payment.reference}"
         )
         if success:
-            was_pending = payment.status != "paid"
-            if payment.status != "paid":
+            email_notice = None
+            if request:
+                email_notice = _mark_membership_payment_paid(payment, session, request)
+            elif payment.status != "paid":
                 payment.status = "paid"
                 payment.paid_at = datetime.utcnow()
                 session.commit()
-            email_notice = None
-            if payment.email and was_pending and request:
-                if _send_membership_completion_email(payment.email, completion_url):
-                    email_notice = f"Ti abbiamo inviato il link a {payment.email}."
-            if was_pending and request:
-                staff_lines = [
-                    "Ricevuto un pagamento per nuovo tesseramento (area tesserati).",
-                    "",
-                    f"Email iscritto: {payment.email}",
-                    f"Disciplina: {payment.sport_type}",
-                    f"Riferimento pagamento: {payment.reference}",
-                    f"Importo: {format_price(payment.amount_cents)} €",
-                    "",
-                    "L'iscritto deve ancora completare il modulo con i documenti.",
-                    f"Link al modulo: {completion_url}",
-                ]
-                admin_base = _admin_base_url(request)
-                if admin_base:
-                    staff_lines.extend(["", f"Pannello gestione: {admin_base}/admin"])
-                _send_membership_staff_email(
-                    f"{settings.app_name} - Pagamento tesseramento ricevuto",
-                    "\n".join(staff_lines),
-                )
             context = {
                 "return_url": completion_url,
                 "retry_url": None,
@@ -2457,6 +2589,7 @@ def membership_payment_start(
         email=email,
         success_url=success_url,
         failure_url=failure_url,
+        notify_url=_membership_notify_url(),
     )
     _set_pending_payment(
         request,
@@ -2510,6 +2643,7 @@ def membership_payment_retry(
         email=payment.email,
         success_url=success_url,
         failure_url=failure_url,
+        notify_url=_membership_notify_url(),
     )
     _set_pending_payment(
         request,
@@ -2534,14 +2668,67 @@ def membership_payment_retry(
     )
 
 
-@app.get("/tesseramento/dati", response_class=HTMLResponse)
-def membership_form(request: Request, ref: str, session: Session = Depends(get_session)) -> HTMLResponse:
-    payment = session.query(MembershipPayment).filter_by(reference=ref).first()
-    if not payment or payment.status != "paid" or payment.member_id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Pagamento non valido o gia' completato.",
+def _membership_payment_problem(
+    request: Request, payment: MembershipPayment | None, ref: str
+) -> Response | None:
+    """Spiega all'utente perché il modulo dati non è disponibile; None se è tutto ok."""
+    if not payment:
+        return render_error_page(
+            request,
+            "Link non valido",
+            [
+                "Non troviamo il pagamento collegato a questo link.",
+                "Controlla di aver aperto il link completo dall'email, oppure ricomincia il tesseramento.",
+            ],
+            status_code=status.HTTP_404_NOT_FOUND,
+            actions=[{"label": "Vai al tesseramento", "href": "/tesseramento"}],
+            reference=ref,
         )
+    if payment.member_id:
+        if request.session.get("member_id") == payment.member_id:
+            return RedirectResponse(url="/area-tesserati", status_code=status.HTTP_303_SEE_OTHER)
+        return render_error_page(
+            request,
+            "Tesseramento già completato",
+            [
+                "Il modulo per questo pagamento è già stato inviato.",
+                "Accedi all'area tesserati con la tua email e la password che hai ricevuto.",
+            ],
+            status_code=status.HTTP_200_OK,
+            actions=[{"label": "Accedi all'area tesserati", "href": "/area-tesserati"}],
+        )
+    if payment.status == "failed":
+        return render_error_page(
+            request,
+            "Pagamento non riuscito",
+            ["Il pagamento risulta annullato o non andato a buon fine. Puoi riprovare."],
+            actions=[
+                {"label": "Riprova il pagamento", "href": f"/tesseramento/pagamento?ref={payment.reference}"},
+                {"label": "Vai alla home", "href": "/"},
+            ],
+            reference=payment.reference,
+        )
+    if payment.status != "paid":
+        return render_error_page(
+            request,
+            "Pagamento non ancora confermato",
+            [
+                "Non abbiamo ancora ricevuto la conferma del pagamento dalla banca.",
+                "Se hai già pagato non ripetere il pagamento: scrivi alla segreteria indicando il "
+                "riferimento qui sotto e ti sblocchiamo il modulo.",
+            ],
+            actions=[{"label": "Vai alla home", "href": "/"}],
+            reference=payment.reference,
+        )
+    return None
+
+
+@app.get("/tesseramento/dati", response_class=HTMLResponse)
+def membership_form(request: Request, ref: str, session: Session = Depends(get_session)) -> Response:
+    payment = session.query(MembershipPayment).filter_by(reference=ref).first()
+    problem = _membership_payment_problem(request, payment, ref)
+    if problem is not None:
+        return problem
     return templates.TemplateResponse(
         "membership.html",
         {
@@ -2585,17 +2772,16 @@ def membership_submit(
     medical_documents: list[UploadFile] = File(...),
     request_manual_review: str | None = Form(None),
     session: Session = Depends(get_session),
-) -> RedirectResponse:
+) -> Response:
     payment = (
         session.query(MembershipPayment)
         .filter_by(reference=payment_reference)
         .first()
     )
-    if not payment or payment.status != "paid" or payment.member_id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Pagamento non valido o gia' completato.",
-        )
+    # doppio invio o modulo riaperto: chi ha già completato va nell'area tesserati
+    problem = _membership_payment_problem(request, payment, payment_reference)
+    if problem is not None:
+        return problem
     if payment.sport_type != sport_type:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -2665,13 +2851,16 @@ def membership_submit(
         schedule_documents_ocr(saved_doc_ids, member.id, background_tasks)
     manual_review = _normalize(request_manual_review) == "1"
     if manual_review and saved_docs:
-        send_documents_manual_review_email(member, saved_docs)
+        # tutti i documenti alla segreteria (amaro.bici@gmail.com di default)
+        background_tasks.add_task(
+            send_member_documents_for_manual_review, member.id, saved_doc_ids
+        )
     request.session["member_id"] = member.id
     request.session["member_password_hint"] = password_plain
     if manual_review:
         request.session["member_notice"] = (
-            "Modulo inviato per verifica manuale dei documenti. "
-            "La pratica non sara automatica e i tempi saranno piu lunghi."
+            "Tesseramento inviato. Alcuni documenti non hanno superato la verifica "
+            "automatica: li controlliamo a mano e ti scriviamo se serve altro."
         )
     admin_base = _admin_base_url(request)
     staff_lines = [
@@ -2813,6 +3002,54 @@ def nexi_failure(
     )
 
 
+@app.api_route("/nexi/notifica", methods=["GET", "POST"], include_in_schema=False)
+async def nexi_notification(
+    request: Request, session: Session = Depends(get_session)
+) -> Response:
+    """Esito server-to-server (urlpost) dei tesseramenti.
+
+    Serve quando l'utente paga ma non torna sul sito (scheda chiusa, redirect
+    fallito): senza questa notifica il pagamento resterebbe "pending" e il link al
+    modulo non partirebbe mai. Risponde sempre 200: gli scarti finiscono nei log.
+    """
+    params: dict[str, str] = dict(request.query_params)
+    if request.method == "POST":
+        form = await request.form()
+        params.update({key: str(value) for key, value in form.items()})
+    ok = PlainTextResponse("OK")
+    cod_trans = params.get("codTrans", "")
+    try:
+        if not nexi_client:
+            logger.warning("Notifica Nexi %s ignorata: Nexi non configurato", cod_trans)
+            return ok
+        if not nexi_client.verify_result(params):
+            logger.warning("Notifica Nexi %s scartata: MAC non valido", cod_trans)
+            return ok
+        payment = session.query(MembershipPayment).filter_by(reference=cod_trans).first()
+        if not payment:
+            logger.info("Notifica Nexi %s: nessun tesseramento collegato", cod_trans)
+            return ok
+        if params.get("importo") != str(payment.amount_cents) or params.get("divisa", "EUR") != "EUR":
+            logger.warning(
+                "Notifica Nexi %s scartata: importo %s %s, atteso %s EUR",
+                cod_trans,
+                params.get("importo"),
+                params.get("divisa"),
+                payment.amount_cents,
+            )
+            return ok
+        if params.get("esito") == "OK":
+            _mark_membership_payment_paid(payment, session, request, source="notifica Nexi")
+            logger.info("Notifica Nexi %s: tesseramento pagato", cod_trans)
+        elif payment.status == "pending":
+            payment.status = "failed"
+            session.commit()
+            logger.info("Notifica Nexi %s: esito %s", cod_trans, params.get("esito"))
+    except Exception:
+        logger.exception("Errore gestendo la notifica Nexi %s", cod_trans)
+    return ok
+
+
 def _parse_optional_date(value: str | None) -> date | None:
     if not value or not value.strip():
         return None
@@ -2926,7 +3163,22 @@ def member_area(request: Request, session: Session = Depends(get_session)) -> HT
     pending_doc_ids = request.session.pop("pending_doc_ids", None) or []
     password_reset_enabled = bool(settings.smtp_host and settings.smtp_from)
     documents: list[MemberDocument] = list(member.documents) if member else []
+    documents.sort(
+        key=lambda doc: (doc.uploaded_at is not None, doc.uploaded_at or 0), reverse=True
+    )
     wattlab_info = wattlab_installer_info() if member and member.payment_status == "paid" else None
+    medical_days_left = (
+        (member.medical_certificate_expiry - date.today()).days
+        if member and member.medical_certificate_expiry
+        else None
+    )
+    documents_summary = {
+        "total": len(documents),
+        "valid": sum(1 for doc in documents if doc.ocr_status == "done" and doc.ocr_valid),
+        "invalid": sum(
+            1 for doc in documents if doc.ocr_status == "done" and doc.ocr_valid is False
+        ),
+    }
     return templates.TemplateResponse(
         "member_area.html",
         {
@@ -2943,6 +3195,8 @@ def member_area(request: Request, session: Session = Depends(get_session)) -> HT
             "pending_doc_ids": pending_doc_ids,
             "password_reset_enabled": password_reset_enabled,
             "wattlab_info": wattlab_info,
+            "medical_days_left": medical_days_left,
+            "documents_summary": documents_summary,
         },
     )
 
@@ -3013,11 +3267,12 @@ def member_upload_documents(
         request.session["pending_doc_ids"] = saved_doc_ids
         manual_review = _normalize(request_manual_review) == "1"
         if manual_review:
-            send_documents_manual_review_email(member, saved_docs)
+            background_tasks.add_task(
+                send_member_documents_for_manual_review, member.id, saved_doc_ids
+            )
             notice = (
-                f"Caricati {len(saved_docs)} documenti. "
-                "Inviati per verifica manuale: la pratica non sara automatica "
-                "e i tempi saranno piu lunghi."
+                f"Caricati {len(saved_docs)} documenti. Alcuni non hanno superato la "
+                "verifica automatica: li controlliamo a mano."
             )
         else:
             notice = f"Caricati {len(saved_docs)} documenti."

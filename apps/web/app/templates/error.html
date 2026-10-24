@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+
+{% block title %}{{ error_title }} · {{ settings.app_name }}{% endblock %}
+
+{% block content %}
+  <section class="section">
+    <article class="card card--spacious card--accent prose">
+      <h1>{{ error_title }}</h1>
+      {% for line in error_lines %}
+        <p>{{ line }}</p>
+      {% endfor %}
+      {% if error_details %}
+        <ul>
+          {% for item in error_details %}
+            <li>{{ item }}</li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+      <div class="hero__actions">
+        {% for action in error_actions %}
+          {% if action.back %}
+            <a class="btn {{ 'btn-primary' if loop.first else 'btn-secondary' }}" href="javascript:history.back()">{{ action.label }}</a>
+          {% else %}
+            <a class="btn {{ 'btn-primary' if loop.first else 'btn-secondary' }}" href="{{ action.href }}">{{ action.label }}</a>
+          {% endif %}
+        {% endfor %}
+      </div>
+      {% if contact_email %}
+        <p class="muted small">
+          Se il problema continua scrivi a <a class="link" href="mailto:{{ contact_email }}">{{ contact_email }}</a>{% if error_reference %} indicando il riferimento <strong>{{ error_reference }}</strong>{% endif %}.
+        </p>
+      {% elif error_reference %}
+        <p class="muted small">Riferimento pagamento: <strong>{{ error_reference }}</strong>.</p>
+      {% endif %}
+    </article>
+  </section>
+{% endblock %}

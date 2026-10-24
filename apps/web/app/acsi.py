@@ -319,35 +319,26 @@ def maybe_submit_member_to_acsi(member_id: int) -> None:
         logger.debug("ACSI non inviato per socio %s: %s", member_id, reason)
 
 
+# Gmail rifiuta messaggi oltre 25 MB (base64 incluso): restiamo larghi.
+MANUAL_REVIEW_ATTACHMENTS_MAX_BYTES = 17 * 1024 * 1024
+
+
 def send_documents_manual_review_email(
     member: Member,
     documents: list[MemberDocument],
+    new_document_ids: set[int] | None = None,
 ) -> bool:
+    """Invia alla segreteria tutti i documenti del socio da verificare a mano."""
     to_email = settings.medical_manual_review_email or settings.membership_notify_email
     if not to_email or not settings.smtp_host or not settings.smtp_from:
         logger.warning(
             "Email verifica manuale non configurata per socio %s.", member.id
         )
         return False
-
-    body = (
-        "Un socio ha inviato documenti che non hanno superato la verifica automatica.\n"
-        "Serve controllo manuale prima dell'invio ad ACSI.\n\n"
-        f"Socio: {member.first_name} {member.last_name}\n"
-        f"Email: {member.email}\n"
-        f"Telefono: {member.phone or '-'}\n"
-        f"Codice fiscale: {member.codice_fiscale or '-'}\n"
-        f"Disciplina: {member.sport_type or '-'}\n"
-        f"ID socio: {member.id}\n\n"
-        "Documenti in allegato da verificare:\n"
-    )
-    for document in documents:
-        body += f"- {document.document_category or 'Documento'}: {document.original_name}\n"
-    body += (
-        "\nDopo la verifica usa Admin > Tools > Invia ad ACSI per completare "
-        "la pratica.\n\n"
-        f"— {settings.app_name}\n"
-    )
+    if not documents:
+        logger.warning("Nessun documento da verificare per socio %s.", member.id)
+        return False
+    new_document_ids = new_document_ids or set()
 
     message = EmailMessage()
     message["Subject"] = (
@@ -356,47 +347,86 @@ def send_documents_manual_review_email(
     )
     message["From"] = settings.smtp_from
     message["To"] = to_email
-    message.set_content(body)
+    if member.email:
+        message["Reply-To"] = member.email
 
-    attached = 0
+    attached_lines: list[str] = []
+    skipped_lines: list[str] = []
+    budget = MANUAL_REVIEW_ATTACHMENTS_MAX_BYTES
+    attachments: list[tuple[bytes, str, str, str]] = []
     for document in documents:
+        label = f"{document.document_category or 'Documento'}: {document.original_name}"
+        if document.id in new_document_ids:
+            label += " (nuovo)"
+        ocr = _ocr_summary(document)
+        if ocr:
+            label += f" - OCR: {ocr}"
         path = UPLOADS_DIR / document.stored_filename
         if not path.exists():
+            skipped_lines.append(f"- {label} [file non trovato sul server]")
             continue
+        size = path.stat().st_size
+        if size > budget:
+            skipped_lines.append(f"- {label} [troppo grande per l'email: scaricalo dal pannello]")
+            continue
+        budget -= size
         mime_type, _encoding = mimetypes.guess_type(document.original_name)
-        if mime_type:
+        if mime_type and "/" in mime_type:
             maintype, subtype = mime_type.split("/", 1)
         else:
             maintype, subtype = "application", "octet-stream"
-        message.add_attachment(
-            path.read_bytes(),
-            maintype=maintype,
-            subtype=subtype,
-            filename=_safe_filename(document.original_name),
+        attachments.append(
+            (path.read_bytes(), maintype, subtype, _safe_filename(document.original_name))
         )
-        attached += 1
+        attached_lines.append(f"- {label}")
 
-    if attached == 0:
-        logger.warning(
-            "Nessun allegato disponibile per verifica manuale socio %s.", member.id
-        )
-        return False
+    expiry = member.medical_certificate_expiry
+    body = (
+        "Un socio non ha superato la verifica automatica (OCR) dei documenti e ha "
+        "inviato comunque il modulo: serve un controllo manuale prima dell'invio ad ACSI.\n\n"
+        f"Socio: {member.first_name} {member.last_name}\n"
+        f"Email: {member.email}\n"
+        f"Telefono: {member.phone or '-'}\n"
+        f"Codice fiscale: {member.codice_fiscale or '-'}\n"
+        f"Numero documento: {member.document_number or '-'}\n"
+        f"Scadenza certificato medico: {expiry.strftime('%d/%m/%Y') if expiry else '-'}\n"
+        f"Disciplina: {member.sport_type or '-'}\n"
+        f"ID socio: {member.id}\n\n"
+    )
+    if attached_lines:
+        body += "Documenti in allegato:\n" + "\n".join(attached_lines) + "\n"
+    if skipped_lines:
+        body += "\nNon allegati (vedi Admin > Documenti):\n" + "\n".join(skipped_lines) + "\n"
+    body += (
+        "\nDopo la verifica usa Admin > Tools > Invia ad ACSI per completare "
+        "la pratica. Puoi rispondere a questa email per scrivere al socio.\n\n"
+        f"— {settings.app_name}\n"
+    )
+    message.set_content(body)
+    for data, maintype, subtype, filename in attachments:
+        message.add_attachment(data, maintype=maintype, subtype=subtype, filename=filename)
 
     server = None
     try:
         if settings.smtp_use_ssl:
             server = smtplib.SMTP_SSL(
-                settings.smtp_host, settings.smtp_port, timeout=30
+                settings.smtp_host, settings.smtp_port, timeout=60
             )
         else:
             server = smtplib.SMTP(
-                settings.smtp_host, settings.smtp_port, timeout=30
+                settings.smtp_host, settings.smtp_port, timeout=60
             )
             if settings.smtp_use_tls:
                 server.starttls()
         if settings.smtp_user and settings.smtp_password:
             server.login(settings.smtp_user, settings.smtp_password)
         server.send_message(message)
+        logger.info(
+            "Email verifica manuale inviata per socio %s a %s (%s allegati).",
+            member.id,
+            to_email,
+            len(attachments),
+        )
         return True
     except Exception:
         logger.exception(
@@ -411,6 +441,37 @@ def send_documents_manual_review_email(
                 server.quit()
             except Exception:
                 pass
+
+
+def _ocr_summary(document: MemberDocument) -> str:
+    if document.ocr_status == "done":
+        if document.ocr_valid is True:
+            return "valido"
+        if document.ocr_valid is False:
+            return "non valido"
+        return "non verificabile"
+    if document.ocr_status == "failed":
+        return "non verificabile"
+    return ""
+
+
+def send_member_documents_for_manual_review(
+    member_id: int, new_document_ids: list[int] | None = None
+) -> None:
+    """Versione per BackgroundTasks: rilegge socio e documenti in una sessione propria."""
+    session = SessionLocal()
+    try:
+        member = session.get(Member, member_id)
+        if not member:
+            return
+        documents = sorted(
+            member.documents, key=lambda doc: (doc.document_category or "", doc.id)
+        )
+        send_documents_manual_review_email(member, documents, set(new_document_ids or []))
+    except Exception:
+        logger.exception("Email verifica manuale fallita per socio %s", member_id)
+    finally:
+        session.close()
 
 
 def _notify_staff_acsi_sent(member: Member) -> None:

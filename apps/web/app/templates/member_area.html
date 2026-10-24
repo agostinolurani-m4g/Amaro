@@ -1,65 +1,124 @@
 {% extends "base.html" %}
 
-{% block content %}
-  <section class="section">
-    <article class="card card--spacious">
-      <h1>Area tesserati</h1>
+{% block title %}Area tesserati · {{ settings.app_name }}{% endblock %}
 
-      {% if member %}
-        {% if password_hint %}
-          <p class="alert alert--success">
-            Password area tesserati: <strong>{{ password_hint }}</strong>.
-            Salvala, ti servira' per rientrare e scaricare i documenti.
-          </p>
-        {% endif %}
-        {% if upload_notice %}
-          <p class="alert alert--success">{{ upload_notice }}</p>
-        {% endif %}
-        {% if profile_notice %}
-          <p class="alert alert--success">{{ profile_notice }}</p>
-        {% endif %}
-        {% if member.payment_status != "paid" %}
-          <p class="alert">
-            Pagamento obbligatorio: completa il pagamento per accedere all'area tesserati.
+{% block content %}
+  {% if member %}
+    <section class="section">
+      <header class="member-head">
+        <div>
+          <h1>Ciao {{ member.first_name or member.name }}</h1>
+          <p class="muted">Area tesserati: tessera, documenti, certificato medico e Lupo Ammaro.</p>
+        </div>
+        <form method="post" action="/area-tesserati/logout">
+          <button class="btn btn-secondary" type="submit">Esci</button>
+        </form>
+      </header>
+
+      {% if password_hint or upload_notice or profile_notice %}
+        <div class="member-notices">
+          {% if password_hint %}
+            <p class="alert alert--success">
+              Password area tesserati: <span class="secret">{{ password_hint }}</span>.
+              Salvala, ti servirà per rientrare e scaricare i documenti.
+            </p>
+          {% endif %}
+          {% if upload_notice %}
+            <p class="alert alert--success">{{ upload_notice }}</p>
+          {% endif %}
+          {% if profile_notice %}
+            <p class="alert alert--success">{{ profile_notice }}</p>
+          {% endif %}
+        </div>
+      {% endif %}
+
+      {% if member.payment_status != "paid" %}
+        <article class="card card--accent">
+          <h3>Pagamento da completare</h3>
+          <p>
+            Il tesseramento non è ancora attivo: completa il pagamento della quota
+            {% if membership_fee %}({{ membership_fee }} &euro;){% endif %} per accedere all'area tesserati.
           </p>
           <div class="hero__actions">
             <a class="btn btn-primary" href="/tesseramento/pagamento/{{ member.id }}">Vai al pagamento</a>
-            <form method="post" action="/area-tesserati/logout">
-              <button class="btn btn-secondary" type="submit">Esci</button>
-            </form>
           </div>
-        {% else %}
-          <p class="muted">
-            Bentornato/a {{ member.first_name or member.name }}. Qui puoi recuperare documenti, certificato e ricevute.
-            Se vuoi modificare i dati o rigenerare la password contatta la segreteria.
-          </p>
+        </article>
+      {% else %}
+        <div class="card-grid card-grid--tight">
+          <article class="card stat-card">
+            <h3>Tessera</h3>
+            <p class="stat-card__value">{{ member.sport_type or "—" }}</p>
+            <dl class="kv">
+              <dt>Tipologia</dt>
+              <dd>{{ member.membership_type }}</dd>
+              {% if member.document_id %}
+                <dt>Codice</dt>
+                <dd>{{ member.document_id }}</dd>
+              {% endif %}
+              {% if membership_fee %}
+                <dt>Quota</dt>
+                <dd>{{ membership_fee }} &euro;</dd>
+              {% endif %}
+            </dl>
+          </article>
 
-          <div class="card-grid">
-            <div class="card">
-              <h3>Profilo</h3>
-              <p><strong>Email:</strong> {{ member.email }}</p>
-              <p><strong>Telefono:</strong> {{ member.phone or "-" }}</p>
-              <p><strong>Tipologia tessera:</strong> {{ member.membership_type }}</p>
-              <p><strong>Disciplina:</strong> {{ member.sport_type or "-" }}</p>
-              <p><strong>Quota:</strong> {{ membership_fee }} ? via Nexi/XPay</p>
-            </div>
-            <div class="card">
-              <h3>Credenziali</h3>
-              <p>Password generata: <strong>{{ member.access_code or "-" }}</strong></p>
-              <p class="muted">La password ? richiesta per rientrare qui e scaricare i tuoi file.</p>
-            </div>
-          </div>
+          <article class="card stat-card">
+            <h3>Certificato medico</h3>
+            {% if member.medical_certificate_expiry %}
+              <p class="stat-card__value">{{ member.medical_certificate_expiry.strftime('%d/%m/%Y') }}</p>
+              {% if medical_days_left < 0 %}
+                <span class="doc-badge doc-badge--bad">Scaduto</span>
+              {% elif medical_days_left <= 30 %}
+                <span class="doc-badge doc-badge--warn">
+                  {% if medical_days_left == 0 %}Scade oggi{% elif medical_days_left == 1 %}Scade domani{% else %}Scade tra {{ medical_days_left }} giorni{% endif %}
+                </span>
+              {% else %}
+                <span class="doc-badge doc-badge--ok">Valido</span>
+              {% endif %}
+              {% if medical_days_left <= 30 %}
+                <a class="link" href="#documenti">Carica il nuovo certificato</a>
+              {% endif %}
+            {% else %}
+              <p class="stat-card__value">—</p>
+              <span class="doc-badge doc-badge--warn">Scadenza non indicata</span>
+              <a class="link" href="#dati">Aggiungi la scadenza</a>
+            {% endif %}
+          </article>
 
-          {% if wattlab_info %}
-          <div class="card" id="wattlab">
-            <h3>Lupo Ammaro</h3>
+          <article class="card stat-card">
+            <h3>Documenti</h3>
+            <p class="stat-card__value">
+              {{ documents_summary.total }} {{ "caricato" if documents_summary.total == 1 else "caricati" }}
+            </p>
+            {% if documents_summary.total %}
+              <p class="small muted">
+                {{ documents_summary.valid }} {{ "valido" if documents_summary.valid == 1 else "validi" }}
+                {% if documents_summary.invalid %}
+                  &middot; {{ documents_summary.invalid }} {{ "non valido" if documents_summary.invalid == 1 else "non validi" }}
+                {% endif %}
+              </p>
+            {% endif %}
+            <a class="link" href="#documenti">Vedi e carica documenti</a>
+          </article>
+        </div>
+      {% endif %}
+    </section>
+
+    {% if member.payment_status == "paid" %}
+      {% if wattlab_info %}
+        <section class="section" id="wattlab">
+          <article class="card card--accent">
+            <h2>Lupo Ammaro</h2>
             <p class="muted">
-              Sul telefono apri coach e calendario. Sul PC scarica l&apos;app per il rullo.
-              In entrambi i casi usi le stesse credenziali dell&apos;area tesserati.
+              Sul telefono apri coach e calendario, sul PC scarica l'app per il rullo.
+              In entrambi i casi entri con le stesse credenziali dell'area tesserati.
             </p>
-            <p>
+            <div class="hero__actions">
               <a class="btn btn-primary" href="/lupo/">Apri sul telefono</a>
-            </p>
+              {% if wattlab_info.available %}
+                <a class="btn btn-secondary" href="/area-tesserati/wattlab/download">Scarica per Windows</a>
+              {% endif %}
+            </div>
             {% if wattlab_info.available %}
               <dl class="wattlab-meta">
                 <dt>Versione</dt>
@@ -71,21 +130,118 @@
                 <dt>Dimensione</dt>
                 <dd>{{ wattlab_info.sizeLabel }}</dd>
               </dl>
-              <a class="btn btn-primary" href="/area-tesserati/wattlab/download">
-                Scarica Lupo Ammaro per Windows
-              </a>
             {% else %}
-              <p class="alert">
-                L&apos;installer sar&agrave; disponibile a breve. Contatta la segreteria se ti serve subito.
+              <p class="muted small">
+                L'app per Windows sarà disponibile a breve. Contatta la segreteria se ti serve subito.
               </p>
             {% endif %}
-          </div>
-          {% endif %}
+          </article>
+        </section>
+      {% endif %}
 
-          <div class="card">
-            <h3>Aggiorna i tuoi dati</h3>
-            <p class="muted">
-              Puoi modificare i tuoi dati anagrafici e di contatto. Se cambi email userai quella per il login.
+      <section class="section" id="documenti">
+        <header class="section__header">
+          <h2>Documenti</h2>
+          <p>Carta d'identità, tessera sanitaria e certificato medico.</p>
+        </header>
+        <div class="split">
+          <article class="card">
+            <h3>Caricati</h3>
+            {% if documents %}
+              <ul class="document-list">
+                {% for doc in documents %}
+                  <li
+                    data-document-id="{{ doc.id }}"
+                    {% if doc.ocr_status == 'pending' or doc.id in pending_doc_ids %}data-ocr-pending="1"{% endif %}
+                  >
+                    <a href="/tesseramento/documenti/{{ doc.id }}">{{ doc.original_name }}</a>
+                    <span class="document-list__meta">
+                      {{ doc.document_category or "Documento" }}
+                      {% if doc.uploaded_at %}&middot; {{ doc.uploaded_at.strftime('%d/%m/%Y') }}{% endif %}
+                    </span>
+                    {% if doc.ocr_status == 'done' %}
+                      <span class="doc-badge doc-badge--{{ 'ok' if doc.ocr_valid else 'warn' if doc.ocr_valid is none else 'bad' }}" data-doc-status="1">
+                        {{ 'Valido' if doc.ocr_valid else 'Non verificabile' if doc.ocr_valid is none else 'Non valido' }}
+                      </span>
+                    {% elif doc.ocr_status == 'pending' or doc.id in pending_doc_ids %}
+                      <span class="doc-badge doc-badge--pending" data-doc-status="1">Verifica in corso...</span>
+                    {% elif doc.ocr_status == 'failed' %}
+                      <span class="doc-badge doc-badge--warn" data-doc-status="1">Non verificabile</span>
+                    {% endif %}
+                  </li>
+                {% endfor %}
+              </ul>
+            {% else %}
+              <p class="muted">
+                Nessun documento al momento. Carica carta d'identità, tessera sanitaria e certificato medico
+                con il modulo qui accanto.
+              </p>
+            {% endif %}
+          </article>
+
+          <article class="card">
+            <h3>Carica nuovi documenti</h3>
+            <p class="muted small">
+              Puoi aggiungerli quando vuoi, per esempio il certificato medico rinnovato. Formati: PDF, JPG, PNG, Word.
+            </p>
+            <form
+              method="post"
+              action="/area-tesserati/documenti"
+              enctype="multipart/form-data"
+              class="form"
+              data-doc-validation
+              data-first-name-field="profile_first_name"
+              data-last-name-field="profile_last_name"
+              data-cf-field="profile_codice_fiscale"
+              data-doc-number-field="profile_document_number"
+              data-medical-expiry-field="profile_medical_certificate_expiry"
+              data-sport-type="{{ member.sport_type or '' }}"
+            >
+              <label for="extra_identity_documents">Carta d'identità / Passaporto</label>
+              <input
+                id="extra_identity_documents"
+                name="identity_documents"
+                type="file"
+                accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                multiple
+              />
+              <div class="doc-validation" data-for="extra_identity_documents"></div>
+
+              <label for="extra_health_documents">Tessera sanitaria</label>
+              <input
+                id="extra_health_documents"
+                name="health_documents"
+                type="file"
+                accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                multiple
+              />
+              <div class="doc-validation" data-for="extra_health_documents"></div>
+
+              <label for="extra_medical_documents">Certificato medico agonistico (1 per disciplina)</label>
+              <input
+                id="extra_medical_documents"
+                name="medical_documents"
+                type="file"
+                accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                multiple
+              />
+              <div class="doc-validation" data-for="extra_medical_documents"></div>
+              <button class="btn btn-primary" type="submit" data-doc-submit>Carica documenti</button>
+            </form>
+          </article>
+        </div>
+      </section>
+
+      <section class="section" id="dati">
+        <header class="section__header">
+          <h2>Il tuo profilo</h2>
+        </header>
+
+        <details class="disclosure">
+          <summary>Modifica i tuoi dati</summary>
+          <div class="disclosure__body">
+            <p class="muted small">
+              Puoi aggiornare dati anagrafici e di contatto. Se cambi email, userai la nuova per il login.
             </p>
             <form method="post" action="/area-tesserati/profilo" class="form">
               <div class="form-grid">
@@ -111,23 +267,28 @@
                 </div>
               </div>
 
-              <label for="profile_email">Email</label>
-              <input
-                id="profile_email"
-                name="email"
-                type="email"
-                value="{{ member.email }}"
-                required
-              />
-
-              <label for="profile_phone">Telefono</label>
-              <input
-                id="profile_phone"
-                name="phone"
-                type="tel"
-                value="{{ member.phone or '' }}"
-                required
-              />
+              <div class="form-grid">
+                <div>
+                  <label for="profile_email">Email</label>
+                  <input
+                    id="profile_email"
+                    name="email"
+                    type="email"
+                    value="{{ member.email }}"
+                    required
+                  />
+                </div>
+                <div>
+                  <label for="profile_phone">Telefono</label>
+                  <input
+                    id="profile_phone"
+                    name="phone"
+                    type="tel"
+                    value="{{ member.phone or '' }}"
+                    required
+                  />
+                </div>
+              </div>
 
               <div class="form-grid">
                 <div>
@@ -223,136 +384,85 @@
               <button class="btn btn-primary" type="submit">Salva modifiche</button>
             </form>
           </div>
+        </details>
 
-          <h2>Documenti caricati</h2>
-          {% if documents %}
-            <ul class="document-list">
-              {% for doc in documents %}
-                <li
-                  data-document-id="{{ doc.id }}"
-                  {% if doc.ocr_status == 'pending' or doc.id in pending_doc_ids %}data-ocr-pending="1"{% endif %}
-                >
-                  <a href="/tesseramento/documenti/{{ doc.id }}">{{ doc.original_name }}</a>
-                  <span class="muted">
-                    {{ doc.document_category or "Documento" }} - caricato il {{ doc.uploaded_at.strftime('%d/%m/%Y') }}
-                  </span>
-                  {% if doc.ocr_status == 'done' %}
-                    <span class="doc-badge doc-badge--{{ 'ok' if doc.ocr_valid else 'warn' if doc.ocr_valid is none else 'bad' }}" data-doc-status="1">
-                      {{ 'Valido' if doc.ocr_valid else 'Non verificabile' if doc.ocr_valid is none else 'Non valido' }}
-                    </span>
-                  {% elif doc.ocr_status == 'pending' or doc.id in pending_doc_ids %}
-                    <span class="doc-badge doc-badge--pending" data-doc-status="1">Verifica in corso...</span>
-                  {% elif doc.ocr_status == 'failed' %}
-                    <span class="doc-badge doc-badge--warn" data-doc-status="1">Non verificabile</span>
-                  {% endif %}
-                </li>
-              {% endfor %}
-            </ul>
-          {% else %}
-            <p class="muted">
-              Nessun documento al momento. Carica carta d'identit&agrave;, tessera sanitaria e certificato medico dal form.
+        <details class="disclosure">
+          <summary>Credenziali di accesso</summary>
+          <div class="disclosure__body">
+            <dl class="kv">
+              <dt>Email</dt>
+              <dd>{{ member.email }}</dd>
+              <dt>Password</dt>
+              <dd>{% if member.access_code %}<span class="secret">{{ member.access_code }}</span>{% else %}—{% endif %}</dd>
+            </dl>
+            <p class="muted small">
+              Le stesse credenziali valgono per l'area tesserati e per Lupo Ammaro.
+              Per rigenerare la password contatta la segreteria.
             </p>
+          </div>
+        </details>
+      </section>
+    {% endif %}
+  {% else %}
+    <section class="section">
+      <header class="section__header">
+        <h1>Area tesserati</h1>
+        <p>Documenti, certificato medico e Lupo Ammaro per i soci Amaro.</p>
+      </header>
+
+      {% if login_error or reset_notice %}
+        <div class="member-notices">
+          {% if login_error %}
+            <p class="alert">{{ login_error }}</p>
           {% endif %}
-
-          <div class="card">
-            <h3>Carica altri documenti</h3>
-            <p class="muted">
-              Puoi aggiungere nuovi documenti quando vuoi (certificato medico, carta d'identita, tessera, ecc.).
-            </p>
-            <form
-              method="post"
-              action="/area-tesserati/documenti"
-              enctype="multipart/form-data"
-              class="form"
-              data-doc-validation
-              data-first-name-field="profile_first_name"
-              data-last-name-field="profile_last_name"
-              data-cf-field="profile_codice_fiscale"
-              data-doc-number-field="profile_document_number"
-              data-medical-expiry-field="profile_medical_certificate_expiry"
-              data-sport-type="{{ member.sport_type or '' }}"
-            >
-              <label for="extra_identity_documents">Carta d'identit&agrave; / Passaporto</label>
-              <input
-                id="extra_identity_documents"
-                name="identity_documents"
-                type="file"
-                accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
-                multiple
-              />
-              <div class="doc-validation" data-for="extra_identity_documents"></div>
-
-              <label for="extra_health_documents">Tessera sanitaria</label>
-              <input
-                id="extra_health_documents"
-                name="health_documents"
-                type="file"
-                accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
-                multiple
-              />
-              <div class="doc-validation" data-for="extra_health_documents"></div>
-
-              <label for="extra_medical_documents">Certificato Medico Agonistico (1 per disciplina scelta)</label>
-              <input
-                id="extra_medical_documents"
-                name="medical_documents"
-                type="file"
-                accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
-                multiple
-              />
-              <div class="doc-validation" data-for="extra_medical_documents"></div>
-              <button class="btn btn-primary" type="submit" data-doc-submit>Carica documenti</button>
-            </form>
-          </div>
-
-          <div class="hero__actions">
-            <form method="post" action="/area-tesserati/logout">
-              <button class="btn btn-secondary" type="submit">Esci</button>
-            </form>
-          </div>
-        {% endif %}
-      {% else %}
-        {% if login_error %}
-          <p class="alert">{{ login_error }}</p>
-        {% endif %}
-        {% if reset_notice %}
-          <p class="alert alert--success">{{ reset_notice }}</p>
-        {% endif %}
-        <div class="hero__actions">
-          <a class="btn btn-primary" href="#login-form">Accedi</a>
-          <a class="btn btn-secondary" href="/tesseramento">Tesserati</a>
+          {% if reset_notice %}
+            <p class="alert alert--success">{{ reset_notice }}</p>
+          {% endif %}
         </div>
-        <p class="muted">
-          Accedi con l'email usata per il tesseramento e la password che ti abbiamo consegnato dopo il pagamento.
-        </p>
-        <form id="login-form" action="/area-tesserati/login" method="post" class="form">
-          <label for="login_email">Email</label>
-          <input id="login_email" name="email" type="email" placeholder="maria@esempio.com" required />
-
-          <label for="login_password">Password area tesserati</label>
-          <input id="login_password" name="password" type="password" required />
-
-          <button class="btn btn-primary" type="submit">Entra</button>
-        </form>
-        {% if password_reset_enabled %}
-          <div class="card">
-            <h3>Password dimenticata?</h3>
-            <p class="muted">Ti inviamo un link per reimpostarla via email. Disponibile solo dopo il pagamento.</p>
-            <form action="/area-tesserati/password-reset/request" method="post" class="form">
-              <label for="reset_email">Email</label>
-              <input id="reset_email" name="email" type="email" placeholder="maria@esempio.com" required />
-              <button class="btn btn-secondary" type="submit">Invia link reset</button>
-            </form>
-          </div>
-        {% endif %}
-        <p class="muted">
-          Non hai ancora una password? Compila il tesseramento ({{ membership_fee_range }} ?) e carica carta d'identit&agrave;,
-          tessera sanitaria e certificato medico:
-          genereremo le credenziali dopo il pagamento.
-        </p>
       {% endif %}
-    </article>
-  </section>
+
+      <div class="split">
+        <article class="card card--accent">
+          <h2>Accedi</h2>
+          <p class="muted small">
+            Usa l'email del tesseramento e la password che ti abbiamo dato dopo il pagamento.
+          </p>
+          <form id="login-form" action="/area-tesserati/login" method="post" class="form">
+            <label for="login_email">Email</label>
+            <input id="login_email" name="email" type="email" placeholder="maria@esempio.com" autocomplete="email" required />
+
+            <label for="login_password">Password</label>
+            <input id="login_password" name="password" type="password" autocomplete="current-password" required />
+
+            <button class="btn btn-primary" type="submit">Entra</button>
+          </form>
+
+          {% if password_reset_enabled %}
+            <details class="disclosure disclosure--inline">
+              <summary>Password dimenticata?</summary>
+              <div class="disclosure__body">
+                <p class="muted small">Ti mandiamo via email un link per reimpostarla (solo dopo il pagamento).</p>
+                <form action="/area-tesserati/password-reset/request" method="post" class="form">
+                  <label for="reset_email">Email</label>
+                  <input id="reset_email" name="email" type="email" placeholder="maria@esempio.com" autocomplete="email" required />
+                  <button class="btn btn-secondary" type="submit">Invia link</button>
+                </form>
+              </div>
+            </details>
+          {% endif %}
+        </article>
+
+        <article class="card">
+          <h2>Non sei ancora tesserato?</h2>
+          <p>
+            Scegli la disciplina e paga la quota ({{ membership_fee_range }} &euro;), poi carica carta d'identità,
+            tessera sanitaria e certificato medico. Dopo il pagamento ricevi le credenziali per entrare qui.
+          </p>
+          <a class="btn btn-secondary" href="/tesseramento">Vai al tesseramento</a>
+        </article>
+      </div>
+    </section>
+  {% endif %}
   {% if pending_doc_ids %}
     <script>
       document.body.dataset.pendingDocIds = {{ pending_doc_ids | tojson }};

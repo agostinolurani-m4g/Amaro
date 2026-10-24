@@ -1,5 +1,7 @@
 {% extends "base.html" %}
 
+{% block title %}Tesseramento · {{ settings.app_name }}{% endblock %}
+
 {% block content %}
   <section class="section">
     <article class="card card--spacious">
@@ -9,7 +11,7 @@
           Pagamento registrato. Completa i dati per finalizzare il tesseramento.
         </p>
       {% endif %}
-      <p class="muted">
+      <p class="muted prose">
         La quota annuale varia in base alla disciplina ({{ membership_fee_range }} &euro;):
         {% for option in sport_types %}
           <strong>{{ option }}</strong> {{ sport_type_fees[option] }} &euro;{% if not loop.last %} / {% endif %}
@@ -27,84 +29,90 @@
         data-doc-validation
       >
         <input type="hidden" name="payment_reference" value="{{ payment_reference }}" />
-        <div class="form-grid">
-          <div>
-            <label for="first_name">Nome</label>
-            <input id="first_name" name="first_name" type="text" placeholder="Maria" required />
+        <fieldset class="fieldset">
+          <legend>Dati personali</legend>
+          <div class="form-grid">
+            <div>
+              <label for="first_name">Nome</label>
+              <input id="first_name" name="first_name" type="text" placeholder="Maria" required />
+            </div>
+            <div>
+              <label for="last_name">Cognome</label>
+              <input id="last_name" name="last_name" type="text" placeholder="Rossi" required />
+            </div>
           </div>
-          <div>
-            <label for="last_name">Cognome</label>
-            <input id="last_name" name="last_name" type="text" placeholder="Rossi" required />
+
+          <label for="email">Email</label>
+          <input
+            id="email"
+            name="email"
+            type="email"
+            placeholder="maria@esempio.com"
+            value="{{ prefill_email or '' }}"
+            required
+          />
+
+          <label for="phone">Telefono</label>
+          <input id="phone" name="phone" type="tel" placeholder="+39 333 1234567" required />
+
+          <div class="form-grid">
+            <div>
+              <label for="birth_date">Data di nascita</label>
+              <input id="birth_date" name="birth_date" type="date" required />
+            </div>
+            <div>
+              <label for="birth_place">Luogo di nascita</label>
+              <input id="birth_place" name="birth_place" type="text" placeholder="Udine" required />
+            </div>
           </div>
-        </div>
 
-        <label for="email">Email</label>
-        <input
-          id="email"
-          name="email"
-          type="email"
-          placeholder="maria@esempio.com"
-          value="{{ prefill_email or '' }}"
-          required
-        />
-
-        <label for="phone">Telefono</label>
-        <input id="phone" name="phone" type="tel" placeholder="+39 333 1234567" required />
-
-        <div class="form-grid">
-          <div>
-            <label for="birth_date">Data di nascita</label>
-            <input id="birth_date" name="birth_date" type="date" required />
+          <div class="form-grid">
+            <div>
+              <label for="residence">Residenza</label>
+              <input id="residence" name="residence" type="text" placeholder="Via Roma 1, Amaro" required />
+            </div>
+            <div>
+              <label for="codice_fiscale">Codice fiscale</label>
+              <input id="codice_fiscale" name="codice_fiscale" type="text" placeholder="RSSMRA80A01H501U" required />
+            </div>
           </div>
-          <div>
-            <label for="birth_place">Luogo di nascita</label>
-            <input id="birth_place" name="birth_place" type="text" placeholder="Udine" required />
-          </div>
-        </div>
+        </fieldset>
 
-        <div class="form-grid">
-          <div>
-            <label for="residence">Residenza</label>
-            <input id="residence" name="residence" type="text" placeholder="Via Roma 1, Amaro" required />
+        <fieldset class="fieldset">
+          <legend>Documento e tessera</legend>
+          <div class="form-grid">
+            <div>
+              <label for="document_type">Tipo documento (CI/Passaporto)</label>
+              <input id="document_type" name="document_type" type="text" placeholder="Carta d'identit&agrave;" required />
+            </div>
+            <div>
+              <label for="document_number">Numero documento</label>
+              <input id="document_number" name="document_number" type="text" required />
+            </div>
           </div>
-          <div>
-            <label for="codice_fiscale">Codice fiscale</label>
-            <input id="codice_fiscale" name="codice_fiscale" type="text" placeholder="RSSMRA80A01H501U" required />
+
+          <div class="form-grid">
+            <div>
+              <label for="document_id">Codice tessera (se gi&agrave; assegnato)</label>
+              <input id="document_id" name="document_id" type="text" />
+            </div>
+            <div>
+              <label for="medical_certificate_expiry">Scadenza certificato medico</label>
+              <input id="medical_certificate_expiry" name="medical_certificate_expiry" type="date" required />
+            </div>
           </div>
-        </div>
 
-        <div class="form-grid">
-          <div>
-            <label for="document_type">Tipo documento (CI/Passaporto)</label>
-            <input id="document_type" name="document_type" type="text" placeholder="Carta d'identit&agrave;" required />
-          </div>
-          <div>
-            <label for="document_number">Numero documento</label>
-            <input id="document_number" name="document_number" type="text" required />
-          </div>
-        </div>
-
-        <div class="form-grid">
-          <div>
-            <label for="document_id">Codice tessera (se gi&agrave; assegnato)</label>
-            <input id="document_id" name="document_id" type="text" />
-          </div>
-        </div>
-
-        <label for="medical_certificate_expiry">Scadenza certificato medico</label>
-        <input id="medical_certificate_expiry" name="medical_certificate_expiry" type="date" required />
-
-        <input type="hidden" name="membership_type" value="Socio ordinario" />
-
-        <label>Disciplina</label>
-        <p class="muted"><strong>{{ selected_sport_type }}</strong></p>
-        <input type="hidden" name="sport_type" value="{{ selected_sport_type }}" />
+          <input type="hidden" name="membership_type" value="Socio ordinario" />
+          <input type="hidden" name="sport_type" value="{{ selected_sport_type }}" />
+          <p class="small"><span class="muted">Disciplina:</span> <strong>{{ selected_sport_type }}</strong></p>
+        </fieldset>
 
         <label for="message">Hai qualcosa da raccontarci?</label>
         <textarea id="message" name="message" rows="3" placeholder="Quali progetti ti interessano?"></textarea>
 
-        <div class="card">
-          <h3>Documenti richiesti</h3>
+        <fieldset class="fieldset">
+          <legend>Documenti richiesti</legend>
+          <p class="muted small">PDF, JPG, PNG o Word. Puoi selezionare più file per ogni voce.</p>
           <label for="identity_documents">Carta d'identit&agrave; / Passaporto</label>
           <input
             id="identity_documents"
@@ -137,13 +145,12 @@
             required
           />
           <div class="doc-validation" data-for="medical_documents"></div>
-        </div>
+        </fieldset>
 
         <button class="btn btn-primary" type="submit" data-doc-submit>Invia dati e completa il tesseramento</button>
       </form>
-      <p class="muted">
-        Gli allegati vengono salvati nella cartella {{ uploads_path }}. Dopo l'invio riceverai la password per
-        l'area tesserati, dove potrai cercare e scaricare i tuoi documenti.
+      <p class="muted small">
+        Dopo l'invio riceverai la password per l'area tesserati, dove potrai consultare e scaricare i tuoi documenti.
       </p>
     </article>
   </section>

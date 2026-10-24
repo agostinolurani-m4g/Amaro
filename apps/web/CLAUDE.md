@@ -9,7 +9,7 @@ Config: `app/config.py` (pydantic settings, tutte da env). DB: `app/database.py`
 |---|---|
 | `main.py` | Home, eventi (`/eventi/{slug}`, iscrizione, lista attesa, GPX), merch, calendario, tesseramento (`/tesseramento*`), area soci (`/area-tesserati*`), documenti, mount `/static` e `/lupo` |
 | `models.py` | Modelli SQLAlchemy (eventi, merch, soci, documenti, iscrizioni, M4G…) |
-| `nexi.py` | Firma payload Nexi/XPay (pagamenti) |
+| `nexi.py` | Firma payload Nexi/XPay (pagamenti) + verifica MAC esito; `urlpost` opzionale (usato solo dai tesseramenti → `POST /nexi/notifica` in `main.py`) |
 | `ocr.py` | Validazione documenti con Google Cloud Vision (REST) |
 | `acsi.py` | Excel ACSI + invio email automatico al tesseramento completo |
 | `admin.py` + `admin_templates/` | Pannello `/admin` (sqladmin) |

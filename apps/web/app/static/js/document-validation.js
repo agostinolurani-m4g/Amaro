@@ -15,7 +15,7 @@
   }
 
   const MANUAL_REVIEW_HINT =
-    "Puoi ricaricare un file corretto oppure usare il pulsante Invia per verifica manuale.";
+    "Puoi ricaricare un file più leggibile oppure inviare comunque: lo verificheremo a mano.";
 
   function renderResult(container, result) {
     const badgeClassName = badgeClass(result.valid);
@@ -33,9 +33,12 @@
   }
 
   function renderMessage(container, message, kind) {
-    const badgeClassName = kind === "error" ? "doc-badge--bad" : "doc-badge--pending";
+    const badgeClassName =
+      kind === "error" ? "doc-badge--bad" : kind === "warn" ? "doc-badge--warn" : "doc-badge--pending";
     container.innerHTML = `<span class="doc-badge ${badgeClassName}">${escapeHtml(message)}</span>`;
     container.dataset.valid = kind === "error" ? "false" : "";
+    // "precheck": file scelto prima di compilare i campi; si rivaluta quando i campi cambiano
+    container.dataset.precheck = kind === "warn" ? "1" : "";
   }
 
   function escapeHtml(value) {
@@ -107,6 +110,7 @@
     }
 
     renderMessage(container, "Verifica in corso...", "pending");
+    container.dataset.validating = "1";
 
     const body = new FormData();
     body.append("file", file);
@@ -126,6 +130,7 @@
         body,
       });
       const payload = await response.json().catch(() => ({}));
+      container.dataset.validating = "";
       if (!response.ok) {
         renderMessage(container, payload.detail || "Verifica non riuscita.", "error");
         updateFormManualReviewState(form);
@@ -134,84 +139,53 @@
       renderResult(container, payload);
       updateFormManualReviewState(form);
     } catch (_error) {
+      container.dataset.validating = "";
       renderMessage(container, "Errore di rete durante la verifica.", "error");
       updateFormManualReviewState(form);
     }
   }
 
   function ensureManualReviewUi(form) {
-    const submitBtn = form.querySelector("[data-doc-submit]");
-    const anchor = submitBtn || null;
-
     let banner = form.querySelector(".doc-validation__proceed-banner");
     if (!banner) {
       banner = document.createElement("p");
-      banner.className = "alert doc-validation__proceed-banner";
+      banner.className = "alert alert--warn doc-validation__proceed-banner";
       banner.hidden = true;
-      if (anchor) {
-        form.insertBefore(banner, anchor);
+      const submitBtn = form.querySelector("[data-doc-submit]");
+      if (submitBtn) {
+        form.insertBefore(banner, submitBtn);
       } else {
         form.appendChild(banner);
       }
     }
-
-    let manualBtn = form.querySelector("[data-manual-review-submit]");
-    if (!manualBtn) {
-      manualBtn = document.createElement("button");
-      manualBtn.type = "button";
-      manualBtn.className = "btn btn-secondary";
-      manualBtn.dataset.manualReviewSubmit = "1";
-      manualBtn.textContent = "Invia per verifica manuale";
-      manualBtn.hidden = true;
-      manualBtn.addEventListener("click", () => {
-        let input = form.querySelector("input[name='request_manual_review']");
-        if (!input) {
-          input = document.createElement("input");
-          input.type = "hidden";
-          input.name = "request_manual_review";
-          form.appendChild(input);
-        }
-        input.value = "1";
-        if (typeof form.requestSubmit === "function") {
-          form.requestSubmit();
-        } else {
-          form.submit();
-        }
-      });
-      if (anchor) {
-        form.insertBefore(manualBtn, anchor);
-      } else {
-        form.appendChild(manualBtn);
-      }
-    }
-
-    return { banner, manualBtn };
+    return { banner };
   }
 
+  // L'OCR non blocca mai l'invio: se un documento non passa la verifica automatica
+  // il modulo parte comunque segnato per verifica manuale e la segreteria riceve
+  // via email tutti i documenti.
   function updateFormManualReviewState(form) {
-    const invalidContainers = form.querySelectorAll(".doc-validation[data-valid='false']");
-    const hasInvalid = invalidContainers.length > 0;
-    const submitBtn = form.querySelector("[data-doc-submit]");
-    const { banner, manualBtn } = ensureManualReviewUi(form);
+    const hasInvalid = form.querySelectorAll(".doc-validation[data-valid='false']").length > 0;
+    const { banner } = ensureManualReviewUi(form);
+    let input = form.querySelector("input[name='request_manual_review']");
 
     if (hasInvalid) {
-      if (submitBtn) {
-        submitBtn.hidden = true;
-      }
       banner.hidden = false;
       banner.textContent =
-        "Alcuni documenti richiederanno verifica manuale: la pratica non sara automatica e i tempi saranno piu lunghi. Puoi ricaricare i file corretti oppure inviare per verifica manuale.";
-      manualBtn.hidden = false;
-      form.querySelector("input[name='request_manual_review']")?.remove();
+        "Alcuni documenti non hanno superato la verifica automatica. Puoi ricaricare un file " +
+        "più leggibile oppure inviare comunque: li controlleremo a mano (i tempi saranno un po' più lunghi).";
+      if (!input) {
+        input = document.createElement("input");
+        input.type = "hidden";
+        input.name = "request_manual_review";
+        form.appendChild(input);
+      }
+      input.value = "1";
       return;
     }
 
-    if (submitBtn) {
-      submitBtn.hidden = false;
-    }
     banner.hidden = true;
-    manualBtn.hidden = true;
-    form.querySelector("input[name='request_manual_review']")?.remove();
+    input?.remove();
   }
 
   function initForm(form) {
@@ -232,21 +206,60 @@
       });
     });
 
+    // se un file era stato scelto prima di compilare nome/CF/scadenza, rifai la verifica
+    const contextIds = [
+      form.dataset.firstNameField || "first_name",
+      form.dataset.lastNameField || "last_name",
+      form.dataset.cfField || "codice_fiscale",
+      form.dataset.medicalExpiryField || "medical_certificate_expiry",
+    ];
+    contextIds.forEach((id) => {
+      const field = document.getElementById(id);
+      if (!field) return;
+      field.addEventListener("change", () => {
+        inputs.forEach((input) => {
+          const container = form.querySelector(`.doc-validation[data-for='${input.id}']`);
+          if (container && container.dataset.precheck === "1") {
+            validateFile(input, form, container);
+          }
+        });
+      });
+    });
+
     ensureManualReviewUi(form);
     updateFormManualReviewState(form);
 
     form.addEventListener("submit", (event) => {
-      const invalidContainers = form.querySelectorAll(".doc-validation[data-valid='false']");
-      const manualReview = form.querySelector("input[name='request_manual_review']");
-      if (invalidContainers.length && !manualReview) {
+      const validating = form.querySelector(".doc-validation[data-validating='1']");
+      if (validating) {
+        event.preventDefault();
+        window.alert("Attendi il termine della verifica documenti.");
+        return;
+      }
+      // evita il doppio invio (upload lenti da telefono)
+      if (form.dataset.submitting === "1") {
         event.preventDefault();
         return;
       }
-      const pending = form.querySelector(".doc-validation .doc-badge--pending");
-      if (pending) {
-        event.preventDefault();
-        window.alert("Attendi il termine della verifica documenti.");
+      form.dataset.submitting = "1";
+      form.querySelectorAll("button[type='submit']").forEach((btn) => {
+        btn.disabled = true;
+      });
+      const submitBtn = form.querySelector("[data-doc-submit]");
+      if (submitBtn) {
+        submitBtn.dataset.label = submitBtn.dataset.label || submitBtn.textContent;
+        submitBtn.textContent = "Invio in corso, non chiudere la pagina...";
       }
+    });
+
+    // tornando indietro col browser il form deve essere di nuovo inviabile
+    window.addEventListener("pageshow", () => {
+      form.dataset.submitting = "";
+      form.querySelectorAll("button[type='submit']").forEach((btn) => {
+        btn.disabled = false;
+      });
+      const submitBtn = form.querySelector("[data-doc-submit]");
+      if (submitBtn && submitBtn.dataset.label) submitBtn.textContent = submitBtn.dataset.label;
     });
   }
 

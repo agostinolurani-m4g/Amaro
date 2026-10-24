@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any
+from typing import Any, Mapping
 import hashlib
+import hmac
 
 
 @dataclass(frozen=True)
@@ -49,13 +50,15 @@ class NexiXpayClient:
         email: str | None = None,
         success_url: str | None = None,
         failure_url: str | None = None,
+        notify_url: str | None = None,
     ) -> NexiPaymentContext:
         """
         Costruisce i parametri per il flusso Nexi/XPay verso DispatcherServlet.
 
         amount_cents: importo in centesimi (5000 = 50,00 EUR).
         order_id: usato come codTrans.
-        description, email: accettati per compatibilitA , non usati direttamente.
+        description, email: accettati per compatibilità, non usati direttamente.
+        notify_url: se indicato, Nexi notifica l'esito server-to-server (parametro urlpost).
         """
         if amount_cents <= 0:
             raise ValueError("Amount must be greater than zero")
@@ -79,7 +82,21 @@ class NexiXpayClient:
         }
         if email:
             payload["mail"] = email
+        if notify_url:
+            payload["urlpost"] = notify_url
 
         redirect_url = self.endpoint
         return NexiPaymentContext(payload=payload, redirect_url=redirect_url)
+
+    def result_mac(self, params: Mapping[str, Any]) -> str:
+        """MAC dell'esito XPay (ritorno e notifica urlpost)."""
+        fields = ("codTrans", "esito", "importo", "divisa", "data", "orario", "codAut")
+        mac_str = "".join(f"{name}={params.get(name, '') or ''}" for name in fields)
+        return hashlib.sha1(f"{mac_str}{self.api_key}".encode("utf-8")).hexdigest()
+
+    def verify_result(self, params: Mapping[str, Any]) -> bool:
+        received = str(params.get("mac") or "").strip().lower()
+        if not received:
+            return False
+        return hmac.compare_digest(received, self.result_mac(params))
 

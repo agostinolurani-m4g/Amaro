@@ -1,5 +1,7 @@
 {% extends "base.html" %}
 
+{% block title %}{{ event.title }} · {{ settings.app_name }}{% endblock %}
+
 {% block content %}
   {% set event_route_gpx = event_route_gpx|default([]) %}
   <section class="section">
@@ -27,12 +29,12 @@
           <span>
             {{ event.location or "In aggiornamento" }}
             {% if event.location_map_url %}
-              <a class="link" href="{{ event.location_map_url }}" target="_blank" rel="noopener" style="font-size:0.85em;margin-left:0.4em;">↗ Maps</a>
+              <a class="link link--small" href="{{ event.location_map_url }}" target="_blank" rel="noopener">↗ Maps</a>
             {% endif %}
           </span>
         </div>
         <div>
-          <span class="event-meta__label">Attivita</span>
+          <span class="event-meta__label">Attività</span>
           <span>{{ event.activity or "In aggiornamento" }}</span>
         </div>
       </div>
@@ -68,14 +70,14 @@
           {% endif %}
         {% endfor %}
         {% if _sponsors %}
-        <div style="margin-top:1.5rem;">
-          <p class="muted" style="margin-bottom:0.5rem;">Con il supporto di</p>
-          <div style="display:flex;flex-wrap:wrap;gap:1rem;align-items:center;">
+        <div class="sponsors">
+          <p class="muted">Con il supporto di</p>
+          <div class="sponsors__list">
             {% for _s in _sponsors %}
               {% if _s.logo %}
-                <img src="{{ _s.logo }}" alt="{{ _s.name }}" title="{{ _s.name }}" style="height:48px;width:auto;object-fit:contain;" />
+                <img src="{{ _s.logo }}" alt="{{ _s.name }}" title="{{ _s.name }}" />
               {% else %}
-                <span style="font-weight:600;">{{ _s.name }}</span>
+                <span>{{ _s.name }}</span>
               {% endif %}
             {% endfor %}
           </div>
@@ -490,7 +492,7 @@
       {% if registration_is_full %}
       <h2>Iscrizioni chiuse</h2>
       {% if registration_block_notice %}
-        <p class="alert">{{ registration_block_notice }}</p>
+        <p class="alert alert--warn">{{ registration_block_notice }}</p>
       {% else %}
         <p class="muted">
           Raggiunto il numero massimo di partecipanti
@@ -663,7 +665,7 @@
               name="lunch_option"
               value="con_pranzo"
               {% if form_values.lunch_option == "con_pranzo" %}checked{% endif %}
-              onchange="document.getElementById('lunch_guests_row').style.display='block'"
+              onchange="document.getElementById('lunch_guests_row').hidden = false"
             />
             Con pranzo
           </label>
@@ -673,7 +675,7 @@
               name="lunch_option"
               value="senza_pranzo"
               {% if form_values.lunch_option == "senza_pranzo" %}checked{% endif %}
-              onchange="document.getElementById('lunch_guests_row').style.display='none'"
+              onchange="document.getElementById('lunch_guests_row').hidden = true"
             />
             Senza pranzo
           </label>
@@ -788,7 +790,7 @@
             {% if use_activities_config and mpol == 'none' %}hidden{% endif %}>
             <label for="medical_certificate">
               Certificato medico{% if mpol == 'required' %} *{% endif %}
-              <span id="medical_cert_label_lungo" style="color:#c0392b;font-weight:600" {% if use_activities_config %}hidden{% elif _rl != 'lungo' or rmode != 'distances' %}hidden{% endif %}> — Certificato medico agonistico obbligatorio *</span>
+              <span id="medical_cert_label_lungo" class="required-note" {% if use_activities_config %}hidden{% elif _rl != 'lungo' or rmode != 'distances' %}hidden{% endif %}> — Certificato medico agonistico obbligatorio *</span>
             </label>
             <input
               id="medical_certificate"
@@ -943,9 +945,9 @@
             {% if event.jersey_image_url_female %}{% set _ = _jersey_imgs.append(event.jersey_image_url_female) %}{% endif %}
           {% endif %}
           {% if _jersey_imgs %}
-          <div style="display:flex;flex-wrap:wrap;gap:0.75rem;justify-content:center;margin-bottom:1rem;">
+          <div class="jersey-photos">
             {% for _img in _jersey_imgs %}
-            <img src="{{ _img }}" alt="Foto maglia {{ loop.index }}" style="height:220px;width:auto;border-radius:4px;object-fit:cover;" />
+            <img src="{{ _img }}" alt="Foto maglia {{ loop.index }}" />
             {% endfor %}
           </div>
           {% endif %}

@@ -2,21 +2,24 @@
 
 {% block content %}
   <section class="hero-photo">
-    <div class="hero-photo__content">
-      <p>
-        Questo nostro tempo e' un tempo balordo, ma ci sono pur sempre le stelle in cielo e le biciclette sulle montagne
-      </p>
-    </div>
     <div class="hero-photo__media">
       <img src="{{ url_for('static', path='img/hero.png') }}" alt="Volontari Amaro in bici" class="hero-photo__img" />
+    </div>
+    <div class="hero-photo__content">
+      <p class="hero-photo__quote">Questo nostro tempo è un tempo balordo, ma ci sono pur sempre le stelle in cielo e le biciclette sulle montagne</p>
+      <div class="hero__actions">
+        <a class="btn btn-primary" href="/tesseramento">Tesserati</a>
+        <a class="btn btn-secondary" href="/calendario">Calendario eventi</a>
+      </div>
     </div>
   </section>
 
   <section class="section" id="calendario">
     <header class="section__header">
       <h2>Calendario</h2>
-      <p>Eventi selezionati in evidenza e calendario del mese corrente.</p>
+      <p>Eventi in evidenza e calendario del mese corrente.</p>
     </header>
+    {% if featured_events %}
     <article class="card">
       <h3>Eventi in evidenza</h3>
       <ul class="calendar-list">
@@ -27,12 +30,13 @@
               <strong>
                 <a class="link" href="/eventi/{{ event.slug }}">{{ event.title }}</a>
               </strong>
-              <span class="muted">{{ event.month }}</span>
+              <span class="muted small">{{ event.month }}</span>
             </div>
           </li>
         {% endfor %}
       </ul>
     </article>
+    {% endif %}
 
     <article class="card calendar-month">
       <div class="calendar-month__header">
@@ -50,7 +54,8 @@
               <div class="calendar-day calendar-day--empty"></div>
             {% else %}
               {% set day_events = calendar_view.events.get(day) %}
-              <div class="calendar-day{% if day_events %} calendar-day--has-event{% endif %}">
+              <div class="calendar-day{% if day_events %} calendar-day--has-event{% endif %}{% if day == calendar_view.today %} calendar-day--today{% endif %}"
+                {% if day_events %}title="{{ day_events | join(', ') }}"{% endif %}>
                 <span class="calendar-day__num">{{ day }}</span>
                 {% if day_events %}
                   <div class="calendar-day__events">
