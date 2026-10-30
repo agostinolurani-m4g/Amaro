@@ -61,8 +61,34 @@ export async function listWorkouts(): Promise<Workout[]> {
   return out;
 }
 
+/** Nel browser il catalogo preset non viene salvato: il sync server unisce per id e non propaga le cancellazioni. */
+async function browserCatalogWorkouts(): Promise<Workout[]> {
+  const stored = await listWorkouts();
+  const out: Workout[] = stored.filter((w) => !w.presetId);
+  for (const preset of PRESET_WORKOUTS) {
+    if (!preset.presetId) continue;
+    const keep = stored.find((w) => w.presetId === preset.presetId);
+    out.push(
+      normalizeWorkout(
+        keep
+          ? {
+              ...keep,
+              name: preset.name,
+              description: preset.description,
+              category: preset.category,
+              executionMode: preset.executionMode,
+              climbProfileId: preset.climbProfileId,
+              blocks: preset.blocks,
+            }
+          : { ...preset, id: `preset-${preset.presetId}` },
+      ),
+    );
+  }
+  return out;
+}
+
 export async function ensurePresetWorkouts(): Promise<Workout[]> {
-  if (!isTauri()) return listWorkouts();
+  if (!isTauri()) return browserCatalogWorkouts();
   const catalogIds = new Set(
     PRESET_WORKOUTS.map((p) => p.presetId).filter((id): id is string => Boolean(id)),
   );

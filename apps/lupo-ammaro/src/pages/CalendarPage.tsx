@@ -4,11 +4,11 @@ import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { formatDuration } from "../lib/workoutEngine";
 import {
   deleteCalendarEntry,
+  ensurePresetWorkouts,
   getProfile,
   importActivityFile,
   importActivityFromPath,
   listCalendar,
-  listWorkouts,
   saveCalendarEntry,
   todayIso,
 } from "../hooks/useStorage";
@@ -24,6 +24,8 @@ import { computePmc, weeklySummary } from "../../shared/engine/load.mjs";
 import { addDaysIso, diffDays, mondayOfIso, WEEKDAY_LABELS } from "../../shared/engine/dates.mjs";
 import type { CalendarEntry, ImportedActivity, LifeBlock, UserProfile, Workout } from "../types";
 import { lifeBlocksForDate, listLifeBlocks } from "../lib/lifeBlockStore";
+import { isTauri } from "../lib/runtime";
+import { openExternalUrl } from "../lib/amaroAuth";
 
 type View = "month" | "week";
 
@@ -109,7 +111,7 @@ export function CalendarPage({ onStartWorkout }: Props) {
   useEffect(() => {
     void collapseStravaDuplicates()
       .catch(() => 0)
-      .then(() => Promise.all([listCalendar(), listWorkouts(), getProfile(), listLifeBlocks()]))
+      .then(() => Promise.all([listCalendar(), ensurePresetWorkouts(), getProfile(), listLifeBlocks()]))
       .then(([cal, wos, prof, blocks]) => {
         setEntries(cal);
         setWorkouts(wos);
@@ -122,6 +124,7 @@ export function CalendarPage({ onStartWorkout }: Props) {
   }, []);
 
   useEffect(() => {
+    if (!isTauri()) return;
     let unlisten: (() => void) | undefined;
     void getCurrentWebview()
       .onDragDropEvent((event) => {
@@ -509,7 +512,7 @@ export function CalendarPage({ onStartWorkout }: Props) {
                     {entry.externalSource === "strava" && entry.externalId ? (
                       <>
                         {" · "}
-                        <button type="button" className="rich-text__link" onClick={() => void import("@tauri-apps/plugin-opener").then((m) => m.openUrl(`https://www.strava.com/activities/${entry.externalId}`))}>
+                        <button type="button" className="rich-text__link" onClick={() => void openExternalUrl(`https://www.strava.com/activities/${entry.externalId}`)}>
                           Strava
                         </button>
                       </>
