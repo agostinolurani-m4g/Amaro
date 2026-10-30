@@ -1,6 +1,6 @@
 # apps/lupo-ammaro — Lupo Ammaro (ex WattLab)
 
-App di allenamento ciclismo per i tesserati: rulli smart via BLE (FTMS), workout ERG, calendario/piano, coach AI, bike fit da video, classifica.
+App di allenamento ciclismo per i tesserati: rulli smart via BLE (FTMS), workout ERG, calendario/piano, coach AI, classifica.
 Nome pubblico **Lupo Ammaro**; nel codice restano `wattlab` (package, API `/api/wattlab/*`, installer `WattLab_*.exe`) — non rinominare.
 
 Un unico frontend React gira in due modi (`src/lib/runtime.ts → isTauri()`):
@@ -11,13 +11,12 @@ Un unico frontend React gira in due modi (`src/lib/runtime.ts → isTauri()`):
 
 | Path | Ruolo |
 |---|---|
-| `src/App.tsx` | Shell, auth, navigazione a stato `screen` (tipo `Screen` in `src/types.ts`: connect, live, summary, profile, workouts, calendar, today, leaderboard, coach, history, lab, fit) |
-| `src/pages/` | Una pagina per screen (`LiveRidePage`, `CalendarPage`/`MobileCalendarPage`, `CoachPage`, `FitPage`, `LabPage`…) + `LoginPage`, `MembershipBlockedPage` |
-| `src/components/` | Grafici (uPlot: `PowerChart`, `SessionSeriesChart`, `WorkoutProfileChart`, `ClimbProfileChart`, `CoachChart`; tema in `lib/chartTheme.ts`), `AppNav` + `NavIcon`, card coach, `FitVideoReview` |
+| `src/App.tsx` | Shell, auth, navigazione a stato `screen` (tipo `Screen` in `src/types.ts`: connect, live, summary, profile, workouts, calendar, today, leaderboard, coach, history, lab) |
+| `src/pages/` | Una pagina per screen (`LiveRidePage`, `CalendarPage`/`MobileCalendarPage`, `CoachPage`, `LabPage`…) + `LoginPage`, `MembershipBlockedPage` |
+| `src/components/` | Grafici (uPlot: `PowerChart`, `SessionSeriesChart`, `WorkoutProfileChart`, `ClimbProfileChart`, `CoachChart`; tema in `lib/chartTheme.ts`), `AppNav` + `NavIcon`, card coach |
 | `src/hooks/` | `useBle` (Tauri BLE), `useCoach`, `useStrava`, `useStorage`, `useLeaderboard`, `useMobileShell` |
 | `src/lib/` | Logica client: `amaroAuth` (login/fetch API), `syncClient`/`syncMerge` (sync bundle server), `*Store.ts` (persistenza), `coach*` (briefing, proposte, piano), `workoutEngine`, `trainingZones`, `sessionStats/Evaluation`, `climb*` (modello salite, dati in `src/data/climbs/*.json`) |
-| `src/lib/fit/` | Bike fit: MediaPipe pose → angoli → cicli pedalata → QC → regole (`analyzeVideo.ts` orchestra) |
-| `src/styles/` | `global.css`, `training.css`, `fit.css`, `login.css` (CSS puro, niente framework) |
+| `src/styles/` | `global.css`, `training.css`, `login.css` (CSS puro, niente framework) |
 | `shared/engine/*.mjs` | Motore condiviso client+server: carico/PMC (`load`), fisiologia, planner, predictor, generatore workout, sport, date |
 | `shared/knowledge/*.md` + `index.mjs` | Base di conoscenza allenamento (italiano) usata dal coach |
 | `server/` | Express dev/backend locale: `index.mjs` (rotte `/api/wattlab/*` + `/health`), `auth.mjs` (JWT), `coach.mjs` (agente con tool), `coachTools.mjs`, `llm.mjs` (Ollama / Anthropic / OpenAI-compatibile), `strava*.mjs`, `syncStore.mjs`, `webSearch.mjs` |

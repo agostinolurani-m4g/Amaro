@@ -8,7 +8,9 @@ import lesima from "../data/climbs/lesima.json";
 import nivolet from "../data/climbs/nivolet.json";
 import paterberg from "../data/climbs/paterberg.json";
 import pentema from "../data/climbs/pentema.json";
+import robecchino from "../data/climbs/robecchino.json";
 import stelvio from "../data/climbs/stelvio.json";
+import zibidino from "../data/climbs/zibidino.json";
 
 export interface ClimbSample {
   distanceM: number;
@@ -43,6 +45,8 @@ export const CLIMB_PROFILES: ClimbProfile[] = [
   asProfile(stelvio),
   asProfile(gavia),
   asProfile(paterberg),
+  asProfile(zibidino),
+  asProfile(robecchino),
 ];
 
 const BY_ID = new Map(CLIMB_PROFILES.map((p) => [p.id, p]));

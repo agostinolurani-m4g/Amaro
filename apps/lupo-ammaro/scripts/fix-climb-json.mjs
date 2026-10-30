@@ -35,10 +35,17 @@ function recompute(samples) {
 }
 
 const files = fs.readdirSync(DIR).filter((f) => f.endsWith(".json") && f !== "index.json");
+const previous = JSON.parse(fs.readFileSync(path.join(DIR, "index.json"), "utf8"));
 const index = [];
 for (const file of files) {
   const full = path.join(DIR, file);
   const profile = JSON.parse(fs.readFileSync(full, "utf8"));
+  // I giri da GPX (gpx-to-climb.mjs) sono anelli: non vanno girati né ricalcolati.
+  if (String(profile.source).startsWith("GPX")) {
+    const kept = previous.find((e) => e.id === profile.id);
+    if (kept) index.push(kept);
+    continue;
+  }
   profile.samples = recompute(profile.samples);
   const first = profile.samples[0];
   const last = profile.samples[profile.samples.length - 1];

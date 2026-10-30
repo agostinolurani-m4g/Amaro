@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen, UnlistenFn } from "@tauri-apps/api/event";
 import { useEffect, useState } from "react";
 import type { ConnectionState, ScanResult, Telemetry } from "../types";
+import { isTauri } from "../lib/runtime";
 
 const defaultConnection: ConnectionState = { status: "disconnected" };
 
@@ -18,6 +19,7 @@ export function useBleEvents() {
   const [telemetry, setTelemetry] = useState<Telemetry | null>(null);
 
   useEffect(() => {
+    if (!isTauri()) return;
     const unlisteners: UnlistenFn[] = [];
 
     void (async () => {

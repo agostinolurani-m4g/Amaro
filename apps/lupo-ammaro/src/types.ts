@@ -9,19 +9,7 @@ export type Screen =
   | "leaderboard"
   | "coach"
   | "history"
-  | "lab"
-  | "fit";
-
-export type {
-  FitProfile,
-  FitSession,
-  FitPainEntry,
-  FitDiscipline,
-  FitGoal,
-  FitLevel,
-  PainSite,
-  FitVideoView,
-} from "./lib/fit/types";
+  | "lab";
 
 export interface ScanResult {
   id: string;

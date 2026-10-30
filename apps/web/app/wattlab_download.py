@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from .config import settings
@@ -46,9 +47,15 @@ def resolve_wattlab_installer() -> Path | None:
     if not candidates:
         return None
 
-    candidates.sort(key=lambda path: path.stat().st_mtime, reverse=True)
+    # La versione nel nome vince sulla data: dopo un deploy i file del repo sono "nuovi" anche se vecchi.
+    candidates.sort(key=lambda path: (installer_version(path), path.stat().st_mtime), reverse=True)
     exe = [path for path in candidates if path.suffix.lower() == ".exe"]
     return (exe or candidates)[0]
+
+
+def installer_version(path: Path) -> tuple[int, ...]:
+    match = re.match(r"WattLab_(\d+(?:\.\d+)*)_", path.name)
+    return tuple(int(part) for part in match.group(1).split(".")) if match else ()
 
 
 def format_bytes(size: int) -> str:
@@ -62,7 +69,7 @@ def wattlab_installer_info() -> dict[str, object]:
     size = installer.stat().st_size if installer else 0
     filename = installer.name if installer else settings.wattlab_installer_filename
     return {
-        "version": settings.wattlab_version,
+        "version": ".".join(map(str, installer_version(installer))) if installer and installer_version(installer) else settings.wattlab_version,
         "platform": "windows",
         "filename": filename,
         "sizeBytes": size,

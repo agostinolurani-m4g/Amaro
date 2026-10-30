@@ -14,6 +14,8 @@ apps/web/mobile-screenshots/
 .env.local
 *.exe
 *.msi
+# Installer Lupo Ammaro pubblicato col deploy (vedi scripts/copy-wattlab-release.mjs)
+!apps/web/releases/wattlab/WattLab_*_x64-setup.exe
 *.db
 *.sqlite3
 apps/web/app/uploads/

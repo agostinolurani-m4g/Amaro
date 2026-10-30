@@ -5,6 +5,8 @@ import {
   startScan,
   stopScan,
 } from "../hooks/useBle";
+import { openDownloadPortal } from "../lib/amaroAuth";
+import { isTauri } from "../lib/runtime";
 import type { ConnectionState, ScanResult } from "../types";
 
 interface ConnectPageProps {
@@ -73,6 +75,28 @@ export function ConnectPage({
     } finally {
       setBusy(false);
     }
+  }
+
+  if (!isTauri()) {
+    return (
+      <section className="page connect-page">
+        <header className="hero">
+          <p className="eyebrow">Bluetooth</p>
+          <h1>Collega il rullo</h1>
+          <p className="hero__copy">
+            Il rullo si collega solo dall'app desktop di Lupo Ammaro per Windows. Dal browser puoi
+            usare calendario, allenamenti, coach e storico.
+          </p>
+        </header>
+        <div className="connect-panel">
+          <div className="connect-panel__actions">
+            <button type="button" className="btn btn--primary" onClick={() => void openDownloadPortal()}>
+              Scarica l'app desktop
+            </button>
+          </div>
+        </div>
+      </section>
+    );
   }
 
   return (

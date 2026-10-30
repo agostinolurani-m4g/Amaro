@@ -11,7 +11,7 @@ function listInstallers(dir) {
   if (!fs.existsSync(dir)) return [];
   return fs
     .readdirSync(dir)
-    .filter((name) => name.startsWith("WattLab_") && /\.(exe|msi)$/i.test(name))
+    .filter((name) => /^(WattLab|Lupo Ammaro)_/.test(name) && /\.(exe|msi)$/i.test(name))
     .map((name) => path.join(dir, name));
 }
 
@@ -64,6 +64,10 @@ if (!fs.existsSync(targetDir)) {
   fs.mkdirSync(targetDir, { recursive: true });
 }
 
-const target = path.join(targetDir, path.basename(source));
+// Il sito e gli installer distribuiti cercano "WattLab_*": il bundle Tauri ora si chiama "Lupo Ammaro_*".
+const target = path.join(targetDir, path.basename(source).replace(/^Lupo Ammaro_/, "WattLab_"));
+for (const old of listInstallers(targetDir)) {
+  if (path.basename(old) !== path.basename(target)) fs.rmSync(old);
+}
 fs.copyFileSync(source, target);
 console.log(`Copiato in ${target}`);

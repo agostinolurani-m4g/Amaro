@@ -37,7 +37,6 @@ import { HistoryPage } from "./pages/HistoryPage";
 import { LabPage } from "./pages/LabPage";
 import { LeaderboardPage } from "./pages/LeaderboardPage";
 import { CoachPage } from "./pages/CoachPage";
-import { FitPage } from "./pages/FitPage";
 import { TodayPage } from "./pages/TodayPage";
 import { MobileCalendarPage } from "./pages/MobileCalendarPage";
 import { useMobileShell } from "./hooks/useMobileShell";
@@ -422,7 +421,6 @@ function App() {
 
         {screen === "leaderboard" && <LeaderboardPage member={auth.member} />}
 
-        {screen === "fit" && <FitPage heightCm={profile.heightCm} />}
       </main>
     </div>
   );

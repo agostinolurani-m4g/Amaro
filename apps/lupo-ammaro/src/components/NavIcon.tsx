@@ -59,14 +59,6 @@ export function NavIcon({ id }: { id: NavIconId }) {
           <path d="M9 3h6M10 3v6l-5 11a1 1 0 0 0 .9 1.5h12.2a1 1 0 0 0 .9-1.5L14 9V3" {...common} />
         </svg>
       );
-    case "fit":
-      return (
-        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden>
-          <circle cx="6" cy="17" r="3" {...common} />
-          <circle cx="18" cy="17" r="3" {...common} />
-          <path d="M9 17h6M6 14l3-5h6l3 5" {...common} />
-        </svg>
-      );
     case "leaderboard":
       return (
         <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden>

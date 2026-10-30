@@ -235,6 +235,8 @@ const CLIMB_PRESETS: Workout[] = [
   climbPreset("climb-stelvio", "stelvio", "Stelvio (da Prato)", "SS38 Prato -> passo, OSM + DEM: 25.4 km, +1849 m, 7.3% medio."),
   climbPreset("climb-gavia", "gavia", "Gavia (Ponte di Legno)", "Ponte di Legno -> passo, OSM + DEM: 18.2 km, +1377 m, 7.6% medio."),
   climbPreset("climb-petersberg", "paterberg", "Paterberg", "Oude Paterbergstraat, OSM + DEM (risoluzione limitata sul muro)."),
+  climbPreset("climb-zibidino", "zibidino", "Zibidino", "Giro Amaro verso Zibido, dal GPX del club: 39.7 km, +79 m."),
+  climbPreset("climb-robecchino", "robecchino", "Robecchino", "Giro Amaro verso Robecco, dal GPX del club: 57.3 km, +86 m."),
 ];
 
 export const PRESET_WORKOUTS: Workout[] = [...CLASSIC_PRESETS, ...CLIMB_PRESETS];

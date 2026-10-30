@@ -72,11 +72,27 @@
     "points": 736
   },
   {
+    "id": "robecchino",
+    "name": "Robecchino",
+    "km": "57.26",
+    "gain": 86,
+    "avg": 0.1,
+    "points": 5727
+  },
+  {
     "id": "stelvio",
     "name": "Stelvio (da Prato)",
     "km": "25.36",
     "gain": 1849,
     "avg": 7.3,
     "points": 1946
+  },
+  {
+    "id": "zibidino",
+    "name": "Zibidino",
+    "km": "39.72",
+    "gain": 79,
+    "avg": 0.2,
+    "points": 3973
   }
 ]

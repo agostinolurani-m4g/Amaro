@@ -15,7 +15,6 @@ const NAV_ITEMS: { id: Screen; label: string }[] = [
   { id: "calendar", label: "Calendario" },
   { id: "history", label: "Storico" },
   { id: "lab", label: "Laboratorio" },
-  { id: "fit", label: "Bike fit" },
   { id: "leaderboard", label: "Classifica" },
   { id: "profile", label: "Profilo" },
 ];
