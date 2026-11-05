@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import os
+
+import _no_real_email  # noqa: F401,E402  (prima di app.*)
 import unittest
 
 os.environ.setdefault("NEXI_ENDPOINT", "https://example.test/nexi")

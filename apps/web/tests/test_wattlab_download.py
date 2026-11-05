@@ -1,4 +1,6 @@
 import os
+
+import _no_real_email  # noqa: F401,E402  (prima di app.*)
 import tempfile
 import unittest
 from pathlib import Path

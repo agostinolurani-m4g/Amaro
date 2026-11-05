@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import io
 import os
+
+import _no_real_email  # noqa: F401,E402  (prima di app.*)
 import unittest
 from datetime import date, timedelta
 from unittest import mock
