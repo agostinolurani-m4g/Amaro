@@ -522,6 +522,10 @@ class MemberDocumentAdmin(AmaroAdmin, model=MemberDocument):
             if getattr(m, "member", None)
             else ""
         ),
+        "original_name": lambda m, a: Markup(
+            f'<a href="/dl/member-document/{m.id}" target="_blank">'
+            f'⬇ {escape(m.original_name)}</a>'
+        ),
         "ocr_valid": lambda m, a: (
             "Si"
             if m.ocr_valid is True
@@ -529,6 +533,9 @@ class MemberDocumentAdmin(AmaroAdmin, model=MemberDocument):
             if m.ocr_valid is False
             else "N/D"
         ),
+    }
+    column_formatters_detail = {
+        "original_name": column_formatters["original_name"],
     }
 
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import io
 import logging
 import mimetypes
 import os
@@ -11,6 +12,7 @@ from copy import deepcopy
 from datetime import date, datetime, timezone
 from email.message import EmailMessage
 from pathlib import Path
+from urllib.parse import urlsplit
 from xml.etree import ElementTree as ET
 
 from sqlalchemy import or_
@@ -148,9 +150,22 @@ def send_medical_manual_review_email(
     )
     if document.ocr_notes:
         body += f"\nNote OCR:\n{document.ocr_notes}\n"
+    attachment = _document_attachment(document)
+    download_url = f"{_site_base_url()}/dl/member-document/{document.id}"
     body += (
-        f"\nID socio: {member.id}\n"
-        "Apri il pannello admin (/admin) > Tools o Member documents per controllare.\n\n"
+        f"\nID socio: {member.id}\n\n"
+        "COSA FARE\n"
+        "1. Apri il certificato "
+        + ("in allegato" if attachment else "dal link qui sotto")
+        + f" (scaricabile anche da {download_url}, serve il login admin).\n"
+        "2. Controlla: nome e cognome del socio, che sia AGONISTICO per la disciplina "
+        "indicata, timbro/firma del medico e data di scadenza.\n"
+        "3. Se e' valido: se in Admin > Tools il socio compare tra quelli pronti, "
+        "premi 'Invia ad ACSI'; se ci e' gia' partito in automatico non devi fare altro.\n"
+        "4. Se NON e' valido: rispondi a questa email (arriva al socio) e chiedi un "
+        "certificato corretto, poi caricalo da Admin > Tools > Carica documenti.\n\n"
+        "Tutti i documenti del socio: Admin > Member documents, cerca il cognome "
+        "e clicca sul nome del file per scaricarlo.\n\n"
         f"— {settings.app_name}\n"
     )
 
@@ -161,7 +176,12 @@ def send_medical_manual_review_email(
     )
     message["From"] = settings.smtp_from
     message["To"] = to_email
+    if member.email:
+        message["Reply-To"] = member.email
     message.set_content(body)
+    if attachment:
+        data, maintype, subtype, filename = attachment
+        message.add_attachment(data, maintype=maintype, subtype=subtype, filename=filename)
 
     server = None
     try:
@@ -443,6 +463,28 @@ def send_documents_manual_review_email(
                 pass
 
 
+def _site_base_url() -> str:
+    """Dominio pubblico del sito, ricavato da NEXI_SUCCESS_URL (non c'è un SITE_URL)."""
+    parts = urlsplit(settings.nexipay_success_url or "")
+    if parts.scheme and parts.netloc:
+        return f"{parts.scheme}://{parts.netloc}"
+    return "https://www.amarobici.it"
+
+
+def _document_attachment(
+    document: MemberDocument,
+) -> tuple[bytes, str, str, str] | None:
+    path = UPLOADS_DIR / document.stored_filename
+    if not path.exists() or path.stat().st_size > MANUAL_REVIEW_ATTACHMENTS_MAX_BYTES:
+        return None
+    mime_type, _encoding = mimetypes.guess_type(document.original_name)
+    if mime_type and "/" in mime_type:
+        maintype, subtype = mime_type.split("/", 1)
+    else:
+        maintype, subtype = "application", "octet-stream"
+    return path.read_bytes(), maintype, subtype, _safe_filename(document.original_name)
+
+
 def _ocr_summary(document: MemberDocument) -> str:
     if document.ocr_status == "done":
         if document.ocr_valid is True:
@@ -703,7 +745,14 @@ def _write_acsi_excel(
                     dest.writestr(item, source.read(item.filename))
                     continue
 
-                root = ET.fromstring(source.read(item.filename))
+                original_xml = source.read(item.filename)
+                # Mantiene i prefissi originali (mc:, x14ac:, r:…): con ns0/ns1
+                # Excel segnala il file come danneggiato.
+                for _event, (prefix, uri) in ET.iterparse(
+                    io.BytesIO(original_xml), events=("start-ns",)
+                ):
+                    ET.register_namespace(prefix, uri)
+                root = ET.fromstring(original_xml)
                 sheet_data = root.find("main:sheetData", ACSI_NS)
                 if sheet_data is None:
                     raise ValueError("Sheet ACSI non valido: sheetData mancante")
@@ -791,5 +840,35 @@ def _write_acsi_excel(
 
                 dest.writestr(
                     item,
-                    ET.tostring(root, encoding="utf-8", xml_declaration=True),
+                    _restore_root_tag(
+                        original_xml,
+                        ET.tostring(root, encoding="utf-8", xml_declaration=True),
+                    ),
                 )
+
+
+_ROOT_TAG_RE = re.compile(rb"<worksheet\b[^>]*>")
+_XMLNS_DECL_RE = re.compile(rb'\sxmlns:([\w.-]+)="[^"]*"')
+
+
+def _restore_root_tag(original_xml: bytes, generated_xml: bytes) -> bytes:
+    """Rimette nel tag <worksheet> le dichiarazioni xmlns dell'originale mancanti.
+
+    ElementTree scarta i namespace non usati (es. x14ac), ma mc:Ignorable="x14ac"
+    li richiede ancora: senza, Excel apre il file solo dopo un "ripristino".
+    """
+    original_tag = _ROOT_TAG_RE.search(original_xml)
+    generated_tag = _ROOT_TAG_RE.search(generated_xml)
+    if original_tag is None or generated_tag is None:
+        return generated_xml
+    declared = {m.group(1) for m in _XMLNS_DECL_RE.finditer(generated_tag.group(0))}
+    missing = b"".join(
+        m.group(0)
+        for m in _XMLNS_DECL_RE.finditer(original_tag.group(0))
+        if m.group(1) not in declared
+    )
+    if not missing:
+        return generated_xml
+    tag = generated_tag.group(0)
+    new_tag = tag[:-1] + missing + b">"
+    return generated_xml[: generated_tag.start()] + new_tag + generated_xml[generated_tag.end():]

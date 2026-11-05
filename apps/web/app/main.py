@@ -3530,6 +3530,28 @@ def download_document(
 _EVENT_FILE_TYPES = {"medical", "acsi_fci", "waiver"}
 
 
+@app.get("/dl/member-document/{document_id}")
+def admin_member_document_download(
+    document_id: int,
+    request: Request,
+    session: Session = Depends(get_session),
+) -> FileResponse:
+    """Download documento socio (CI, tessera sanitaria, certificato) dal pannello admin."""
+    if not request.session.get("admin_authenticated"):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Non autorizzato")
+    document = session.get(MemberDocument, document_id)
+    if not document:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Documento non trovato")
+    path = UPLOADS_DIR / document.stored_filename
+    if not path.exists():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File mancante sul disco")
+    return FileResponse(
+        path,
+        media_type=document.content_type or "application/octet-stream",
+        filename=document.original_name or document.stored_filename,
+    )
+
+
 @app.get("/dl/event-file/{registration_id}/{file_type}")
 def admin_event_file_download(
     registration_id: int,

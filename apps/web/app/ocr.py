@@ -213,7 +213,7 @@ def validate_upload_file(
             "status": "failed",
             "valid": None,
             "label": validation_label(None),
-            "notes": f"OCR non disponibile: {exc}",
+            "notes": _redact_api_key(f"OCR non disponibile: {exc}"),
             "text": "",
         }
 
@@ -337,13 +337,16 @@ def _vision_ocr_image_bytes(image_bytes: bytes) -> str:
             }
         ]
     }
+    # Chiave nell'header e non nell'URL: così non finisce nelle eccezioni,
+    # nelle note OCR salvate a DB e nelle email alla segreteria.
     response = requests.post(
         VISION_API_URL,
-        params={"key": api_key},
+        headers={"X-goog-api-key": api_key},
         json=payload,
         timeout=60,
     )
-    response.raise_for_status()
+    if not response.ok:
+        raise ValueError(_vision_error_message(response))
     data = response.json()
     annotation = (data.get("responses") or [{}])[0]
     if annotation.get("error"):
@@ -356,6 +359,36 @@ def _vision_ocr_image_bytes(image_bytes: bytes) -> str:
     if texts:
         return (texts[0].get("description") or "").strip()
     return ""
+
+
+def _vision_error_message(response: requests.Response) -> str:
+    """Motivo leggibile dell'errore Vision (es. BILLING_DISABLED), senza la chiave."""
+    reason = ""
+    message = ""
+    try:
+        error = (response.json() or {}).get("error") or {}
+        message = error.get("message") or ""
+        for detail in error.get("details") or []:
+            if detail.get("reason"):
+                reason = detail["reason"]
+                break
+        reason = reason or error.get("status") or ""
+    except ValueError:
+        message = (response.text or "")[:300]
+    parts = [f"Vision API {response.status_code}"]
+    if reason:
+        parts.append(reason)
+    text = " ".join(parts)
+    if message:
+        text += f": {message}"
+    return _redact_api_key(text)
+
+
+def _redact_api_key(text: str) -> str:
+    api_key = settings.google_vision_api_key
+    if api_key and api_key in text:
+        text = text.replace(api_key, "***")
+    return text
 
 
 def _extract_fields(category: str, text: str) -> dict[str, Any]:

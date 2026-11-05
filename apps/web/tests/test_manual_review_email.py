@@ -124,6 +124,53 @@ class ManualReviewEmailTests(unittest.TestCase):
         names = sorted(part.get_filename() for part in message.iter_attachments())
         self.assertEqual(names, ["ci.pdf", "cm.pdf", "ts.jpg"])
 
+    def test_medical_review_email_attaches_certificate(self) -> None:
+        member_id = self._member_with_docs({"certificato.pdf": 10})
+        session = SessionLocal()
+        try:
+            member = session.get(Member, member_id)
+            document = member.documents[0]
+            document.document_category = acsi.DOCUMENT_CATEGORY_MEDICAL
+            document.ocr_status = "failed"
+            sent = acsi.send_medical_manual_review_email(
+                member, document, "segreteria@example.test"
+            )
+            document_id = document.id
+        finally:
+            session.close()
+        self.assertTrue(sent)
+        message = _FakeSMTP.sent[0]
+        self.assertEqual(message["Reply-To"], "maria@example.test")
+        names = [part.get_filename() for part in message.iter_attachments()]
+        self.assertEqual(names, ["certificato.pdf"])
+        body = message.get_body().get_content()
+        self.assertIn("COSA FARE", body)
+        self.assertIn(f"/dl/member-document/{document_id}", body)
+
+    def test_admin_member_document_download(self) -> None:
+        member_id = self._member_with_docs({"ci.pdf": 10})
+        session = SessionLocal()
+        document_id = session.get(Member, member_id).documents[0].id
+        session.close()
+        url = f"/dl/member-document/{document_id}"
+
+        self.client.cookies.clear()
+        self.assertEqual(self.client.get(url).status_code, 403)
+
+        with mock.patch.object(settings, "admin_username", "admin-test"), \
+                mock.patch.object(settings, "admin_password", "pw-test"):
+            login = self.client.post(
+                "/admin/login",
+                data={"username": "admin-test", "password": "pw-test"},
+                follow_redirects=False,
+            )
+        self.assertEqual(login.status_code, 302)
+        response = self.client.get(url)
+        self.client.cookies.clear()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.content, b"x" * 10)
+        self.assertIn("ci.pdf", response.headers.get("content-disposition", ""))
+
     def test_oversized_files_are_listed_not_attached(self) -> None:
         big = acsi.MANUAL_REVIEW_ATTACHMENTS_MAX_BYTES + 1
         member_id = self._member_with_docs({"piccolo.pdf": 10, "enorme.pdf": big})
