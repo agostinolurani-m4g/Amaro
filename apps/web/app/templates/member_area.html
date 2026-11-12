@@ -105,6 +105,23 @@
     </section>
 
     {% if member.payment_status == "paid" %}
+      <section class="section" id="lupo">
+        <header class="section__header">
+          <h2>Lupo</h2>
+          <p class="muted">Le app per i tesserati: allenamento e uscite. Entri con la tessera, senza altri account.</p>
+        </header>
+        <article class="card card--accent">
+          <h2>Lupo Companion</h2>
+          <p class="muted">
+            Pianifica i giri, esplora percorsi e condizioni, organizza le uscite con il gruppo.
+            Ti riconosce dall'area tesserati: non serve un'altra password.
+          </p>
+          <div class="hero__actions">
+            <a class="btn btn-primary" href="/area-tesserati/companion">Apri Lupo Companion</a>
+          </div>
+        </article>
+      </section>
+
       {% if wattlab_info %}
         <section class="section" id="wattlab">
           <article class="card card--accent">
