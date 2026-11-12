@@ -56,6 +56,7 @@ class Settings(BaseSettings):
         env='WATTLAB_INSTALLER_FILENAME',
     )
     app_public_url: str | None = Field(None, env='APP_PUBLIC_URL')
+    companion_url: str = Field('https://companion.amarobici.it', env='COMPANION_URL')
     strava_client_id: str | None = Field(None, env='STRAVA_CLIENT_ID')
     strava_client_secret: str | None = Field(None, env='STRAVA_CLIENT_SECRET')
 

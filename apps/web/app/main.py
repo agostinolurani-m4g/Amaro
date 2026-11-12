@@ -85,6 +85,7 @@ from .ocr import (
 )
 from .seed import seed_sample_data
 from .wattlab_auth import router as wattlab_router
+from .wattlab_companion import companion_login_url, router as wattlab_companion_router
 from .wattlab_strava import router as wattlab_strava_router
 from .wattlab_sync import router as wattlab_sync_router
 from .wattlab_download import resolve_wattlab_installer, wattlab_installer_info
@@ -411,6 +412,7 @@ logger = logging.getLogger(__name__)
 app.add_middleware(SessionMiddleware, secret_key=settings.session_secret, session_cookie="amaro_session")
 app.include_router(wattlab_router)
 app.include_router(wattlab_strava_router)
+app.include_router(wattlab_companion_router)
 app.include_router(wattlab_sync_router)
 app.include_router(m4g_access_router)
 app.include_router(m4g_admin_router)
@@ -3226,6 +3228,25 @@ def member_download_wattlab(
         installer,
         filename=installer.name,
         media_type="application/octet-stream",
+    )
+
+
+@app.get("/area-tesserati/companion", response_model=None)
+def member_open_companion(
+    request: Request,
+    session: Session = Depends(get_session),
+):
+    """Porta il tesserato su Lupo Companion già autenticato (codice a vita breve)."""
+    member = _member_from_session(request, session)
+    if not member:
+        return RedirectResponse(url="/area-tesserati", status_code=status.HTTP_303_SEE_OTHER)
+    if member.payment_status != "paid":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Pagamento obbligatorio.",
+        )
+    return RedirectResponse(
+        url=companion_login_url(member.id), status_code=status.HTTP_303_SEE_OTHER
     )
 
 
