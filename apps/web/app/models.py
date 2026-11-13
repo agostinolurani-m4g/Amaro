@@ -252,6 +252,102 @@ class BarOrder(Base):
     redeemed_at: Mapped[DateTime | None] = Column(DateTime(timezone=True))
 
 
+class PhotoAlbum(Base):
+    """Album foto del sito, gestito dal gestionale (/admin/foto)."""
+
+    __tablename__ = "photo_albums"
+
+    id: Mapped[int] = Column(Integer, primary_key=True)
+    title: Mapped[str] = Column(String(160), nullable=False)
+    slug: Mapped[str] = Column(String(160), unique=True, nullable=False)
+    description: Mapped[str | None] = Column(Text)
+    date: Mapped[Date | None] = Column(Date)
+    is_published: Mapped[bool] = Column(Boolean, nullable=False, default=True)
+    # niente FK: evita il ciclo album <-> foto; la foto si risolve a mano
+    cover_photo_id: Mapped[int | None] = Column(Integer)
+    created_at: Mapped[DateTime] = Column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+    photos: Mapped[list["Photo"]] = relationship(
+        "Photo",
+        back_populates="album",
+        order_by="(Photo.position, Photo.id)",
+    )
+
+
+class Photo(Base):
+    """Foto caricata dal gestionale: file in UPLOAD_PATH/media, servita su /media/."""
+
+    __tablename__ = "photos"
+
+    id: Mapped[int] = Column(Integer, primary_key=True)
+    album_id: Mapped[int | None] = Column(ForeignKey("photo_albums.id"))
+    stored_filename: Mapped[str] = Column(String(80), nullable=False)
+    thumb_filename: Mapped[str] = Column(String(80), nullable=False)
+    original_name: Mapped[str | None] = Column(String(255))
+    caption: Mapped[str | None] = Column(String(240))
+    width: Mapped[int | None] = Column(Integer)
+    height: Mapped[int | None] = Column(Integer)
+    show_on_home: Mapped[bool] = Column(Boolean, nullable=False, default=False)
+    position: Mapped[int] = Column(Integer, nullable=False, default=0)
+    # "gallery" = pagina Foto del gestionale; "blog" = copertina/immagine di un articolo
+    source: Mapped[str] = Column(String(20), nullable=False, default="gallery")
+    created_at: Mapped[DateTime] = Column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+    album: Mapped["PhotoAlbum | None"] = relationship(
+        "PhotoAlbum", back_populates="photos"
+    )
+
+    @property
+    def url(self) -> str:
+        return f"/media/{self.stored_filename}"
+
+    @property
+    def thumb_url(self) -> str:
+        return f"/media/{self.thumb_filename}"
+
+
+class BlogPost(Base):
+    __tablename__ = "blog_posts"
+
+    id: Mapped[int] = Column(Integer, primary_key=True)
+    title: Mapped[str] = Column(String(200), nullable=False)
+    slug: Mapped[str] = Column(String(200), unique=True, nullable=False)
+    excerpt: Mapped[str | None] = Column(String(400))
+    body_html: Mapped[str | None] = Column(Text)
+    cover_photo_id: Mapped[int | None] = Column(ForeignKey("photos.id"))
+    is_published: Mapped[bool] = Column(Boolean, nullable=False, default=False)
+    published_at: Mapped[DateTime | None] = Column(DateTime(timezone=True))
+    created_at: Mapped[DateTime] = Column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[DateTime | None] = Column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
+
+    cover_photo: Mapped["Photo | None"] = relationship("Photo")
+
+
+class MemberRide(Base):
+    """Uscita riservata ai soci: compare solo nell'area tesserati (sola lettura)."""
+
+    __tablename__ = "member_rides"
+
+    id: Mapped[int] = Column(Integer, primary_key=True)
+    title: Mapped[str] = Column(String(160), nullable=False)
+    date: Mapped[Date] = Column(Date, nullable=False)
+    start_time: Mapped[str | None] = Column(String(5))  # "08:30"
+    meeting_point: Mapped[str | None] = Column(String(200))
+    meeting_map_url: Mapped[str | None] = Column(String(255))
+    distance_km: Mapped[int | None] = Column(Integer)
+    elevation_m: Mapped[int | None] = Column(Integer)
+    route_url: Mapped[str | None] = Column(String(255))
+    notes: Mapped[str | None] = Column(Text)
+
+
 class M4gRegistration(Base):
     __tablename__ = "m4g_registrations"
 

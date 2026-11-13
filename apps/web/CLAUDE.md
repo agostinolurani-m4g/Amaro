@@ -8,11 +8,12 @@ Config: `app/config.py` (pydantic settings, tutte da env). DB: `app/database.py`
 | File | Ruolo |
 |---|---|
 | `main.py` | Home, eventi (`/eventi/{slug}`, iscrizione, lista attesa, GPX), merch, calendario, tesseramento (`/tesseramento*`), area soci (`/area-tesserati*`), documenti, mount `/static` e `/lupo` |
-| `models.py` | Modelli SQLAlchemy (eventi, merch, soci, documenti, iscrizioni, M4G…) |
+| `models.py` | Modelli SQLAlchemy (eventi, merch, soci, documenti, iscrizioni, foto/album, blog, uscite soci, M4G…) |
+| `content.py` | Foto e blog: upload foto (Pillow: resize 1600/720 px, via EXIF/GPS) in `UPLOAD_PATH/media`, servite da `/media/{nome}` (solo nomi generati, mai i documenti soci); HTML blog ripulito con `nh3`; pagine `/foto`, `/foto/{slug}`, `/blog`, `/blog/{slug}` |
 | `nexi.py` | Firma payload Nexi/XPay (pagamenti) + verifica MAC esito; `urlpost` opzionale (usato solo dai tesseramenti → `POST /nexi/notifica` in `main.py`) |
 | `ocr.py` | Validazione documenti con Google Cloud Vision (REST) |
 | `acsi.py` | Excel ACSI + invio email automatico al tesseramento completo |
-| `admin.py` + `admin_templates/` | Pannello `/admin` (sqladmin) |
+| `admin.py` + `admin_templates/` | Pannello `/admin` (sqladmin). Contenuti: **Foto** (`/admin/foto`, album + upload multiplo), **Blog** (`/admin/blog`, editor Quill vendorizzato in `static/vendor/quill/`, bozza/pubblicato, anteprima), **Uscite soci** (ModelView `MemberRide`, mostrate solo in `/area-tesserati` ai soci paganti). In una `BaseView` il menu apre il **primo** metodo `@expose` della classe |
 | `seed.py` | Dati di esempio al primo avvio |
 | `m4g_site.py` | Router pubblico `/m4g/*`: iscrizioni bici/corsa/calcio/ingresso, donazioni, merch, bar, QR, voucher |
 | `m4g_admin.py` | Gestione/cassa/ordini M4G |
@@ -31,7 +32,7 @@ Config: `app/config.py` (pydantic settings, tutte da env). DB: `app/database.py`
 
 ## Test
 
-`tests/test_m4g_pages.py`, `tests/test_wattlab_*.py` — unittest + TestClient.
+`tests/test_m4g_pages.py`, `tests/test_wattlab_*.py`, `tests/test_content.py` (foto/blog/uscite; il gestionale è testato su un'app di prova perché in CI non ci sono `ADMIN_*`) — unittest + TestClient. Lanciare sempre con `discover -s tests` (serve `_no_real_email`).
 ```powershell
 python -m unittest discover -s tests -p "test_*.py" -v
 ```

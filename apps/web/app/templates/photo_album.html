@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+
+{% block title %}{{ album.title }} · Foto · {{ settings.app_name }}{% endblock %}
+
+{% block head %}
+  {% if album.description %}<meta name="description" content="{{ album.description }}" />{% endif %}
+  <meta property="og:title" content="{{ album.title }}" />
+  {% if cover %}<meta property="og:image" content="{{ public_base }}{{ cover.url }}" />{% endif %}
+{% endblock %}
+
+{% block content %}
+  <section class="section">
+    <header class="section__header">
+      <p class="card__date">
+        <a class="link" href="/foto">Foto</a>
+        {% if album.date %}&middot; {{ album.date | it_date }}{% endif %}
+      </p>
+      <h1>{{ album.title }}</h1>
+      {% if album.description %}<p>{{ album.description | format_text }}</p>{% endif %}
+    </header>
+
+    <div class="photo-grid" data-lightbox>
+      {% for photo in album.photos %}
+        <a class="photo-grid__item" href="{{ photo.url }}" data-caption="{{ photo.caption or '' }}">
+          <img src="{{ photo.thumb_url }}" alt="{{ photo.caption or '' }}" loading="lazy"
+            {% if photo.width %}width="{{ photo.width }}" height="{{ photo.height }}"{% endif %} />
+        </a>
+      {% endfor %}
+    </div>
+  </section>
+  <script src="{{ url_for('static', path='js/lightbox.js') }}" defer></script>
+{% endblock %}

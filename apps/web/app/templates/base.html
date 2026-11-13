@@ -6,6 +6,7 @@
     <meta name="theme-color" content="#4b0d36" />
     <title>{% block title %}{{ settings.app_name }}{% endblock %}</title>
     <link rel="stylesheet" href="{{ url_for('static', path='css/styles.css') }}" />
+    {% block head %}{% endblock %}
   </head>
   <body>
     {% set _path = request.url.path if request else '' %}
@@ -23,6 +24,8 @@
         <a href="/" {% if _path == '/' %}aria-current="page"{% endif %}>Home</a>
         <a href="/associazione" {% if _path.startswith('/associazione') %}aria-current="page"{% endif %}>Associazione</a>
         <a href="/calendario" {% if _path.startswith('/calendario') or _path.startswith('/eventi') %}aria-current="page"{% endif %}>Calendario</a>
+        <a href="/blog" {% if _path.startswith('/blog') %}aria-current="page"{% endif %}>Blog</a>
+        <a href="/foto" {% if _path.startswith('/foto') %}aria-current="page"{% endif %}>Foto</a>
         <a href="/tesseramento" {% if _path.startswith('/tesseramento') %}aria-current="page"{% endif %}>Tesseramento</a>
         <a
           class="nav-icon"
@@ -52,6 +55,8 @@
         <nav aria-label="Link utili">
           <a href="/associazione">Associazione</a>
           <a href="/calendario">Calendario</a>
+          <a href="/blog">Blog</a>
+          <a href="/foto">Foto</a>
           <a href="/tesseramento">Tesseramento</a>
           <a href="/area-tesserati">Area tesserati</a>
         </nav>

@@ -8,7 +8,7 @@
       <header class="member-head">
         <div>
           <h1>Ciao {{ member.first_name or member.name }}</h1>
-          <p class="muted">Area tesserati: tessera, documenti, certificato medico e Lupo Ammaro.</p>
+          <p class="muted">Area tesserati: tessera, prossime uscite, documenti, certificato medico e Lupo Ammaro.</p>
         </div>
         <form method="post" action="/area-tesserati/logout">
           <button class="btn btn-secondary" type="submit">Esci</button>
@@ -105,6 +105,55 @@
     </section>
 
     {% if member.payment_status == "paid" %}
+      <section class="section" id="uscite">
+        <header class="section__header">
+          <h2>Prossime uscite</h2>
+          <p class="muted">Le uscite riservate ai soci. Gli eventi aperti a tutti sono nel <a class="link" href="/calendario">calendario</a>.</p>
+        </header>
+        {% if ride_months %}
+          {% for month in ride_months %}
+            <article class="card">
+              <h3>{{ month.label }}</h3>
+              <ul class="calendar-list ride-list">
+                {% for item in month.rides %}
+                  {% set ride = item.ride %}
+                  <li>
+                    <span class="calendar-date ride__when">
+                      <span>{{ item.weekday }} {{ item.day }}</span>
+                      {% if ride.start_time %}<span>ore {{ ride.start_time }}</span>{% endif %}
+                    </span>
+                    <div class="ride__info">
+                      <strong>{{ ride.title }}</strong>
+                      {% if ride.meeting_point or ride.meeting_map_url %}
+                        <span class="small">
+                          Ritrovo:
+                          {% if ride.meeting_map_url %}
+                            <a class="link" href="{{ ride.meeting_map_url }}" target="_blank" rel="noopener">{{ ride.meeting_point or "mappa" }}</a>
+                          {% else %}
+                            {{ ride.meeting_point }}
+                          {% endif %}
+                        </span>
+                      {% endif %}
+                      {% if ride.distance_km or ride.elevation_m %}
+                        <span class="small muted">
+                          {% if ride.distance_km %}{{ ride.distance_km }} km{% endif %}{% if ride.distance_km and ride.elevation_m %} &middot; {% endif %}{% if ride.elevation_m %}{{ ride.elevation_m }} m D+{% endif %}
+                        </span>
+                      {% endif %}
+                      {% if ride.notes %}<p class="small">{{ ride.notes | format_text }}</p>{% endif %}
+                      {% if ride.route_url %}
+                        <a class="link small" href="{{ ride.route_url }}" target="_blank" rel="noopener">Percorso</a>
+                      {% endif %}
+                    </div>
+                  </li>
+                {% endfor %}
+              </ul>
+            </article>
+          {% endfor %}
+        {% else %}
+          <p class="muted">Nessuna uscita in programma al momento.</p>
+        {% endif %}
+      </section>
+
       <section class="section" id="lupo">
         <header class="section__header">
           <h2>Lupo</h2>

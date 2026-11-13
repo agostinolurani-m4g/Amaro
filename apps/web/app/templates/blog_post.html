@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+
+{% block title %}{{ post.title }} · {{ settings.app_name }}{% endblock %}
+
+{% block head %}
+  {% if preview %}<meta name="robots" content="noindex" />{% endif %}
+  {% if excerpt %}<meta name="description" content="{{ excerpt }}" />{% endif %}
+  <meta property="og:type" content="article" />
+  <meta property="og:title" content="{{ post.title }}" />
+  {% if excerpt %}<meta property="og:description" content="{{ excerpt }}" />{% endif %}
+  {% if post.cover_photo %}
+    <meta property="og:image" content="{{ public_base }}{{ post.cover_photo.url }}" />
+  {% endif %}
+{% endblock %}
+
+{% block content %}
+  {% if preview %}
+    <p class="alert alert--warn">
+      Anteprima{% if not post.is_published %}: questo articolo è una <strong>bozza</strong> e il pubblico non lo vede{% endif %}.
+    </p>
+  {% endif %}
+
+  <article class="section blog-post">
+    <header class="blog-post__header">
+      <p class="card__date">
+        <a class="link" href="/blog">Blog</a>
+        {% if post.published_at %}&middot; {{ post.published_at | it_date }}{% endif %}
+      </p>
+      <h1>{{ post.title }}</h1>
+    </header>
+
+    {% if post.cover_photo %}
+      <figure class="blog-post__cover">
+        <img src="{{ post.cover_photo.url }}" alt=""
+          {% if post.cover_photo.width %}width="{{ post.cover_photo.width }}" height="{{ post.cover_photo.height }}"{% endif %} />
+      </figure>
+    {% endif %}
+
+    <div class="prose blog-post__body">
+      {{ body_html | safe }}
+    </div>
+
+    <p><a class="link link--block" href="/blog">&larr; Tutti gli articoli</a></p>
+  </article>
+{% endblock %}

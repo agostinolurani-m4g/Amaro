@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+
+{% block title %}Foto · {{ settings.app_name }}{% endblock %}
+
+{% block head %}
+  <meta name="description" content="Le foto delle uscite e degli eventi di {{ settings.app_name }}." />
+{% endblock %}
+
+{% block content %}
+  <section class="section">
+    <header class="section__header">
+      <h1>Foto</h1>
+      <p>Uscite, eventi e giornate passate insieme.</p>
+    </header>
+
+    {% if albums %}
+      <div class="album-grid">
+        {% for item in albums %}
+          <a class="album-card" href="/foto/{{ item.album.slug }}">
+            {% if item.cover %}
+              <img src="{{ item.cover.thumb_url }}" alt="" loading="lazy" />
+            {% endif %}
+            <span class="album-card__text">
+              <strong>{{ item.album.title }}</strong>
+              <span class="small">
+                {% if item.album.date %}{{ item.album.date | it_date }} &middot; {% endif %}{{ item.count }} foto
+              </span>
+            </span>
+          </a>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p class="alert alert--info">Le prime foto arrivano presto.</p>
+    {% endif %}
+  </section>
+{% endblock %}

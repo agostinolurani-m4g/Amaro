@@ -1,0 +1,205 @@
+{% extends "layout.html" %}
+
+{% block head %}
+<link rel="stylesheet" href="/static/vendor/quill/quill.snow.css" />
+<style>
+  #editor { min-height: 360px; font-size: 1rem; background: #fff; }
+  #editor .ql-editor { min-height: 360px; }
+  #editor .ql-editor img { max-width: 100%; height: auto; }
+  .blog-cover { max-width: 280px; display: block; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="col-12">
+  {% if notice %}
+  <div class="alert alert-success" role="alert">{{ notice }}</div>
+  {% endif %}
+  {% if error %}
+  <div class="alert alert-danger" role="alert">{{ error }}</div>
+  {% endif %}
+</div>
+
+<div class="col-12">
+  <div class="card">
+    <div class="card-body">
+      <div class="d-flex flex-wrap justify-content-between gap-2 mb-3">
+        <a href="{{ url_for('admin:view-blog') }}">&larr; Tutti gli articoli</a>
+        {% if post %}
+        <span>
+          <a href="{{ url_for('admin:view-blog_preview', post_id=post.id) }}" target="_blank" rel="noopener">Anteprima &nearr;</a>
+          {% if post.is_published %}
+          &middot; <a href="/blog/{{ post.slug }}" target="_blank" rel="noopener">Vedi sul sito &nearr;</a>
+          {% endif %}
+        </span>
+        {% endif %}
+      </div>
+
+      <form method="post" enctype="multipart/form-data" data-blog-form
+        action="{{ url_for('admin:view-blog_edit', post_id=post.id) if post else url_for('admin:view-blog_new') }}">
+        <div class="mb-3">
+          <label class="form-label" for="title">Titolo</label>
+          <input class="form-control form-control-lg" id="title" name="title" type="text" maxlength="200"
+            value="{{ form.title }}" required />
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label">Testo</label>
+          <div id="editor">{{ form.body_html | safe }}</div>
+          <input type="hidden" name="body_html" data-body-input />
+          <div class="form-hint" data-editor-status>
+            Per le foto usa il pulsante immagine della barra (o trascinale nel testo): vengono caricate e ridimensionate da sole.
+          </div>
+        </div>
+
+        <div class="row g-3 mb-3">
+          <div class="col-12 col-lg-6">
+            <label class="form-label" for="cover">Foto di copertina</label>
+            {% if post and post.cover_photo %}
+            <img class="blog-cover mb-2" src="{{ post.cover_photo.thumb_url }}" alt="" />
+            <label class="form-check">
+              <input class="form-check-input" type="checkbox" name="remove_cover" value="1" />
+              <span class="form-check-label">Togli la copertina</span>
+            </label>
+            {% endif %}
+            <input class="form-control" id="cover" name="cover" type="file" accept="image/jpeg,image/png,image/webp" />
+            <div class="form-hint">Compare in cima all'articolo, nell'elenco del blog e quando lo condividi.</div>
+          </div>
+          <div class="col-12 col-lg-6">
+            <label class="form-label" for="excerpt">Riassunto (facoltativo)</label>
+            <textarea class="form-control" id="excerpt" name="excerpt" rows="3" maxlength="400"
+              placeholder="Se lo lasci vuoto usiamo l'inizio del testo.">{{ form.excerpt }}</textarea>
+          </div>
+        </div>
+
+        <details class="mb-3">
+          <summary class="text-muted">Opzioni avanzate</summary>
+          <div class="row g-3 mt-1">
+            <div class="col-12 col-md-6">
+              <label class="form-label" for="slug">Indirizzo</label>
+              <div class="input-group">
+                <span class="input-group-text">/blog/</span>
+                <input class="form-control" id="slug" name="slug" type="text" maxlength="150" value="{{ form.slug }}"
+                  placeholder="generato dal titolo" />
+              </div>
+            </div>
+            <div class="col-12 col-md-6">
+              <label class="form-label" for="published_date">Data articolo</label>
+              <input class="form-control" id="published_date" name="published_date" type="date" value="{{ form.published_date }}" />
+              <div class="form-hint">Vuota = la data in cui lo pubblichi.</div>
+            </div>
+          </div>
+        </details>
+
+        <div class="d-flex flex-wrap align-items-center gap-3 pt-3 border-top">
+          <label class="form-check form-switch m-0">
+            <input class="form-check-input" type="checkbox" name="is_published" value="1" {% if form.is_published %}checked{% endif %} />
+            <span class="form-check-label"><strong>Pubblicato</strong> (spento = bozza, visibile solo qui)</span>
+          </label>
+          <button class="btn btn-primary" type="submit" name="after" value="edit">Salva</button>
+          <button class="btn btn-outline-secondary" type="submit" name="after" value="preview">Salva e vedi anteprima</button>
+        </div>
+      </form>
+
+      {% if post %}
+      <form class="mt-4 pt-3 border-top" method="post" action="{{ url_for('admin:view-blog_delete', post_id=post.id) }}"
+        onsubmit="return confirm('Eliminare questo articolo? Non si può annullare.');">
+        <button class="btn btn-outline-danger btn-sm" type="submit">Elimina articolo</button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block tail %}
+<script src="/static/vendor/quill/quill.js"></script>
+<script>
+  (function () {
+    var uploadUrl = "{{ url_for('admin:view-blog_image') }}";
+    var status = document.querySelector("[data-editor-status]");
+    var defaultStatus = status ? status.textContent : "";
+
+    function setStatus(text, isError) {
+      if (!status) return;
+      status.textContent = text || defaultStatus;
+      status.classList.toggle("text-danger", !!isError);
+    }
+
+    function uploadImage(file) {
+      var data = new FormData();
+      data.append("file", file);
+      setStatus("Caricamento foto in corso…");
+      return fetch(uploadUrl, { method: "POST", body: data, credentials: "same-origin" })
+        .then(function (res) {
+          return res.json().catch(function () { return {}; }).then(function (body) {
+            if (!res.ok || !body.url) throw new Error(body.error || "Caricamento non riuscito.");
+            setStatus("");
+            return body.url;
+          });
+        })
+        .catch(function (err) {
+          setStatus(err.message || "Caricamento non riuscito.", true);
+          return null;
+        });
+    }
+
+    var quill = new Quill("#editor", {
+      theme: "snow",
+      placeholder: "Scrivi qui l'articolo…",
+      modules: {
+        toolbar: {
+          container: [
+            [{ header: [2, 3, false] }],
+            ["bold", "italic", "underline", "strike"],
+            [{ list: "ordered" }, { list: "bullet" }],
+            ["blockquote", "link", "image"],
+            ["clean"]
+          ],
+          handlers: {
+            image: function () {
+              var input = document.createElement("input");
+              input.type = "file";
+              input.accept = "image/jpeg,image/png,image/webp";
+              input.onchange = function () {
+                if (!input.files || !input.files[0]) return;
+                var range = quill.getSelection(true);
+                uploadImage(input.files[0]).then(function (url) {
+                  if (!url) return;
+                  quill.insertEmbed(range.index, "image", url, "user");
+                  quill.setSelection(range.index + 1, 0, "silent");
+                });
+              };
+              input.click();
+            }
+          }
+        },
+        // foto trascinate o incollate: caricate sul server, non incorporate nel testo
+        uploader: {
+          mimetypes: ["image/jpeg", "image/png", "image/webp"],
+          handler: function (range, files) {
+            var index = range.index;
+            files.reduce(function (chain, file) {
+              return chain.then(function () {
+                return uploadImage(file).then(function (url) {
+                  if (!url) return;
+                  quill.insertEmbed(index, "image", url, "user");
+                  index += 1;
+                  quill.setSelection(index, 0, "silent");
+                });
+              });
+            }, Promise.resolve());
+          }
+        }
+      }
+    });
+
+    var form = document.querySelector("[data-blog-form]");
+    var bodyInput = document.querySelector("[data-body-input]");
+    form.addEventListener("submit", function () {
+      var empty = quill.getLength() <= 1 && !quill.root.querySelector("img");
+      bodyInput.value = empty ? "" : quill.getSemanticHTML().replace(/&nbsp;/g, " ");
+    });
+  })();
+</script>
+{% endblock %}

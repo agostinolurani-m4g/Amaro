@@ -12,3 +12,5 @@ pymupdf>=1.24
 httpx>=0.27
 segno>=1.6
 pypng>=0.20220715.0
+Pillow>=10.4
+nh3>=0.2.17

@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block title %}Blog · {{ settings.app_name }}{% endblock %}
+
+{% block head %}
+  <meta name="description" content="Racconti, uscite e notizie dell'associazione {{ settings.app_name }}." />
+{% endblock %}
+
+{% block content %}
+  <section class="section">
+    <header class="section__header">
+      <h1>Blog</h1>
+      <p>Racconti delle uscite, notizie e appuntamenti dell'associazione.</p>
+    </header>
+
+    {% if posts %}
+      <div class="post-list">
+        {% for item in posts %}
+          {% set post = item.post %}
+          <article class="card post-card">
+            {% if post.cover_photo %}
+              <a class="post-card__media" href="/blog/{{ post.slug }}" tabindex="-1" aria-hidden="true">
+                <img src="{{ post.cover_photo.thumb_url }}" alt="" loading="lazy"
+                  {% if post.cover_photo.width %}width="{{ post.cover_photo.width }}" height="{{ post.cover_photo.height }}"{% endif %} />
+              </a>
+            {% endif %}
+            <div class="post-card__body">
+              {% if post.published_at %}
+                <p class="card__date">{{ post.published_at | it_date }}</p>
+              {% endif %}
+              <h2><a href="/blog/{{ post.slug }}">{{ post.title }}</a></h2>
+              {% if item.excerpt %}<p>{{ item.excerpt }}</p>{% endif %}
+              <a class="link" href="/blog/{{ post.slug }}">Leggi</a>
+            </div>
+          </article>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p class="alert alert--info">Ancora nessun articolo. Torna a trovarci presto.</p>
+    {% endif %}
+  </section>
+{% endblock %}

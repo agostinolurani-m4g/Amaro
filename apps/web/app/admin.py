@@ -16,16 +16,19 @@ from pathlib import Path
 from uuid import uuid4
 from xml.etree import ElementTree as ET
 
+import unicodedata
+
 from fastapi import FastAPI
 from sqlalchemy import or_
 from sqladmin import Admin, BaseView, ModelView, expose
 from sqladmin.authentication import AuthenticationBackend
 from markupsafe import Markup, escape
 from starlette.background import BackgroundTask
+from starlette.concurrency import run_in_threadpool
 from starlette.datastructures import UploadFile
 from starlette.exceptions import HTTPException
 from starlette.requests import Request
-from starlette.responses import FileResponse, RedirectResponse, Response
+from starlette.responses import FileResponse, JSONResponse, RedirectResponse, Response
 from sqlalchemy.orm import Session
 from wtforms import SelectField
 from wtforms.validators import DataRequired
@@ -36,6 +39,7 @@ from .acsi import (
     members_pending_acsi,
     submit_member_to_acsi,
 )
+from . import content
 from .config import settings
 from .database import SessionLocal, engine
 from .ocr import schedule_documents_ocr
@@ -43,14 +47,18 @@ from .models import (
     DOCUMENT_CATEGORY_HEALTH,
     DOCUMENT_CATEGORY_IDENTITY,
     DOCUMENT_CATEGORY_MEDICAL,
+    BlogPost,
     Event,
     EventRegistration,
     EventWaitlistEntry,
     Member,
     MemberDocument,
+    MemberRide,
     MembershipPayment,
     MerchItem,
     MEMBERSHIP_STATUS_COMPLETED,
+    Photo,
+    PhotoAlbum,
 )
 
 _EVENT_FILE_TYPES = {"medical", "acsi_fci", "waiver"}
@@ -837,6 +845,507 @@ class AdminStatsView(BaseView):
         )
 
 
+# ---------------------------------------------------------------------------
+# Contenuti del sito: foto, blog, uscite soci
+# ---------------------------------------------------------------------------
+
+
+def _content_slug(value: str, fallback: str) -> str:
+    """Slug leggibile anche con lettere accentate ("Perché" -> "perche")."""
+    ascii_value = (
+        unicodedata.normalize("NFKD", value or "").encode("ascii", "ignore").decode("ascii")
+    )
+    slug = re.sub(r"[^a-z0-9]+", "-", ascii_value.lower()).strip("-")
+    return slug[:150].strip("-") or fallback
+
+
+def _unique_content_slug(
+    session: Session, model: type, base_slug: str, exclude_id: int | None = None
+) -> str:
+    slug = base_slug
+    counter = 1
+    while True:
+        query = session.query(model).filter(model.slug == slug)
+        if exclude_id:
+            query = query.filter(model.id != exclude_id)
+        if not query.first():
+            return slug
+        counter += 1
+        slug = f"{base_slug}-{counter}"
+
+
+def _parse_date(value: object) -> dt_date | None:
+    raw = str(value or "").strip()
+    if not raw:
+        return None
+    try:
+        return dt_date.fromisoformat(raw)
+    except ValueError:
+        return None
+
+
+def _form_flag(form: object, name: str) -> bool:
+    return str(form.get(name) or "").lower() in {"1", "on", "true", "yes"}
+
+
+def _uploaded_files(form: object, name: str) -> list[UploadFile]:
+    return [
+        item
+        for item in form.getlist(name)
+        if isinstance(item, UploadFile) and item.filename
+    ]
+
+
+async def _save_uploads_as_photos(
+    session: Session,
+    uploads: list[UploadFile],
+    *,
+    album_id: int | None = None,
+    show_on_home: bool = False,
+    source: str = "gallery",
+) -> tuple[list[Photo], list[str]]:
+    saved: list[Photo] = []
+    errors: list[str] = []
+    for upload in uploads:
+        data = await upload.read()
+        await upload.close()
+        try:
+            photo = await run_in_threadpool(
+                content.create_photo,
+                session,
+                data,
+                upload.filename,
+                album_id,
+                show_on_home,
+                source,
+            )
+        except content.PhotoError as exc:
+            errors.append(str(exc))
+            continue
+        saved.append(photo)
+    return saved, errors
+
+
+class PhotoAdminView(BaseView):
+    name = "Foto"
+    icon = "fa-solid fa-images"
+
+    # Primo metodo della classe: è la pagina aperta dal menu (vedi sqladmin).
+    @expose("/foto", methods=["GET", "POST"], identity="photos")
+    async def photos(self, request: Request) -> object:
+        if request.method == "POST":
+            return await self._handle_post(request)
+
+        album_id_raw = request.query_params.get("album", "")
+        with SessionLocal() as session:
+            albums = (
+                session.query(PhotoAlbum)
+                .order_by(
+                    PhotoAlbum.date.is_(None),
+                    PhotoAlbum.date.desc(),
+                    PhotoAlbum.id.desc(),
+                )
+                .all()
+            )
+            album_rows = [
+                {
+                    "album": album,
+                    "count": len(album.photos),
+                    "cover": content.album_cover(session, album),
+                }
+                for album in albums
+            ]
+            selected = None
+            if album_id_raw.isdigit():
+                selected = session.get(PhotoAlbum, int(album_id_raw))
+            loose_photos = []
+            if not selected:
+                loose_photos = (
+                    session.query(Photo)
+                    .filter(Photo.album_id.is_(None), Photo.source == "gallery")
+                    .order_by(Photo.created_at.desc(), Photo.id.desc())
+                    .all()
+                )
+            context = {
+                "request": request,
+                "title": selected.title if selected else "Foto",
+                "subtitle": (
+                    "Modifica album" if selected else "Carica foto e gestisci gli album del sito"
+                ),
+                "albums": album_rows,
+                "selected": selected,
+                "selected_photos": list(selected.photos) if selected else [],
+                "loose_photos": loose_photos,
+                "notice": request.session.pop("admin_notice", None),
+                "errors": request.session.pop("admin_errors", None) or [],
+                "today": dt_date.today().isoformat(),
+            }
+            return await self.templates.TemplateResponse(
+                request, "admin_photos.html", context
+            )
+
+    async def _handle_post(self, request: Request) -> object:
+        form = await request.form(max_files=200)
+        action = form.get("action")
+        redirect_album: int | None = None
+        notice: str | None = None
+        errors: list[str] = []
+        with SessionLocal() as session:
+            if action == "upload":
+                choice = str(form.get("album_choice") or "")
+                album: PhotoAlbum | None = None
+                if choice == "new":
+                    title = str(form.get("new_album_title") or "").strip()
+                    if not title:
+                        errors.append("Scrivi il nome del nuovo album.")
+                    else:
+                        album = PhotoAlbum(
+                            title=title[:160],
+                            slug=_unique_content_slug(
+                                session, PhotoAlbum, _content_slug(title, "album")
+                            ),
+                            date=_parse_date(form.get("new_album_date")),
+                            is_published=True,
+                        )
+                        session.add(album)
+                        session.flush()
+                elif choice.isdigit():
+                    album = session.get(PhotoAlbum, int(choice))
+                uploads = _uploaded_files(form, "files")
+                if not errors and not uploads:
+                    errors.append("Scegli almeno una foto.")
+                if not errors:
+                    saved, errors = await _save_uploads_as_photos(
+                        session,
+                        uploads,
+                        album_id=album.id if album else None,
+                        show_on_home=_form_flag(form, "show_on_home"),
+                    )
+                    if album and not album.photos and not saved:
+                        session.delete(album)
+                        album = None
+                    session.commit()
+                    if saved:
+                        where = f"nell'album «{album.title}»" if album else "senza album"
+                        notice = f"Caricate {len(saved)} foto {where}."
+                    redirect_album = album.id if album else None
+                else:
+                    session.rollback()
+
+            elif action in {"save_album", "save_loose"}:
+                album = None
+                if action == "save_album":
+                    album_id = str(form.get("album_id") or "")
+                    album = session.get(PhotoAlbum, int(album_id)) if album_id.isdigit() else None
+                    if not album:
+                        errors.append("Album non trovato.")
+                if not errors:
+                    if album:
+                        title = str(form.get("title") or "").strip()
+                        if title:
+                            album.title = title[:160]
+                        album.description = str(form.get("description") or "").strip() or None
+                        album.date = _parse_date(form.get("date"))
+                        album.is_published = _form_flag(form, "is_published")
+                        photos = list(album.photos)
+                    else:
+                        photos = (
+                            session.query(Photo)
+                            .filter(Photo.album_id.is_(None), Photo.source == "gallery")
+                            .all()
+                        )
+                    cover_raw = str(form.get("cover_photo_id") or "")
+                    deleted = 0
+                    for photo in photos:
+                        if _form_flag(form, f"delete_{photo.id}"):
+                            content.delete_photo(session, photo)
+                            deleted += 1
+                            continue
+                        photo.caption = (
+                            str(form.get(f"caption_{photo.id}") or "").strip()[:240] or None
+                        )
+                        photo.show_on_home = _form_flag(form, f"home_{photo.id}")
+                    if album:
+                        album.cover_photo_id = int(cover_raw) if cover_raw.isdigit() else None
+                    session.commit()
+                    notice = "Modifiche salvate."
+                    if deleted:
+                        notice += f" Eliminate {deleted} foto."
+                    redirect_album = album.id if album else None
+
+            elif action == "delete_album":
+                album_id = str(form.get("album_id") or "")
+                album = session.get(PhotoAlbum, int(album_id)) if album_id.isdigit() else None
+                if album:
+                    title = album.title
+                    for photo in list(album.photos):
+                        content.delete_photo(session, photo)
+                    session.delete(album)
+                    session.commit()
+                    notice = f"Album «{title}» eliminato con tutte le sue foto."
+                else:
+                    errors.append("Album non trovato.")
+            else:
+                errors.append("Azione non valida.")
+
+        if notice:
+            request.session["admin_notice"] = notice
+        if errors:
+            request.session["admin_errors"] = errors
+        url = request.url_for("admin:view-photos")
+        if redirect_album:
+            url = url.include_query_params(album=redirect_album)
+        return RedirectResponse(url, status_code=303)
+
+
+class BlogAdminView(BaseView):
+    name = "Blog"
+    icon = "fa-solid fa-newspaper"
+
+    # Primo metodo della classe: è la pagina aperta dal menu (vedi sqladmin).
+    @expose("/blog", methods=["GET"], identity="blog")
+    async def blog_list(self, request: Request) -> object:
+        with SessionLocal() as session:
+            posts = (
+                session.query(BlogPost)
+                .order_by(
+                    BlogPost.is_published.asc(),
+                    BlogPost.published_at.desc(),
+                    BlogPost.id.desc(),
+                )
+                .all()
+            )
+            context = {
+                "request": request,
+                "title": "Blog",
+                "subtitle": "Articoli del sito: le bozze non sono visibili al pubblico",
+                "posts": posts,
+                "notice": request.session.pop("admin_notice", None),
+            }
+            return await self.templates.TemplateResponse(request, "admin_blog.html", context)
+
+    @expose("/blog/nuovo", methods=["GET", "POST"], identity="blog_new")
+    async def blog_new(self, request: Request) -> object:
+        with SessionLocal() as session:
+            if request.method == "POST":
+                return await self._save(request, session, None)
+            return await self._render_form(request, None, {})
+
+    @expose("/blog/{post_id:int}", methods=["GET", "POST"], identity="blog_edit")
+    async def blog_edit(self, request: Request) -> object:
+        with SessionLocal() as session:
+            post = session.get(BlogPost, request.path_params["post_id"])
+            if not post:
+                raise HTTPException(status_code=404, detail="Articolo non trovato")
+            if request.method == "POST":
+                return await self._save(request, session, post)
+            return await self._render_form(request, post, {})
+
+    @expose("/blog/{post_id:int}/elimina", methods=["POST"], identity="blog_delete")
+    async def blog_delete(self, request: Request) -> object:
+        with SessionLocal() as session:
+            post = session.get(BlogPost, request.path_params["post_id"])
+            if post:
+                title = post.title
+                content.delete_blog_post(session, post)
+                session.commit()
+                request.session["admin_notice"] = f"Articolo «{title}» eliminato."
+        return RedirectResponse(request.url_for("admin:view-blog"), status_code=303)
+
+    @expose("/blog/{post_id:int}/anteprima", methods=["GET"], identity="blog_preview")
+    async def blog_preview(self, request: Request) -> object:
+        with SessionLocal() as session:
+            post = session.get(BlogPost, request.path_params["post_id"])
+            if not post:
+                raise HTTPException(status_code=404, detail="Articolo non trovato")
+            return content.render_blog_post(request, post, preview=True)
+
+    @expose("/blog/immagine", methods=["POST"], identity="blog_image")
+    async def blog_image(self, request: Request) -> object:
+        """Upload dal pulsante immagine dell'editor: risponde con l'URL da inserire."""
+        form = await request.form(max_files=1)
+        uploads = _uploaded_files(form, "file")
+        if not uploads:
+            return JSONResponse({"error": "Nessuna foto ricevuta."}, status_code=400)
+        with SessionLocal() as session:
+            saved, errors = await _save_uploads_as_photos(
+                session, uploads[:1], source="blog"
+            )
+            if not saved:
+                session.rollback()
+                return JSONResponse(
+                    {"error": errors[0] if errors else "Caricamento non riuscito."},
+                    status_code=400,
+                )
+            session.commit()
+            return JSONResponse({"url": saved[0].url})
+
+    async def _render_form(
+        self,
+        request: Request,
+        post: BlogPost | None,
+        values: dict[str, object],
+        error: str | None = None,
+    ) -> object:
+        def pick(name: str, default: object) -> object:
+            return values[name] if name in values else default
+
+        published_date = ""
+        if post and post.published_at:
+            published_date = post.published_at.date().isoformat()
+        context = {
+            "request": request,
+            "title": post.title if post else "Nuovo articolo",
+            "subtitle": "Blog",
+            "post": post,
+            "error": error,
+            "notice": request.session.pop("admin_notice", None),
+            "form": {
+                "title": pick("title", post.title if post else ""),
+                "slug": pick("slug", post.slug if post else ""),
+                "excerpt": pick("excerpt", (post.excerpt if post else "") or ""),
+                "body_html": pick(
+                    "body_html", content.sanitize_blog_html(post.body_html) if post else ""
+                ),
+                "is_published": pick("is_published", bool(post and post.is_published)),
+                "published_date": pick("published_date", published_date),
+            },
+        }
+        return await self.templates.TemplateResponse(
+            request, "admin_blog_edit.html", context
+        )
+
+    async def _save(
+        self, request: Request, session: Session, post: BlogPost | None
+    ) -> object:
+        form = await request.form(max_files=1)
+        title = str(form.get("title") or "").strip()[:200]
+        slug_input = str(form.get("slug") or "").strip()
+        body_html = content.sanitize_blog_html(str(form.get("body_html") or ""))
+        values = {
+            "title": title,
+            "slug": slug_input,
+            "excerpt": str(form.get("excerpt") or "").strip()[:400],
+            "body_html": body_html,
+            "is_published": _form_flag(form, "is_published"),
+            "published_date": str(form.get("published_date") or "").strip(),
+        }
+        if not title:
+            return await self._render_form(request, post, values, "Il titolo è obbligatorio.")
+        if values["is_published"] and not content.html_to_text(body_html) and "<img" not in body_html:
+            return await self._render_form(
+                request, post, values, "Non puoi pubblicare un articolo vuoto."
+            )
+
+        cover_uploads = _uploaded_files(form, "cover")
+        new_cover: Photo | None = None
+        if cover_uploads:
+            saved, errors = await _save_uploads_as_photos(
+                session, cover_uploads[:1], source="blog"
+            )
+            if not saved:
+                session.rollback()
+                return await self._render_form(request, post, values, errors[0])
+            new_cover = saved[0]
+
+        is_new = post is None
+        if post is None:
+            post = BlogPost()
+            session.add(post)
+        base_slug = _content_slug(slug_input or title, "articolo")
+        post.slug = _unique_content_slug(session, BlogPost, base_slug, post.id)
+        post.title = title
+        post.excerpt = values["excerpt"] or None
+        post.body_html = body_html
+
+        old_cover = post.cover_photo
+        if new_cover is not None:
+            post.cover_photo = new_cover
+        elif _form_flag(form, "remove_cover"):
+            post.cover_photo = None
+        if old_cover is not None and old_cover is not post.cover_photo and old_cover.source == "blog":
+            session.flush()
+            content.delete_photo(session, old_cover)
+
+        chosen_date = _parse_date(values["published_date"])
+        post.is_published = bool(values["is_published"])
+        if chosen_date:
+            current = post.published_at.date() if post.published_at else None
+            if current != chosen_date:
+                post.published_at = dt_datetime(
+                    chosen_date.year, chosen_date.month, chosen_date.day, 12, 0
+                )
+        elif post.is_published and not post.published_at:
+            post.published_at = content.utcnow()
+        session.commit()
+
+        if post.is_published:
+            state = "pubblicato"
+        else:
+            state = "salvato come bozza"
+        request.session["admin_notice"] = (
+            f"Articolo {'creato e ' if is_new else ''}{state}."
+        )
+        if form.get("after") == "preview":
+            target = request.url_for("admin:view-blog_preview", post_id=post.id)
+        else:
+            target = request.url_for("admin:view-blog_edit", post_id=post.id)
+        return RedirectResponse(target, status_code=303)
+
+
+class MemberRideAdmin(AmaroAdmin, model=MemberRide):
+    name = "Uscita soci"
+    name_plural = "Uscite soci"
+    icon = "fa-solid fa-person-biking"
+    column_list = ["date", "start_time", "title", "meeting_point", "distance_km", "elevation_m"]
+    column_default_sort = [("date", True)]
+    column_sortable_list = ["date", "title"]
+    column_searchable_list = ["title", "meeting_point"]
+    column_labels = {
+        "title": "Titolo",
+        "date": "Data",
+        "start_time": "Orario partenza",
+        "meeting_point": "Ritrovo",
+        "meeting_map_url": "Link mappa ritrovo",
+        "distance_km": "Km",
+        "elevation_m": "Dislivello (m)",
+        "route_url": "Link percorso (Strava, Komoot, GPX…)",
+        "notes": "Note",
+    }
+    form_columns = [
+        "title",
+        "date",
+        "start_time",
+        "meeting_point",
+        "meeting_map_url",
+        "distance_km",
+        "elevation_m",
+        "route_url",
+        "notes",
+    ]
+    form_args = {
+        "title": {"validators": [DataRequired()]},
+        "date": {"validators": [DataRequired()]},
+    }
+    form_widget_args = {
+        "title": {"placeholder": "Es. Giro del lago, ritmo tranquillo"},
+        "start_time": {"placeholder": "08:30"},
+        "meeting_point": {"placeholder": "Es. Bar della piazza"},
+        "meeting_map_url": {"placeholder": "https://maps.app.goo.gl/..."},
+        "route_url": {"placeholder": "https://www.komoot.com/tour/..."},
+        "notes": {"placeholder": "Cosa portare, livello, in caso di pioggia…", "rows": 4},
+    }
+
+    async def on_model_change(
+        self, data: dict, model: MemberRide, is_created: bool, request: Request
+    ) -> None:
+        raw = (data.get("start_time") or "").strip().replace(".", ":")
+        if raw and re.fullmatch(r"\d{1,2}(:\d{2})?", raw):
+            hours, _, minutes = raw.partition(":")
+            raw = f"{int(hours):02d}:{minutes or '00'}"
+        data["start_time"] = raw[:5] or None
+
+
 class MembershipPaymentAdmin(AmaroAdmin, model=MembershipPayment):
     column_list = [
         "id",
@@ -876,3 +1385,6 @@ def setup_admin(app: FastAPI) -> None:
     admin.add_view(MembershipPaymentAdmin)
     admin.add_view(AdminToolsView)
     admin.add_view(AdminStatsView)
+    admin.add_view(PhotoAdminView)
+    admin.add_view(BlogAdminView)
+    admin.add_view(MemberRideAdmin)

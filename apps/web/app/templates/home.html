@@ -73,6 +73,51 @@
     </article>
   </section>
 
+  {% if latest_posts %}
+  <section class="section" id="blog">
+    <header class="section__header">
+      <h2>Dal blog</h2>
+      <p>Racconti e notizie dell'associazione.</p>
+    </header>
+    <div class="card-grid card-grid--tight">
+      {% for item in latest_posts %}
+        {% set post = item.post %}
+        <article class="card post-card">
+          {% if post.cover_photo %}
+            <a class="post-card__media" href="/blog/{{ post.slug }}" tabindex="-1" aria-hidden="true">
+              <img src="{{ post.cover_photo.thumb_url }}" alt="" loading="lazy" />
+            </a>
+          {% endif %}
+          <div class="post-card__body">
+            {% if post.published_at %}<p class="card__date">{{ post.published_at | it_date }}</p>{% endif %}
+            <h3><a href="/blog/{{ post.slug }}">{{ post.title }}</a></h3>
+            {% if item.excerpt %}<p class="small">{{ item.excerpt }}</p>{% endif %}
+          </div>
+        </article>
+      {% endfor %}
+    </div>
+    <a class="link link--block" href="/blog">Tutti gli articoli</a>
+  </section>
+  {% endif %}
+
+  {% if home_photos %}
+  <section class="section" id="foto">
+    <header class="section__header">
+      <h2>Foto</h2>
+    </header>
+    <div class="photo-strip">
+      {% for photo in home_photos %}
+        <a href="{{ '/foto/' ~ photo.album.slug if photo.album else photo.url }}">
+          <img src="{{ photo.thumb_url }}" alt="{{ photo.caption or '' }}" loading="lazy" />
+        </a>
+      {% endfor %}
+    </div>
+    {% if home_photos | selectattr('album') | list %}
+      <a class="link link--block" href="/foto">Vedi tutte le foto</a>
+    {% endif %}
+  </section>
+  {% endif %}
+
   {% if show_merch_preview %}
   <section class="section">
     <header class="section__header">

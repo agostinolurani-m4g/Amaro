@@ -1,0 +1,298 @@
+{% extends "layout.html" %}
+
+{% block head %}
+<style>
+  .photo-drop {
+    border: 2px dashed #b9a0b0;
+    padding: 1.25rem;
+    text-align: center;
+    background: #fbf7fa;
+  }
+  .photo-drop.is-over { background: #f3e6ee; border-color: #4b0d36; }
+  .photo-tile img {
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    object-fit: cover;
+    display: block;
+    background: #eee;
+  }
+  .photo-tile.is-deleting { opacity: 0.4; }
+  .album-row img { width: 56px; height: 56px; object-fit: cover; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="col-12">
+  {% if notice %}
+  <div class="alert alert-success" role="alert">{{ notice }}</div>
+  {% endif %}
+  {% for error in errors %}
+  <div class="alert alert-danger" role="alert">{{ error }}</div>
+  {% endfor %}
+</div>
+
+<div class="col-12">
+  <div class="card">
+    <div class="card-body">
+      <h3 class="card-title">Carica foto</h3>
+      <form action="{{ url_for('admin:view-photos') }}" method="post" enctype="multipart/form-data" data-upload-form>
+        <input type="hidden" name="action" value="upload" />
+        <div class="row g-3">
+          <div class="col-12 col-md-4">
+            <label class="form-label" for="album_choice">Dove le metto?</label>
+            <select class="form-select" id="album_choice" name="album_choice" data-album-choice>
+              <option value="new" {% if not selected %}selected{% endif %}>+ Nuovo album</option>
+              {% for row in albums %}
+              <option value="{{ row.album.id }}" {% if selected and selected.id == row.album.id %}selected{% endif %}>
+                {{ row.album.title }}
+              </option>
+              {% endfor %}
+              <option value="">Nessun album (solo home o link)</option>
+            </select>
+          </div>
+          <div class="col-12 col-md-5" data-new-album>
+            <label class="form-label" for="new_album_title">Nome nuovo album</label>
+            <input class="form-control" id="new_album_title" name="new_album_title" type="text" maxlength="160"
+              placeholder="Es. Gran fondo di primavera 2026" />
+          </div>
+          <div class="col-12 col-md-3" data-new-album>
+            <label class="form-label" for="new_album_date">Data</label>
+            <input class="form-control" id="new_album_date" name="new_album_date" type="date" value="{{ today }}" />
+          </div>
+          <div class="col-12">
+            <label class="photo-drop d-block" data-drop>
+              <input class="form-control" type="file" name="files" multiple required
+                accept="image/jpeg,image/png,image/webp" data-files />
+              <span class="d-block mt-2 text-muted small" data-drop-label>
+                Scegli una o più foto, oppure trascinale qui. JPG, PNG o WEBP fino a 15 MB l'una.
+              </span>
+            </label>
+          </div>
+          <div class="col-12 d-flex flex-wrap align-items-center gap-3">
+            <label class="form-check m-0">
+              <input class="form-check-input" type="checkbox" name="show_on_home" value="1" />
+              <span class="form-check-label">Mostra anche in home</span>
+            </label>
+            <button class="btn btn-primary" type="submit" data-upload-submit>Carica</button>
+            <span class="text-muted small">
+              Le foto vengono ridimensionate e ripulite dai dati di posizione (GPS) prima di finire sul sito.
+            </span>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+{% macro photo_grid(photos, with_cover, cover_id) %}
+<div class="row g-3">
+  {% for photo in photos %}
+  <div class="col-6 col-md-4 col-xl-2">
+    <div class="photo-tile border p-2 h-100" data-photo-tile>
+      <a href="{{ photo.url }}" target="_blank" rel="noopener"><img src="{{ photo.thumb_url }}" alt="" loading="lazy" /></a>
+      <input class="form-control form-control-sm mt-2" type="text" name="caption_{{ photo.id }}" maxlength="240"
+        value="{{ photo.caption or '' }}" placeholder="Didascalia" />
+      <label class="form-check mt-2 mb-0">
+        <input class="form-check-input" type="checkbox" name="home_{{ photo.id }}" value="1" {% if photo.show_on_home %}checked{% endif %} />
+        <span class="form-check-label small">In home</span>
+      </label>
+      {% if with_cover %}
+      <label class="form-check mb-0">
+        <input class="form-check-input" type="radio" name="cover_photo_id" value="{{ photo.id }}" {% if cover_id == photo.id %}checked{% endif %} />
+        <span class="form-check-label small">Copertina</span>
+      </label>
+      {% endif %}
+      <label class="form-check mb-1">
+        <input class="form-check-input" type="checkbox" name="delete_{{ photo.id }}" value="1" data-delete-toggle />
+        <span class="form-check-label small text-danger">Elimina</span>
+      </label>
+      <button class="btn btn-sm btn-outline-secondary w-100" type="button" data-copy-url="{{ photo.url }}">Copia link</button>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endmacro %}
+
+{% if selected %}
+<div class="col-12">
+  <div class="card">
+    <div class="card-body">
+      <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+        <a href="{{ url_for('admin:view-photos') }}">&larr; Tutti gli album</a>
+        {% if selected.is_published and selected_photos %}
+        <a href="/foto/{{ selected.slug }}" target="_blank" rel="noopener">Vedi sul sito &nearr;</a>
+        {% endif %}
+      </div>
+      <form action="{{ url_for('admin:view-photos') }}" method="post">
+        <input type="hidden" name="action" value="save_album" />
+        <input type="hidden" name="album_id" value="{{ selected.id }}" />
+        <div class="row g-3 mb-3">
+          <div class="col-12 col-md-6">
+            <label class="form-label" for="album_title">Titolo</label>
+            <input class="form-control" id="album_title" name="title" type="text" maxlength="160" value="{{ selected.title }}" required />
+          </div>
+          <div class="col-12 col-md-3">
+            <label class="form-label" for="album_date">Data</label>
+            <input class="form-control" id="album_date" name="date" type="date"
+              value="{{ selected.date.isoformat() if selected.date else '' }}" />
+          </div>
+          <div class="col-12 col-md-3 d-flex align-items-end">
+            <label class="form-check form-switch m-0">
+              <input class="form-check-input" type="checkbox" name="is_published" value="1" {% if selected.is_published %}checked{% endif %} />
+              <span class="form-check-label">Visibile sul sito</span>
+            </label>
+          </div>
+          <div class="col-12">
+            <label class="form-label" for="album_description">Descrizione (facoltativa)</label>
+            <textarea class="form-control" id="album_description" name="description" rows="2">{{ selected.description or '' }}</textarea>
+          </div>
+        </div>
+        {% if selected_photos %}
+        {{ photo_grid(selected_photos, true, selected.cover_photo_id) }}
+        {% else %}
+        <p class="text-muted">Album vuoto: carica le foto con il modulo qui sopra. Gli album vuoti non compaiono sul sito.</p>
+        {% endif %}
+        <div class="mt-3">
+          <button class="btn btn-primary" type="submit">Salva album</button>
+        </div>
+      </form>
+      <form class="mt-4 pt-3 border-top" action="{{ url_for('admin:view-photos') }}" method="post"
+        onsubmit="return confirm('Eliminare l\'album e tutte le sue foto? Non si può annullare.');">
+        <input type="hidden" name="action" value="delete_album" />
+        <input type="hidden" name="album_id" value="{{ selected.id }}" />
+        <button class="btn btn-outline-danger btn-sm" type="submit">Elimina album e foto</button>
+      </form>
+    </div>
+  </div>
+</div>
+{% else %}
+<div class="col-12">
+  <div class="card">
+    <div class="card-body">
+      <h3 class="card-title">Album</h3>
+      {% if albums %}
+      <div class="table-responsive">
+        <table class="table table-vcenter">
+          <tbody>
+            {% for row in albums %}
+            <tr class="album-row">
+              <td style="width: 72px">
+                {% if row.cover %}<img src="{{ row.cover.thumb_url }}" alt="" loading="lazy" />{% endif %}
+              </td>
+              <td>
+                <a href="{{ url_for('admin:view-photos').include_query_params(album=row.album.id) }}"><strong>{{ row.album.title }}</strong></a>
+                <div class="text-muted small">
+                  {{ row.album.date.strftime('%d/%m/%Y') if row.album.date else 'senza data' }}
+                  &middot; {{ row.count }} foto
+                </div>
+              </td>
+              <td class="text-end">
+                {% if not row.album.is_published %}
+                <span class="badge bg-secondary">Nascosto</span>
+                {% elif not row.count %}
+                <span class="badge bg-warning">Vuoto</span>
+                {% else %}
+                <span class="badge bg-success">Online</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <p class="text-muted mb-0">Ancora nessun album. Carica le prime foto qui sopra scegliendo «Nuovo album».</p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+{% if loose_photos %}
+<div class="col-12">
+  <div class="card">
+    <div class="card-body">
+      <h3 class="card-title">Foto senza album</h3>
+      <p class="text-muted small">Usale in home oppure copia il link per incollarlo, ad esempio, nella copertina di un evento.</p>
+      <form action="{{ url_for('admin:view-photos') }}" method="post">
+        <input type="hidden" name="action" value="save_loose" />
+        {{ photo_grid(loose_photos, false, none) }}
+        <div class="mt-3">
+          <button class="btn btn-primary" type="submit">Salva</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endif %}
+{% endblock %}
+
+{% block tail %}
+<script>
+  (function () {
+    var choice = document.querySelector("[data-album-choice]");
+    var newAlbumFields = document.querySelectorAll("[data-new-album]");
+    var newTitle = document.getElementById("new_album_title");
+    function syncNewAlbum() {
+      var isNew = choice && choice.value === "new";
+      newAlbumFields.forEach(function (el) { el.hidden = !isNew; el.classList.toggle("d-none", !isNew); });
+      if (newTitle) newTitle.required = !!isNew;
+    }
+    if (choice) { choice.addEventListener("change", syncNewAlbum); syncNewAlbum(); }
+
+    var drop = document.querySelector("[data-drop]");
+    var files = document.querySelector("[data-files]");
+    var label = document.querySelector("[data-drop-label]");
+    function showCount() {
+      if (files && label && files.files.length) {
+        label.textContent = files.files.length === 1 ? "1 foto pronta da caricare" : files.files.length + " foto pronte da caricare";
+      }
+    }
+    if (drop && files) {
+      ["dragenter", "dragover"].forEach(function (name) {
+        drop.addEventListener(name, function (e) { e.preventDefault(); drop.classList.add("is-over"); });
+      });
+      ["dragleave", "drop"].forEach(function (name) {
+        drop.addEventListener(name, function () { drop.classList.remove("is-over"); });
+      });
+      drop.addEventListener("drop", function (e) {
+        e.preventDefault();
+        if (e.dataTransfer && e.dataTransfer.files.length) { files.files = e.dataTransfer.files; showCount(); }
+      });
+      files.addEventListener("change", showCount);
+    }
+
+    var form = document.querySelector("[data-upload-form]");
+    var submit = document.querySelector("[data-upload-submit]");
+    if (form && submit) {
+      form.addEventListener("submit", function () {
+        submit.disabled = true;
+        submit.textContent = "Caricamento in corso…";
+      });
+    }
+
+    document.querySelectorAll("[data-delete-toggle]").forEach(function (box) {
+      box.addEventListener("change", function () {
+        var tile = box.closest("[data-photo-tile]");
+        if (tile) tile.classList.toggle("is-deleting", box.checked);
+      });
+    });
+
+    document.querySelectorAll("[data-copy-url]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var url = window.location.origin + btn.getAttribute("data-copy-url");
+        var done = function () {
+          var old = btn.textContent;
+          btn.textContent = "Copiato!";
+          setTimeout(function () { btn.textContent = old; }, 1500);
+        };
+        if (navigator.clipboard) {
+          navigator.clipboard.writeText(url).then(done, function () { window.prompt("Copia il link:", url); });
+        } else {
+          window.prompt("Copia il link:", url);
+        }
+      });
+    });
+  })();
+</script>
+{% endblock %}

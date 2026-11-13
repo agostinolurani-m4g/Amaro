@@ -71,6 +71,7 @@ from .models import (
     EventWaitlistEntry,
     Member,
     MemberDocument,
+    MemberRide,
     MembershipPayment,
     MerchItem,
     MEMBERSHIP_STATUS_PENDING,
@@ -89,22 +90,7 @@ from .wattlab_companion import companion_login_url, router as wattlab_companion_
 from .wattlab_strava import router as wattlab_strava_router
 from .wattlab_sync import router as wattlab_sync_router
 from .wattlab_download import resolve_wattlab_installer, wattlab_installer_info
-
-GALLERY_IMAGES: list[dict[str, str]] = [
-]
-
-DRIVE_COLLECTIONS: list[dict[str, str | None]] = [
-    {
-        "title": "Eventi su Drive",
-        "description": "Foto degli eventi.",
-        "folder_id": settings.drive_events_folder_id,
-    },
-    {
-        "title": "Galleria generale",
-        "description": "",
-        "folder_id": settings.drive_gallery_folder_id,
-    },
-]
+from . import content
 
 MEMBERSHIP_TYPES = [
     "Socio ordinario",
@@ -408,6 +394,7 @@ if (lupo_dir / "index.html").is_file():
     app.mount("/lupo", StaticFiles(directory=lupo_dir, html=True), name="lupo")
 templates = Jinja2Templates(directory=templates_dir)
 templates.env.globals["current_year"] = datetime.utcnow().year
+content.init_templates(templates)
 logger = logging.getLogger(__name__)
 app.add_middleware(SessionMiddleware, secret_key=settings.session_secret, session_cookie="amaro_session")
 app.include_router(wattlab_router)
@@ -417,6 +404,7 @@ app.include_router(wattlab_sync_router)
 app.include_router(m4g_access_router)
 app.include_router(m4g_admin_router)
 app.include_router(m4g_router)
+app.include_router(content.router)
 setup_admin(app)
 
 
@@ -1070,46 +1058,6 @@ def format_text(value: str | None) -> Markup:
 templates.env.filters["format_text"] = format_text
 
 
-def fetch_drive_images(folder_id: str | None, api_key: str | None, limit: int = 18) -> list[dict[str, str]]:
-    if not folder_id or not api_key:
-        return []
-
-    params = {
-        "q": f"'{folder_id}' in parents and trashed=false and mimeType contains 'image/'",
-        "orderBy": "createdTime desc",
-        "fields": "files(id,name,description,webViewLink)",
-        "pageSize": limit,
-        "includeItemsFromAllDrives": True,
-        "supportsAllDrives": True,
-        "key": api_key,
-    }
-    try:
-        response = requests.get(
-            "https://www.googleapis.com/drive/v3/files", params=params, timeout=6
-        )
-        response.raise_for_status()
-    except Exception as exc:  # pragma: no cover - best-effort integration
-        logger.warning("Google Drive non raggiungibile: %s", exc)
-        return []
-
-    payload = response.json()
-    images: list[dict[str, str]] = []
-    for file in payload.get("files", []):
-        file_id = file.get("id")
-        if not file_id:
-            continue
-        images.append(
-            {
-                "url": f"https://drive.google.com/thumbnail?id={file_id}&sz=w800",
-                "caption": file.get("name") or "Foto",
-                "web_url": file.get("webViewLink") or "",
-            }
-        )
-        if len(images) >= limit:
-            break
-    return images
-
-
 def ensure_member_schema() -> None:
     inspector = inspect(engine)
     columns = {col["name"] for col in inspector.get_columns("members")}
@@ -1491,6 +1439,30 @@ def _build_calendar_months(session: Session) -> list[dict[str, object]]:
     return months
 
 
+def _upcoming_member_rides(session: Session, limit: int = 30) -> list[dict[str, object]]:
+    """Uscite soci da oggi in poi, raggruppate per mese (area tesserati)."""
+    rides = (
+        session.query(MemberRide)
+        .filter(MemberRide.date >= date.today())
+        .order_by(MemberRide.date.asc(), MemberRide.start_time.asc(), MemberRide.id.asc())
+        .limit(limit)
+        .all()
+    )
+    months: list[dict[str, object]] = []
+    for ride in rides:
+        label = f"{ITALIAN_MONTHS[ride.date.month - 1]} {ride.date.year}"
+        if not months or months[-1]["label"] != label:
+            months.append({"label": label, "rides": []})
+        months[-1]["rides"].append(
+            {
+                "ride": ride,
+                "weekday": WEEKDAY_LABELS[ride.date.weekday()],
+                "day": f"{ride.date.day:02d}/{ride.date.month:02d}",
+            }
+        )
+    return months
+
+
 def _build_featured_events(
     session: Session, limit: int = 3
 ) -> list[dict[str, str]]:
@@ -1804,11 +1776,17 @@ def home(request: Request, session: Session = Depends(get_session)) -> HTMLRespo
         merch_preview = session.query(MerchItem).order_by(MerchItem.id).limit(3).all()
     calendar_view = _build_month_view(session)
     featured_events = _build_featured_events(session)
+    latest_posts = [
+        {"post": post, "excerpt": content.post_excerpt(post)}
+        for post in content.latest_posts(session, 3)
+    ]
     return templates.TemplateResponse(
         "home.html",
         {
             "request": request,
             "featured_events": featured_events,
+            "latest_posts": latest_posts,
+            "home_photos": content.home_photos(session, 8),
             "calendar_view": calendar_view,
             "weekday_labels": WEEKDAY_LABELS,
             "merch_preview": merch_preview,
@@ -3169,6 +3147,9 @@ def member_area(request: Request, session: Session = Depends(get_session)) -> HT
         key=lambda doc: (doc.uploaded_at is not None, doc.uploaded_at or 0), reverse=True
     )
     wattlab_info = wattlab_installer_info() if member and member.payment_status == "paid" else None
+    ride_months = (
+        _upcoming_member_rides(session) if member and member.payment_status == "paid" else []
+    )
     medical_days_left = (
         (member.medical_certificate_expiry - date.today()).days
         if member and member.medical_certificate_expiry
@@ -3197,6 +3178,7 @@ def member_area(request: Request, session: Session = Depends(get_session)) -> HT
             "pending_doc_ids": pending_doc_ids,
             "password_reset_enabled": password_reset_enabled,
             "wattlab_info": wattlab_info,
+            "ride_months": ride_months,
             "medical_days_left": medical_days_left,
             "documents_summary": documents_summary,
         },

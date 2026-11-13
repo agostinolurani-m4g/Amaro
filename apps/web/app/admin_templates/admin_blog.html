@@ -1,0 +1,61 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="col-12">
+  {% if notice %}
+  <div class="alert alert-success" role="alert">{{ notice }}</div>
+  {% endif %}
+</div>
+
+<div class="col-12">
+  <div class="card">
+    <div class="card-body">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h3 class="card-title m-0">Articoli</h3>
+        <a class="btn btn-primary" href="{{ url_for('admin:view-blog_new') }}">+ Nuovo articolo</a>
+      </div>
+      {% if posts %}
+      <div class="table-responsive">
+        <table class="table table-vcenter">
+          <thead>
+            <tr>
+              <th>Titolo</th>
+              <th>Stato</th>
+              <th>Data</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for post in posts %}
+            <tr>
+              <td><a href="{{ url_for('admin:view-blog_edit', post_id=post.id) }}"><strong>{{ post.title }}</strong></a></td>
+              <td>
+                {% if post.is_published %}
+                <span class="badge bg-success">Pubblicato</span>
+                {% else %}
+                <span class="badge bg-secondary">Bozza</span>
+                {% endif %}
+              </td>
+              <td class="text-muted">
+                {{ post.published_at.strftime('%d/%m/%Y') if post.published_at else '—' }}
+              </td>
+              <td class="text-end text-nowrap">
+                <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('admin:view-blog_edit', post_id=post.id) }}">Modifica</a>
+                {% if post.is_published %}
+                <a class="btn btn-sm btn-outline-secondary" href="/blog/{{ post.slug }}" target="_blank" rel="noopener">Vedi</a>
+                {% else %}
+                <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('admin:view-blog_preview', post_id=post.id) }}" target="_blank" rel="noopener">Anteprima</a>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <p class="text-muted mb-0">Nessun articolo. Scrivi il primo con «Nuovo articolo».</p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}
