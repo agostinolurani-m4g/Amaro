@@ -4,10 +4,9 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { chatWithCoach, coachAdjustPlan, coachBatchComments, coachSessionComment, coachWeeklyReview } from "./coach.mjs";
-import { llmHealth } from "./llm.mjs";
 import { searchWeb } from "./webSearch.mjs";
 import { mountStravaRoutes } from "./strava.mjs";
+import { mountCoachProxy } from "./coachProxy.mjs";
 import {
   createToken,
   isActiveMembership,
@@ -350,144 +349,7 @@ app.put(
   },
 );
 
-app.get("/api/wattlab/coach/health", requireAuth, async (_req, res) => {
-  res.json(await llmHealth());
-});
-
-app.post(
-  "/api/wattlab/coach/chat/stream",
-  requireAuth,
-  requireActiveMember,
-  async (req, res) => {
-    res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
-    res.setHeader("Cache-Control", "no-cache");
-    res.setHeader("X-Accel-Buffering", "no");
-    res.flushHeaders?.();
-    const beat = setInterval(() => {
-      if (!res.writableEnded) res.write(": ping\n\n");
-    }, 15000);
-    const emit = (event) => {
-      if (!res.writableEnded) res.write(`event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`);
-    };
-    req.on("close", () => clearInterval(beat));
-    try {
-      const result = await chatWithCoach({
-        message: String(req.body?.message ?? ""),
-        history: Array.isArray(req.body?.history) ? req.body.history : [],
-        context: req.body?.context ?? {},
-        directIntent: req.body?.directIntent ? String(req.body.directIntent) : undefined,
-        memberId: req.auth.member.id,
-        emit,
-      });
-      emit({ type: "done", response: result });
-    } catch (error) {
-      emit({ type: "error", message: error.message ?? "Coach non disponibile." });
-    } finally {
-      clearInterval(beat);
-      res.end();
-    }
-  },
-);
-
-app.post(
-  "/api/wattlab/coach/chat",
-  requireAuth,
-  requireActiveMember,
-  async (req, res) => {
-    try {
-      const result = await chatWithCoach({
-        message: String(req.body?.message ?? ""),
-        history: Array.isArray(req.body?.history) ? req.body.history : [],
-        context: req.body?.context ?? {},
-        directIntent: req.body?.directIntent ? String(req.body.directIntent) : undefined,
-        memberId: req.auth.member.id,
-      });
-      res.json(result);
-    } catch (error) {
-      const status = Number(error.status ?? 500);
-      res.status(status).json({
-        detail: error.message ?? "Coach non disponibile.",
-      });
-    }
-  },
-);
-
-app.post(
-  "/api/wattlab/coach/comment",
-  requireAuth,
-  requireActiveMember,
-  async (req, res) => {
-    try {
-      const result = await coachSessionComment({
-        context: req.body?.context ?? {},
-        session: req.body?.session ?? {},
-        planned: req.body?.planned ?? null,
-        evaluation: req.body?.evaluation ?? null,
-        athleteProfile: req.body?.athleteProfile ?? null,
-      });
-      res.json(result);
-    } catch (error) {
-      const status = Number(error.status ?? 500);
-      res.status(status).json({ detail: error.message ?? "Commento coach non disponibile." });
-    }
-  },
-);
-
-app.post(
-  "/api/wattlab/coach/weekly",
-  requireAuth,
-  requireActiveMember,
-  async (req, res) => {
-    try {
-      const result = await coachWeeklyReview({
-        context: req.body?.context ?? {},
-        constraints: Array.isArray(req.body?.constraints) ? req.body.constraints : [],
-      });
-      res.json(result);
-    } catch (error) {
-      const status = Number(error.status ?? 500);
-      res.status(status).json({ detail: error.message ?? "Revisione settimanale non disponibile." });
-    }
-  },
-);
-
-app.post(
-  "/api/wattlab/coach/adjust",
-  requireAuth,
-  requireActiveMember,
-  async (req, res) => {
-    try {
-      const result = await coachAdjustPlan({
-        message: String(req.body?.message ?? ""),
-        context: req.body?.context ?? {},
-        constraints: Array.isArray(req.body?.constraints) ? req.body.constraints : [],
-      });
-      res.json(result);
-    } catch (error) {
-      const status = Number(error.status ?? 500);
-      res.status(status).json({ detail: error.message ?? "Aggiornamento piano non disponibile." });
-    }
-  },
-);
-
-app.post(
-  "/api/wattlab/coach/batch-comments",
-  requireAuth,
-  requireActiveMember,
-  async (req, res) => {
-    try {
-      const result = await coachBatchComments({
-        context: req.body?.context ?? {},
-        sessions: Array.isArray(req.body?.sessions) ? req.body.sessions : [],
-        athleteProfile: req.body?.athleteProfile ?? null,
-      });
-      res.json(result);
-    } catch (error) {
-      const status = Number(error.status ?? 500);
-      res.status(status).json({ detail: error.message ?? "Commenti batch non disponibili." });
-    }
-  },
-);
+mountCoachProxy(app, { requireAuth, requireActiveMember });
 
 mountStravaRoutes(app, { requireAuth, requireActiveMember });
 

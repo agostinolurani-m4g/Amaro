@@ -1,11 +1,6 @@
 // Strumenti del coach: tutti i numeri vengono dal motore deterministico (shared/engine).
-import crypto from "node:crypto";
-import fs from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-import { searchWeb } from "./webSearch.mjs";
-import { activityBundle, athleteProfile, listActivities, NOT_LINKED } from "./strava.mjs";
-import { sportFromStrava } from "../shared/engine/sports.mjs";
+// Gira nell'app (browser/desktop): i servizi esterni (schede, web, Strava) si iniettano con configureCoachServices.
+import { sportFromStrava } from "../engine/sports.mjs";
 import {
   COGGAN_ZONES,
   MMP_WINDOWS,
@@ -14,7 +9,7 @@ import {
   resample1Hz,
   sessionMetrics,
   weeklySummary,
-} from "../shared/engine/load.mjs";
+} from "../engine/load.mjs";
 import {
   athleteModel,
   bestMmp,
@@ -24,29 +19,32 @@ import {
   steadyLactate,
   substrateAt,
   wPrimeBalance,
-} from "../shared/engine/physiology.mjs";
-import { predictWorkout } from "../shared/engine/predictor.mjs";
-import { SESSION_TYPES, describeSteps, generateWorkout } from "../shared/engine/workoutGen.mjs";
-import { adaptSession, generatePlan, readinessScore } from "../shared/engine/planner.mjs";
-import { addDaysIso, todayLocal, WEEKDAYS } from "../shared/engine/dates.mjs";
-import { parseCards, searchCards } from "../shared/knowledge/index.mjs";
+} from "../engine/physiology.mjs";
+import { predictWorkout } from "../engine/predictor.mjs";
+import { SESSION_TYPES, describeSteps, generateWorkout } from "../engine/workoutGen.mjs";
+import { adaptSession, generatePlan, readinessScore } from "../engine/planner.mjs";
+import { addDaysIso, todayLocal, WEEKDAYS } from "../engine/dates.mjs";
+import { searchCards } from "../knowledge/index.mjs";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const KNOWLEDGE_DIR = path.join(__dirname, "..", "shared", "knowledge");
+const NOT_LINKED = "Strava non collegato: collegalo da Profilo → Strava.";
 
-let cardsCache = null;
+/**
+ * Servizi opzionali. Senza `searchWeb` o `strava` i relativi strumenti non vengono offerti al modello.
+ * @type {{ cards: import("../knowledge/index.mjs").KnowledgeCard[], searchWeb: ((q: string) => Promise<any>) | null, strava: any }}
+ */
+const services = { cards: [], searchWeb: null, strava: null };
+
+/** @param {Partial<typeof services>} next */
+export function configureCoachServices(next) {
+  Object.assign(services, next);
+}
+
 export function knowledgeCards() {
-  if (cardsCache) return cardsCache;
-  const files = {};
-  try {
-    for (const name of fs.readdirSync(KNOWLEDGE_DIR)) {
-      if (name.endsWith(".md")) files[name] = fs.readFileSync(path.join(KNOWLEDGE_DIR, name), "utf8");
-    }
-  } catch {
-    // knowledge opzionale
-  }
-  cardsCache = parseCards(files);
-  return cardsCache;
+  return services.cards;
+}
+
+function newId() {
+  return globalThis.crypto?.randomUUID?.() ?? `id-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
 const STEP_KINDS = ["warmup", "steady", "interval", "recovery", "cooldown"];
@@ -197,6 +195,25 @@ export const TOOLS = [
 
 const TOOL_BY_NAME = new Map(TOOLS.map((t) => [t.function.name, t]));
 
+/** Strumenti utilizzabili con i servizi configurati. */
+export function availableTools() {
+  return TOOLS.filter((t) => {
+    const name = t.function.name;
+    if (name === "cerca_web") return Boolean(services.searchWeb);
+    if (name.startsWith("strava_")) return Boolean(services.strava);
+    return true;
+  });
+}
+
+/** Formato strumenti per l'API Messages di Anthropic. */
+export function anthropicTools(tools) {
+  return (tools ?? []).map((t) => ({
+    name: t.function.name,
+    description: t.function.description,
+    input_schema: t.function.parameters,
+  }));
+}
+
 const CORE = ["cerca_attivita", "carico_allenamento", "profilo_fisiologico", "consulta_knowledge"];
 const GROUPS = [
   { re: /session|uscit|ieri|analizz|com'?\s?è andat|com'?e andat|ultima/, tools: ["analisi_sessione", "crea_grafico"] },
@@ -214,7 +231,8 @@ const GROUPS = [
 
 /** Subset di tool per il messaggio (meno token per modelli locali). */
 export function toolsForMessage(message, { all = false } = {}) {
-  if (all) return TOOLS;
+  const usable = new Set(availableTools().map((t) => t.function.name));
+  if (all) return TOOLS.filter((t) => usable.has(t.function.name));
   const m = String(message ?? "").toLowerCase();
   const names = new Set(CORE);
   let matched = false;
@@ -229,7 +247,7 @@ export function toolsForMessage(message, { all = false } = {}) {
       names.add(t),
     );
   }
-  return [...names].map((n) => TOOL_BY_NAME.get(n)).filter(Boolean);
+  return [...names].filter((n) => usable.has(n)).map((n) => TOOL_BY_NAME.get(n)).filter(Boolean);
 }
 
 // ---------- contesto motore ----------
@@ -833,7 +851,7 @@ export function runTool(name, args, ctx, state) {
       const label = String(args.etichetta ?? "").trim().slice(0, 120);
       if (!label) return "Serve una descrizione dell'impegno.";
       const block = {
-        id: crypto.randomUUID(),
+        id: newId(),
         label,
         date: args.data ? isoDay(args.data) : undefined,
         weekday: args.giornoSettimana && WEEKDAYS.includes(args.giornoSettimana) ? args.giornoSettimana : undefined,
@@ -887,7 +905,8 @@ export function runTool(name, args, ctx, state) {
     }
 
     case "cerca_web": {
-      return searchWeb(String(args.query ?? "")).then((result) => {
+      if (!services.searchWeb) return "Ricerca web non disponibile: rispondi con consulta_knowledge.";
+      return services.searchWeb(String(args.query ?? "")).then((result) => {
         if (!result.ok) return result.error;
         state.artifacts.push({ type: "sources", query: result.query, results: result.results });
         return `Trovati ${result.results.length} risultati: ${result.results.map((r) => `${r.title}: ${r.snippet}`).join(" | ").slice(0, 1500)}`;
@@ -907,7 +926,8 @@ export function runTool(name, args, ctx, state) {
 
 async function runStravaTool(name, args, ctx) {
   const memberId = ctx.__memberId;
-  if (!memberId) return NOT_LINKED;
+  if (!services.strava || !memberId) return NOT_LINKED;
+  const { activityBundle, athleteProfile, listActivities } = services.strava;
   const giorni = Math.min(365, Math.max(1, Number(args.giorni ?? 28)));
   const after = Math.floor(Date.now() / 1000) - giorni * 86400;
   try {

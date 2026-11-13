@@ -22,6 +22,7 @@ segno = "^1.6.0"
 pypng = "^0.20220715.0"
 pillow = ">=10.4"
 nh3 = ">=0.2.17"
+anthropic = ">=2.8,<3"
 
 [build-system]
 requires = ["poetry-core>=1.7"]

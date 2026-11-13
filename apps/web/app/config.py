@@ -56,6 +56,10 @@ class Settings(BaseSettings):
     companion_url: str = Field('https://companion.amarobici.it', env='COMPANION_URL')
     strava_client_id: str | None = Field(None, env='STRAVA_CLIENT_ID')
     strava_client_secret: str | None = Field(None, env='STRAVA_CLIENT_SECRET')
+    anthropic_api_key: str | None = Field(None, env='ANTHROPIC_API_KEY')
+    coach_model: str = Field('claude-haiku-5-5', env='COACH_MODEL')
+    # Chiamate al modello per socio al giorno (un messaggio in chat ne usa 1-4).
+    coach_daily_calls: int = Field(120, env='COACH_DAILY_CALLS')
 
     class Config:
         env_file = '.env'

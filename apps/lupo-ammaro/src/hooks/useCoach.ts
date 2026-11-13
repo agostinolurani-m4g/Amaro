@@ -1,5 +1,15 @@
-import { amaroFetch, amaroJson, API_URL } from "../lib/amaroAuth";
+import { amaroJson } from "../lib/amaroAuth";
+import { coachLlm } from "../lib/coachLlm";
+import { KNOWLEDGE_CARDS } from "../lib/trainingDocs";
 import { workoutTotalDuration } from "../lib/workoutEngine";
+import {
+  chatWithCoach as runCoachChat,
+  coachAdjustPlan,
+  coachBatchComments,
+  coachSessionComment,
+  coachWeeklyReview,
+} from "../../shared/coach/agent.mjs";
+import { configureCoachServices } from "../../shared/coach/tools.mjs";
 import {
   getPersonalRecords,
   getProfile,
@@ -25,6 +35,9 @@ import type {
 import type { CoachDirectIntent } from "../lib/coachCharts";
 
 export type { CoachDirectIntent };
+
+// L'agente gira nell'app; il sito fa solo da tramite verso il modello.
+configureCoachServices({ cards: KNOWLEDGE_CARDS });
 
 function downsampleSeriesPoints(
   points: SessionSeriesPoint[],
@@ -123,21 +136,20 @@ export async function buildCoachContext(goal?: string): Promise<CoachContext> {
   };
 }
 
+type ChatHistory = { role: "user" | "assistant"; content: string }[];
+
 export async function chatWithCoach(
   message: string,
-  history: { role: "user" | "assistant"; content: string }[],
+  history: ChatHistory,
   context: CoachContext,
   directIntent?: CoachDirectIntent,
 ): Promise<CoachChatResponse> {
-  return amaroJson<CoachChatResponse>("/api/wattlab/coach/chat", {
-    method: "POST",
-    body: JSON.stringify({ message, history, context, directIntent }),
-  });
+  return (await runCoachChat({ llm: coachLlm, message, history, context, directIntent })) as CoachChatResponse;
 }
 
 export async function streamCoachChat(
   message: string,
-  history: { role: "user" | "assistant"; content: string }[],
+  history: ChatHistory,
   context: CoachContext,
   directIntent: CoachDirectIntent | undefined,
   handlers: {
@@ -147,44 +159,20 @@ export async function streamCoachChat(
   },
   signal?: AbortSignal,
 ): Promise<void> {
-  const { getAuth } = await import("./useStorage");
-  const stored = await getAuth();
-  const res = await amaroFetch(`${API_URL}/api/wattlab/coach/chat/stream`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${stored?.token ?? ""}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ message, history, context, directIntent }),
+  const res = await runCoachChat({
+    llm: coachLlm,
+    message,
+    history,
+    context,
+    directIntent,
     signal,
-  });
-  if (!res.ok || !res.body) throw new Error("stream");
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder();
-  let buf = "";
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buf += decoder.decode(value, { stream: true });
-    const chunks = buf.split("\n\n");
-    buf = chunks.pop() ?? "";
-    for (const chunk of chunks) {
-      const dataLine = chunk.split("\n").find((l) => l.startsWith("data:"));
-      if (!dataLine) continue;
-      const ev = JSON.parse(dataLine.slice(5).trim()) as {
-        type: string;
-        text?: string;
-        label?: string;
-        response?: CoachChatResponse;
-        message?: string;
-      };
+    emit: (ev: { type: string; text?: string; label?: string }) => {
       if (ev.type === "delta" && ev.text) handlers.onDelta(ev.text);
       if (ev.type === "tool_start") handlers.onTool(ev.label ?? "strumento");
       if (ev.type === "tool_end") handlers.onTool(null);
-      if (ev.type === "done" && ev.response) handlers.onDone(ev.response);
-      if (ev.type === "error") throw new Error(ev.message ?? "Coach non disponibile.");
-    }
-  }
+    },
+  });
+  handlers.onDone(res as CoachChatResponse);
 }
 
 export async function fetchCoachComment(input: {
@@ -194,10 +182,15 @@ export async function fetchCoachComment(input: {
   evaluation?: SessionEvaluation | null;
   athleteProfile?: CoachAthleteProfile | null;
 }): Promise<{ comment: string }> {
-  return amaroJson<{ comment: string }>("/api/wattlab/coach/comment", {
-    method: "POST",
-    body: JSON.stringify(input),
-  });
+  return coachSessionComment({ llm: coachLlm, ...input });
+}
+
+export async function fetchCoachBatchComments(input: {
+  context: CoachContext;
+  athleteProfile?: CoachAthleteProfile | null;
+  sessions: Record<string, unknown>[];
+}): Promise<{ comments: { id: string; comment: string }[] }> {
+  return coachBatchComments({ llm: coachLlm, ...input });
 }
 
 export async function fetchCoachWeekly(input: {
@@ -210,10 +203,7 @@ export async function fetchCoachWeekly(input: {
   workouts?: CoachWorkoutDraft[];
   reply?: string;
 }> {
-  return amaroJson("/api/wattlab/coach/weekly", {
-    method: "POST",
-    body: JSON.stringify(input),
-  });
+  return coachWeeklyReview({ llm: coachLlm, ...input });
 }
 
 export async function fetchCoachAdjust(input: {
@@ -228,10 +218,7 @@ export async function fetchCoachAdjust(input: {
   persistentConstraint?: string;
   lifeBlocks?: { id: string; label: string; date?: string; weekday?: string; slot: string; kind: string }[];
 }> {
-  return amaroJson("/api/wattlab/coach/adjust", {
-    method: "POST",
-    body: JSON.stringify(input),
-  });
+  return coachAdjustPlan({ llm: coachLlm, ...input });
 }
 
 export async function fetchCoachHealth(): Promise<CoachHealth | null> {

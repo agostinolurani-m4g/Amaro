@@ -467,13 +467,16 @@ export interface CoachChatResponse {
 }
 
 export interface CoachHealth {
-  provider: "ollama" | "openai";
+  provider: "anthropic" | "ollama" | "openai";
   model: string;
   fallbackModel: string | null;
   activeModel: string;
   ok: boolean;
   models: string[];
   error: string | null;
+  /** Chiamate al modello usate oggi e limite giornaliero del socio. */
+  usedToday?: number;
+  dailyLimit?: number;
 }
 
 export interface SessionSeriesPoint {

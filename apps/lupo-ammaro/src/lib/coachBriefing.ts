@@ -10,7 +10,7 @@ import type {
   PlanPhaseWeek,
   TrainingFocus,
 } from "../types";
-import { buildCoachContext, fetchCoachWeekly } from "../hooks/useCoach";
+import { buildCoachContext, fetchCoachBatchComments, fetchCoachWeekly } from "../hooks/useCoach";
 import {
   deleteCalendarEntry,
   listCalendar,
@@ -213,30 +213,25 @@ async function backfillCoachComments(context: CoachContext, athleteProfile: Coac
     .slice(0, 5);
   if (missing.length === 0) return;
   try {
-    const data = await amaroJson<{ comments: { id: string; comment: string }[] }>(
-      "/api/wattlab/coach/batch-comments",
-      {
-        method: "POST",
-        body: JSON.stringify({
-          context,
-          athleteProfile: athleteProfile ?? loadAthleteProfile(),
-          sessions: missing.map((e) => ({
-            id: e.id,
-            date: e.date,
-            title: e.title,
-            durationSecs: e.durationSecs,
-            avgPower: e.avgPower,
-            np: e.np,
-            tss: e.tss,
-            ifactor: e.ifactor,
-            avgHr: e.avgHr,
-            decoupling: e.decoupling,
-            rpe: e.rpe,
-            compliance: e.compliance,
-          })),
-        }),
-      },
-    );
+    const data = await fetchCoachBatchComments({
+      context,
+      athleteProfile: athleteProfile ?? loadAthleteProfile(),
+      sessions: missing.map((e) => ({
+        id: e.id,
+        date: e.date,
+        title: e.title,
+        sport: e.sport,
+        durationSecs: e.durationSecs,
+        avgPower: e.avgPower,
+        np: e.np,
+        tss: e.tss,
+        ifactor: e.ifactor,
+        avgHr: e.avgHr,
+        decoupling: e.decoupling,
+        rpe: e.rpe,
+        compliance: e.compliance,
+      })),
+    });
     for (const row of data.comments ?? []) {
       const entry = missing.find((m) => m.id === row.id);
       if (!entry || !row.comment) continue;

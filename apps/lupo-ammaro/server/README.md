@@ -5,7 +5,7 @@ Backend locale/pronto per produzione che gestisce:
 - autenticazione tesserati (`/api/wattlab/*`)
 - download installer riservato (`/api/wattlab/download/*`)
 - classifica sessioni WattLab (`/api/wattlab/leaderboard`, `POST /api/wattlab/sessions`)
-- coach AI (`POST /api/wattlab/coach/chat`, default **Ollama** locale; opzionale API OpenAI-compatible)
+- tramite verso il coach AI (`POST /api/wattlab/coach/llm`, Claude Haiku con `ANTHROPIC_API_KEY`; l'agente gira nell'app, `shared/coach/`)
 - portale web tesserati (`/tesserati/wattlab/`)
 
 ## Avvio

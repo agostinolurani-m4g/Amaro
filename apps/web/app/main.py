@@ -86,6 +86,7 @@ from .ocr import (
 )
 from .seed import seed_sample_data
 from .wattlab_auth import router as wattlab_router
+from .wattlab_coach import router as wattlab_coach_router
 from .wattlab_companion import companion_login_url, router as wattlab_companion_router
 from .wattlab_strava import router as wattlab_strava_router
 from .wattlab_sync import router as wattlab_sync_router
@@ -399,6 +400,7 @@ logger = logging.getLogger(__name__)
 app.add_middleware(SessionMiddleware, secret_key=settings.session_secret, session_cookie="amaro_session")
 app.include_router(wattlab_router)
 app.include_router(wattlab_strava_router)
+app.include_router(wattlab_coach_router)
 app.include_router(wattlab_companion_router)
 app.include_router(wattlab_sync_router)
 app.include_router(m4g_access_router)

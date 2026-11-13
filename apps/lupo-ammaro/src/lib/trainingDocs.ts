@@ -9,6 +9,9 @@ const RAW = import.meta.glob("../../shared/knowledge/*.md", {
 
 const CARDS = parseCards(RAW);
 
+/** Schede di knowledge complete (usate anche dal coach AI). */
+export const KNOWLEDGE_CARDS = CARDS;
+
 export const TRAINING_DOCS: TrainingDoc[] = CARDS.map((c) => ({
   id: c.id,
   title: c.title,
